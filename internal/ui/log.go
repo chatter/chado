@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -9,6 +10,9 @@ import (
 
 	"github.com/chatter/lazyjj/internal/jj"
 )
+
+// ansiRegex matches ANSI escape codes
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
 // LogPanel displays the jj log
 type LogPanel struct {
@@ -147,13 +151,16 @@ func (p *LogPanel) ensureCursorVisible() {
 
 // isChangeStart checks if a line starts a new change entry
 func isChangeStart(line string) bool {
+	// Strip ANSI codes first
+	stripped := ansiRegex.ReplaceAllString(line, "")
+	
 	// Change lines typically start with graph characters followed by change ID
-	// Look for patterns like "@", "○", "◆", "◇" after stripping ANSI
-	trimmed := strings.TrimLeft(line, " │├└")
+	// Look for patterns like "@", "○", "◆", "◇"
+	trimmed := strings.TrimLeft(stripped, " │├└")
 	if len(trimmed) == 0 {
 		return false
 	}
-	// Check for graph symbols
+	// Check for graph symbols at the start
 	for _, r := range trimmed {
 		switch r {
 		case '@', '○', '◆', '◇', '●':

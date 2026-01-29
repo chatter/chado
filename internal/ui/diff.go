@@ -123,9 +123,11 @@ func (p *DiffPanel) updateContent() {
 	p.viewport.SetContent(content.String())
 }
 
-// NextHunk jumps to the next hunk
+// NextHunk jumps to the next hunk/section, or scrolls down if no hunks
 func (p *DiffPanel) NextHunk() {
 	if len(p.hunks) == 0 {
+		// Fall back to line-by-line scrolling
+		p.viewport.LineDown(3)
 		return
 	}
 	if p.currentHunk < len(p.hunks)-1 {
@@ -134,9 +136,11 @@ func (p *DiffPanel) NextHunk() {
 	}
 }
 
-// PrevHunk jumps to the previous hunk
+// PrevHunk jumps to the previous hunk/section, or scrolls up if no hunks
 func (p *DiffPanel) PrevHunk() {
 	if len(p.hunks) == 0 {
+		// Fall back to line-by-line scrolling
+		p.viewport.LineUp(3)
 		return
 	}
 	if p.currentHunk > 0 {

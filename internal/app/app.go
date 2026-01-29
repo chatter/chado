@@ -65,6 +65,16 @@ type Model struct {
 func New(workDir string, version string) Model {
 	runner := jj.NewRunner(workDir)
 
+	// Create panels
+	logPanel := ui.NewLogPanel()
+	filesPanel := ui.NewFilesPanel()
+	diffPanel := ui.NewDiffPanel()
+
+	// Set initial focus - log panel starts focused
+	logPanel.SetFocused(true)
+	filesPanel.SetFocused(true)
+	diffPanel.SetFocused(false)
+
 	return Model{
 		workDir:     workDir,
 		version:     version,
@@ -72,9 +82,9 @@ func New(workDir string, version string) Model {
 		runner:      runner,
 		viewMode:    ViewLog,
 		focusedPane: PaneLog,
-		logPanel:    ui.NewLogPanel(),
-		filesPanel:  ui.NewFilesPanel(),
-		diffPanel:   ui.NewDiffPanel(),
+		logPanel:    logPanel,
+		filesPanel:  filesPanel,
+		diffPanel:   diffPanel,
 	}
 }
 
