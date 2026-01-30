@@ -363,7 +363,7 @@ func TestFindHunks_NonOverlapping(t *testing.T) {
 		// Generate a plausible diff-like string
 		numSections := rapid.IntRange(0, 10).Draw(t, "numSections")
 		var lines []string
-		for i := 0; i < numSections; i++ {
+		for range numSections {
 			// Randomly choose jj or git style header
 			if rapid.Bool().Draw(t, "isJJStyle") {
 				status := rapid.SampledFrom([]string{"Added", "Modified", "Removed"}).Draw(t, "status")
@@ -374,7 +374,7 @@ func TestFindHunks_NonOverlapping(t *testing.T) {
 			}
 			// Add some content lines
 			contentLines := rapid.IntRange(1, 5).Draw(t, "contentLines")
-			for j := 0; j < contentLines; j++ {
+			for range contentLines {
 				lines = append(lines, "  content line")
 			}
 		}
@@ -400,7 +400,7 @@ func TestParseFiles_NoDuplicatePaths(t *testing.T) {
 		// Generate a diff with unique filenames
 		numFiles := rapid.IntRange(0, 10).Draw(t, "numFiles")
 		var lines []string
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			status := rapid.SampledFrom([]string{"Added", "Modified", "Removed"}).Draw(t, "status")
 			// Use index to ensure uniqueness
 			filename := rapid.StringMatching(`[a-z]{3,8}`).Draw(t, "basename")

@@ -209,9 +209,9 @@ func FindHunks(diffOutput string) []Hunk {
 	var currentHunk *Hunk
 	for i, line := range lines {
 		stripped := stripANSI(line)
-		
+
 		isSection := gitHunkRe.MatchString(stripped) || jjFileRe.MatchString(stripped)
-		
+
 		if isSection {
 			// Close previous hunk
 			if currentHunk != nil {

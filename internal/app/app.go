@@ -65,7 +65,6 @@ type Model struct {
 func New(workDir string, version string) Model {
 	runner := jj.NewRunner(workDir)
 
-	// Create panels
 	logPanel := ui.NewLogPanel()
 	filesPanel := ui.NewFilesPanel()
 	diffPanel := ui.NewDiffPanel()
@@ -170,17 +169,18 @@ func (m Model) waitForChange() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		select {
-		case event := <-m.watcher.Events():
-			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove) != 0 {
-				// Debounce a bit
-				time.Sleep(100 * time.Millisecond)
-				return jj.WatcherMsg{}
+		for {
+			select {
+			case event := <-m.watcher.Events():
+				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove) != 0 {
+					// Debounce a bit
+					time.Sleep(100 * time.Millisecond)
+					return jj.WatcherMsg{}
+				}
+			case <-m.watcher.Errors():
+				// Ignore errors for now
 			}
-		case <-m.watcher.Errors():
-			// Ignore errors for now
 		}
-		return nil
 	}
 }
 
@@ -310,6 +310,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Refresh on file system changes
 		cmds = append(cmds, m.loadLog(), m.waitForChange())
 
+		// If drilled into file, reload it
+		if m.viewMode == ViewFiles {
+			if change := m.filesPanel.ChangeID(); change != "" {
+				if file := m.filesPanel.SelectedFile(); file != nil {
+					cmds = append(cmds, m.loadFileDiff(change, file.Path))
+				}
+			}
+		}
+
 	case errMsg:
 		m.lastError = msg.err.Error()
 	}
@@ -437,10 +446,7 @@ func (m Model) renderStatusBar() string {
 	version := "lazyjj v" + m.version
 
 	// Pad to full width
-	padding := m.width - len(version)
-	if padding < 0 {
-		padding = 0
-	}
+	padding := max(m.width-len(version), 0)
 
 	return ui.StatusBarStyle.Render(strings.Repeat(" ", padding) + version)
 }

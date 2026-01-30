@@ -1,3 +1,4 @@
+// test
 package jj
 
 import (
@@ -22,14 +23,12 @@ func NewWatcher(repoPath string) (*Watcher, error) {
 		return nil, err
 	}
 
-	// Watch the .jj/repo directory for operation changes
 	jjPath := filepath.Join(repoPath, ".jj", "repo")
 	if err := watcher.Add(jjPath); err != nil {
 		watcher.Close()
 		return nil, err
 	}
 
-	// Also watch op_heads specifically
 	opHeadsPath := filepath.Join(repoPath, ".jj", "repo", "op_heads")
 	_ = watcher.Add(opHeadsPath) // Ignore error if doesn't exist
 
