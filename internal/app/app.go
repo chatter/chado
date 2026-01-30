@@ -249,7 +249,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.handleEnter())
 
 		case key.Matches(msg, m.keys.Back):
-			m.handleBack()
+			// Only handle Esc when we're in a drilled-down view AND focused on left pane
+			if m.viewMode != ViewLog && m.focusedPane == PaneLog {
+				m.handleBack()
+			}
+			// Otherwise, Esc does nothing (or could pass to focused panel later)
 
 		default:
 			// Pass to focused panel
@@ -264,9 +268,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logLoadedMsg:
 		m.changes = msg.changes
 		m.logPanel.SetContent(msg.raw, msg.changes)
-		// Load diff for first change
-		if len(msg.changes) > 0 {
-			cmds = append(cmds, m.loadDiff(msg.changes[0].ChangeID))
+		// Only load diff if we're in log view (not drilled into files)
+		if m.viewMode == ViewLog && len(msg.changes) > 0 {
+			// Load diff for currently selected change (or first if none selected)
+			if selected := m.logPanel.SelectedChange(); selected != nil {
+				cmds = append(cmds, m.loadDiff(selected.ChangeID))
+			} else {
+				cmds = append(cmds, m.loadDiff(msg.changes[0].ChangeID))
+			}
 		}
 
 	case diffLoadedMsg:

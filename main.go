@@ -3,12 +3,20 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/chatter/lazyjj/internal/app"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const version = "0.1.0"
+// version is set from build info or falls back to "dev"
+var version = "dev"
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
+		version = info.Main.Version
+	}
+}
 
 func main() {
 	// Check if we're in a jj repo

@@ -13,16 +13,17 @@ import (
 
 // DiffPanel displays diff content with optional details header
 type DiffPanel struct {
-	viewport    viewport.Model
-	focused     bool
-	width       int
-	height      int
-	title       string
-	showDetails bool
-	details     DetailsHeader
-	diffContent string
-	hunks       []jj.Hunk
-	currentHunk int
+	viewport     viewport.Model
+	focused      bool
+	width        int
+	height       int
+	title        string
+	showDetails  bool
+	details      DetailsHeader
+	diffContent  string
+	hunks        []jj.Hunk
+	currentHunk  int
+	headerLines  int // Number of lines in the header (offset for hunk positions)
 }
 
 // DetailsHeader contains the commit details shown above the diff
@@ -84,6 +85,7 @@ func (p *DiffPanel) SetDiff(diff string) {
 
 func (p *DiffPanel) updateContent() {
 	var content strings.Builder
+	p.headerLines = 0
 
 	// Add details header if enabled
 	if p.showDetails && p.details.ChangeID != "" {
@@ -91,6 +93,8 @@ func (p *DiffPanel) updateContent() {
 		if p.details.Description != "" {
 			content.WriteString(p.details.Description)
 			content.WriteString("\n\n")
+			// Count lines in description
+			p.headerLines += strings.Count(p.details.Description, "\n") + 2
 		}
 
 		// Metadata line
@@ -101,6 +105,7 @@ func (p *DiffPanel) updateContent() {
 			content.WriteString(p.details.CommitID)
 		}
 		content.WriteString("\n")
+		p.headerLines++
 
 		if p.details.Author != "" {
 			content.WriteString("Author: ")
@@ -111,10 +116,12 @@ func (p *DiffPanel) updateContent() {
 			content.WriteString(p.details.Date)
 		}
 		content.WriteString("\n")
+		p.headerLines++
 
 		// Separator
 		content.WriteString(strings.Repeat("─", p.viewport.Width))
 		content.WriteString("\n")
+		p.headerLines++
 	}
 
 	// Add diff content
@@ -132,7 +139,8 @@ func (p *DiffPanel) NextHunk() {
 	}
 	if p.currentHunk < len(p.hunks)-1 {
 		p.currentHunk++
-		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine)
+		// Add header offset to get correct viewport position
+		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
 	}
 }
 
@@ -145,7 +153,8 @@ func (p *DiffPanel) PrevHunk() {
 	}
 	if p.currentHunk > 0 {
 		p.currentHunk--
-		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine)
+		// Add header offset to get correct viewport position
+		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
 	}
 }
 
