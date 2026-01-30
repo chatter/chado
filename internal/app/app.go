@@ -7,7 +7,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/fsnotify/fsnotify"
 
 	"github.com/chatter/lazyjj/internal/jj"
 	"github.com/chatter/lazyjj/internal/ui"
@@ -169,18 +168,9 @@ func (m Model) waitForChange() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		for {
-			select {
-			case event := <-m.watcher.Events():
-				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove) != 0 {
-					// Debounce a bit
-					time.Sleep(100 * time.Millisecond)
-					return jj.WatcherMsg{}
-				}
-			case <-m.watcher.Errors():
-				// Ignore errors for now
-			}
-		}
+		<-m.watcher.Events()               // Block until valid event
+		time.Sleep(100 * time.Millisecond) // Debounce
+		return jj.WatcherMsg{}
 	}
 }
 

@@ -13,17 +13,17 @@ import (
 
 // DiffPanel displays diff content with optional details header
 type DiffPanel struct {
-	viewport     viewport.Model
-	focused      bool
-	width        int
-	height       int
-	title        string
-	showDetails  bool
-	details      DetailsHeader
-	diffContent  string
-	hunks        []jj.Hunk
-	currentHunk  int
-	headerLines  int // Number of lines in the header (offset for hunk positions)
+	viewport    viewport.Model
+	focused     bool
+	width       int
+	height      int
+	title       string
+	showDetails bool
+	details     DetailsHeader
+	diffContent string
+	hunks       []jj.Hunk
+	currentHunk int
+	headerLines int // Number of lines in the header (offset for hunk positions)
 }
 
 // DetailsHeader contains the commit details shown above the diff
@@ -134,11 +134,12 @@ func (p *DiffPanel) updateContent() {
 func (p *DiffPanel) NextHunk() {
 	if len(p.hunks) == 0 {
 		// Fall back to line-by-line scrolling
-		p.viewport.LineDown(3)
+		p.viewport.ScrollDown(3)
 		return
 	}
 	if p.currentHunk < len(p.hunks)-1 {
 		p.currentHunk++
+
 		// Add header offset to get correct viewport position
 		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
 	}
@@ -148,7 +149,7 @@ func (p *DiffPanel) NextHunk() {
 func (p *DiffPanel) PrevHunk() {
 	if len(p.hunks) == 0 {
 		// Fall back to line-by-line scrolling
-		p.viewport.LineUp(3)
+		p.viewport.ScrollUp(3)
 		return
 	}
 	if p.currentHunk > 0 {

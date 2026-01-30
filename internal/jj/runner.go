@@ -85,12 +85,13 @@ func (r *Runner) ParseLogLines(output string) []Change {
 	var currentChange *Change
 	var descLines []string
 
-	// Regex to detect change lines (starts with graph chars and change ID)
+	// Regex to detect change lines - requires a graph symbol (@○◆◇●), not just whitespace
 	// Matches lines like: "@ xsssnyux ..." or "○ nlkzwoyt ..." or "◆ kyztkmnt ..."
-	changeLineRe := regexp.MustCompile(`^([│├└○◆@◇\s]+)\s*([a-z]{8,})\s`)
+	changeLineRe := regexp.MustCompile(`^[│├└\s]*[@○◆◇●]\s*([a-z]{8,})\s`)
 
 	for _, line := range lines {
-		if match := changeLineRe.FindStringSubmatch(stripANSI(line)); match != nil {
+		stripped := stripANSI(line)
+		if match := changeLineRe.FindStringSubmatch(stripped); match != nil {
 			// Save previous change if exists
 			if currentChange != nil {
 				currentChange.Description = strings.TrimSpace(strings.Join(descLines, " "))
@@ -98,20 +99,18 @@ func (r *Runner) ParseLogLines(output string) []Change {
 			}
 
 			// Start new change
-			graphPart := match[1]
-			changeID := match[2]
+			changeID := match[1]
 
 			currentChange = &Change{
 				ChangeID:      changeID,
 				Raw:           line,
-				IsWorkingCopy: strings.Contains(graphPart, "@"),
-				IsImmutable:   strings.Contains(graphPart, "◆"),
+				IsWorkingCopy: strings.Contains(stripped, "@"),
+				IsImmutable:   strings.Contains(stripped, "◆"),
 			}
 			descLines = nil
 		} else if currentChange != nil && strings.TrimSpace(line) != "" {
 			// This is a continuation line (description, etc.)
 			// Check if it's a description line (usually starts with │ and spaces)
-			stripped := stripANSI(line)
 			if strings.HasPrefix(stripped, "│") || strings.HasPrefix(stripped, " ") {
 				desc := strings.TrimSpace(strings.TrimPrefix(stripped, "│"))
 				if desc != "" {

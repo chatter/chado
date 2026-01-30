@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -94,84 +95,71 @@ func (p *LogPanel) GotoBottom() {
 	}
 }
 
+// changeLineRe matches change lines - requires a graph symbol (not just whitespace)
+// The graph symbol (@○◆◇) must be present, followed by the change ID
+var changeLineRe = regexp.MustCompile(`^[│├└\s]*[@○◆◇●]\s*([a-z]{8,})\s`)
+
+// isChangeStart checks if a line starts a new change entry
+func isChangeStart(line string) bool {
+	stripped := ansiRegex.ReplaceAllString(line, "")
+	return changeLineRe.MatchString(stripped)
+}
+
 func (p *LogPanel) updateViewport() {
-	// For now, just display the raw log
-	// We highlight the selected change by adding a marker
 	if p.rawLog == "" {
 		p.viewport.SetContent("No changes")
 		return
 	}
 
-	// Split into change blocks and mark the selected one
 	lines := strings.Split(p.rawLog, "\n")
 	var result strings.Builder
 	changeIdx := -1
 
 	for _, line := range lines {
-		// Check if this is a new change line
-		if isChangeStart(line) {
+		isStart := false
+		if isStart = isChangeStart(line); isStart {
 			changeIdx++
 		}
 
 		// Add selection indicator
-		if changeIdx == p.cursor && isChangeStart(line) {
-			// Add cursor indicator
-			result.WriteString("→ ")
-			result.WriteString(line)
-		} else if changeIdx == p.cursor {
-			// Continuation of selected change
-			result.WriteString("  ")
-			result.WriteString(line)
+		if changeIdx == p.cursor && isStart {
+			fmt.Fprintf(&result, "→ %s\n", line)
 		} else {
-			result.WriteString("  ")
-			result.WriteString(line)
+			fmt.Fprintf(&result, "  %s\n", line)
 		}
-		result.WriteString("\n")
 	}
 
 	p.viewport.SetContent(result.String())
-
-	// Ensure cursor is visible
 	p.ensureCursorVisible()
 }
 
 func (p *LogPanel) ensureCursorVisible() {
-	// Calculate approximate line position of cursor
-	// Each change typically takes 2-3 lines
-	approxLine := p.cursor * 2
+	if p.cursor < 0 || p.rawLog == "" {
+		return
+	}
+
+	lines := strings.Split(p.rawLog, "\n")
+	changeIdx := -1
+	cursorLine := 0
+
+	for i, line := range lines {
+		if isChangeStart(line) {
+			changeIdx++
+			if changeIdx == p.cursor {
+				cursorLine = i
+				break
+			}
+		}
+	}
+
 	viewTop := p.viewport.YOffset
 	viewBottom := viewTop + p.viewport.Height
 
-	if approxLine < viewTop {
-		p.viewport.SetYOffset(approxLine)
-	} else if approxLine >= viewBottom {
-		p.viewport.SetYOffset(approxLine - p.viewport.Height + 2)
+	if cursorLine < viewTop {
+		p.viewport.SetYOffset(cursorLine)
+	} else if cursorLine >= viewBottom {
+		p.viewport.SetYOffset(cursorLine - p.viewport.Height + 2)
 	}
-}
-
-// isChangeStart checks if a line starts a new change entry
-func isChangeStart(line string) bool {
-	// Strip ANSI codes first
-	stripped := ansiRegex.ReplaceAllString(line, "")
-	
-	// Change lines typically start with graph characters followed by change ID
-	// Look for patterns like "@", "○", "◆", "◇"
-	trimmed := strings.TrimLeft(stripped, " │├└")
-	if len(trimmed) == 0 {
-		return false
-	}
-	// Check for graph symbols at the start
-	for _, r := range trimmed {
-		switch r {
-		case '@', '○', '◆', '◇', '●':
-			return true
-		case ' ', '│', '├', '└':
-			continue
-		default:
-			return false
-		}
-	}
-	return false
 }
 
 // Update handles input
