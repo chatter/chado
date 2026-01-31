@@ -195,6 +195,103 @@ func TestLogPanel_SetSize(t *testing.T) {
 	}
 }
 
+func TestLogPanel_SetContent_PreservesSelectionByID(t *testing.T) {
+	panel := NewLogPanel()
+	panel.SetSize(80, 24)
+
+	// Initial content: A[0], B[1], C[2], D[3], E[4]
+	changes := make([]jj.Change, 5)
+	var content strings.Builder
+	for i := 0; i < 5; i++ {
+		changeID := fmt.Sprintf("aaaaaaa%c", 'a'+i)
+		changes[i] = jj.Change{ChangeID: changeID}
+		fmt.Fprintf(&content, "○ %s description\n", changeID)
+	}
+	panel.SetContent(content.String(), changes)
+
+	// Select change C (index 2, ID "aaaaaaac")
+	panel.cursor = 2
+	if panel.SelectedChange().ChangeID != "aaaaaaac" {
+		t.Fatalf("should have selected 'aaaaaaac', got '%s'", panel.SelectedChange().ChangeID)
+	}
+
+	// Simulate squash: D and E are gone, but A, B, C remain
+	// New order: A[0], B[1], C[2]
+	smallerChanges := make([]jj.Change, 3)
+	var smallerContent strings.Builder
+	for i := 0; i < 3; i++ {
+		changeID := fmt.Sprintf("aaaaaaa%c", 'a'+i)
+		smallerChanges[i] = jj.Change{ChangeID: changeID}
+		fmt.Fprintf(&smallerContent, "○ %s description\n", changeID)
+	}
+	panel.SetContent(smallerContent.String(), smallerChanges)
+
+	// Cursor should still point to C (now at index 2)
+	if panel.cursor != 2 {
+		t.Fatalf("cursor should be 2 (still on C), got %d", panel.cursor)
+	}
+	if panel.SelectedChange().ChangeID != "aaaaaaac" {
+		t.Fatalf("should still have 'aaaaaaac' selected, got '%s'", panel.SelectedChange().ChangeID)
+	}
+}
+
+func TestLogPanel_SetContent_SelectionRemovedDefaultsToFirst(t *testing.T) {
+	panel := NewLogPanel()
+	panel.SetSize(80, 24)
+
+	// Initial content: A[0], B[1], C[2]
+	changes := make([]jj.Change, 3)
+	var content strings.Builder
+	for i := 0; i < 3; i++ {
+		changeID := fmt.Sprintf("aaaaaaa%c", 'a'+i)
+		changes[i] = jj.Change{ChangeID: changeID}
+		fmt.Fprintf(&content, "○ %s description\n", changeID)
+	}
+	panel.SetContent(content.String(), changes)
+
+	// Select change C (index 2)
+	panel.cursor = 2
+
+	// Simulate abandon of C: only A and B remain
+	smallerChanges := make([]jj.Change, 2)
+	var smallerContent strings.Builder
+	for i := 0; i < 2; i++ {
+		changeID := fmt.Sprintf("aaaaaaa%c", 'a'+i)
+		smallerChanges[i] = jj.Change{ChangeID: changeID}
+		fmt.Fprintf(&smallerContent, "○ %s description\n", changeID)
+	}
+	panel.SetContent(smallerContent.String(), smallerChanges)
+
+	// C is gone, cursor should default to first (A)
+	if panel.cursor != 0 {
+		t.Fatalf("cursor should default to 0 when selection removed, got %d", panel.cursor)
+	}
+	if panel.SelectedChange().ChangeID != "aaaaaaaa" {
+		t.Fatalf("should default to first change 'aaaaaaaa', got '%s'", panel.SelectedChange().ChangeID)
+	}
+}
+
+func TestLogPanel_SetContent_EmptyChanges(t *testing.T) {
+	panel := NewLogPanel()
+	panel.SetSize(80, 24)
+
+	// Set some initial content
+	changes := []jj.Change{{ChangeID: "aaaaaaaa"}}
+	panel.SetContent("○ aaaaaaaa desc\n", changes)
+	panel.cursor = 0
+
+	// Refresh with empty changes
+	panel.SetContent("", []jj.Change{})
+
+	// Cursor should be 0, SelectedChange should be nil
+	if panel.cursor != 0 {
+		t.Fatalf("cursor should be 0 for empty changes, got %d", panel.cursor)
+	}
+	if panel.SelectedChange() != nil {
+		t.Fatal("SelectedChange should be nil for empty changes")
+	}
+}
+
 // =============================================================================
 // Property Tests
 // =============================================================================
@@ -434,11 +531,90 @@ func TestLogPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 
 		// Click outside bounds (negative)
 		invalidY := rapid.IntRange(-100, -1).Draw(t, "negativeY")
-		panel.HandleClick(invalidY)
+		changed := panel.HandleClick(invalidY)
 
-		// Invariant: cursor unchanged
+		// Invariant: cursor unchanged, returns false
+		if changed {
+			t.Fatalf("HandleClick should return false for negative click")
+		}
 		if panel.cursor != startCursor {
 			t.Fatalf("cursor should remain %d after negative click, got %d", startCursor, panel.cursor)
+		}
+	})
+}
+
+// Property: Clicking past all changes does nothing (consistent with files panel)
+func TestLogPanel_Click_PastEnd_NoChange(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewLogPanel()
+		panel.SetSize(80, 24)
+
+		numChanges := rapid.IntRange(2, 20).Draw(t, "numChanges")
+		linesPerChange := rapid.IntRange(1, 4).Draw(t, "linesPerChange")
+
+		// Build log content
+		var content strings.Builder
+		changes := make([]jj.Change, numChanges)
+		for i := 0; i < numChanges; i++ {
+			changeID := fmt.Sprintf("aaaaaaa%c", 'a'+i)
+			changes[i] = jj.Change{ChangeID: changeID}
+			fmt.Fprintf(&content, "○ %s description\n", changeID)
+			for j := 1; j < linesPerChange; j++ {
+				content.WriteString("  extra line\n")
+			}
+		}
+		panel.SetContent(content.String(), changes)
+
+		// Set cursor somewhere
+		startCursor := rapid.IntRange(0, numChanges-1).Draw(t, "startCursor")
+		panel.cursor = startCursor
+
+		// Click way past the end
+		totalLines := numChanges * linesPerChange
+		clickY := rapid.IntRange(totalLines, totalLines+100).Draw(t, "clickY")
+		changed := panel.HandleClick(clickY)
+
+		// Invariant: cursor unchanged, returns false
+		if changed {
+			t.Fatalf("HandleClick should return false when clicking past end")
+		}
+		if panel.cursor != startCursor {
+			t.Fatalf("cursor should remain %d after clicking past end, got %d", startCursor, panel.cursor)
+		}
+	})
+}
+
+// Property: Clicking same position returns false
+func TestLogPanel_Click_SamePosition_ReturnsFalse(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewLogPanel()
+		panel.SetSize(80, 24)
+
+		numChanges := rapid.IntRange(1, 20).Draw(t, "numChanges")
+
+		// Build single-line log content
+		var content strings.Builder
+		changes := make([]jj.Change, numChanges)
+		for i := 0; i < numChanges; i++ {
+			changeID := fmt.Sprintf("aaaaaaa%c", 'a'+i)
+			changes[i] = jj.Change{ChangeID: changeID}
+			fmt.Fprintf(&content, "○ %s description\n", changeID)
+		}
+		panel.SetContent(content.String(), changes)
+
+		// Set cursor to a position
+		cursorPos := rapid.IntRange(0, numChanges-1).Draw(t, "cursorPos")
+		panel.cursor = cursorPos
+
+		// Click on the same position
+		changed := panel.HandleClick(cursorPos)
+
+		// Invariant: returns false, cursor unchanged
+		if changed {
+			t.Fatalf("HandleClick should return false when clicking already-selected change")
+		}
+		if panel.cursor != cursorPos {
+			t.Fatalf("cursor should remain %d, got %d", cursorPos, panel.cursor)
 		}
 	})
 }

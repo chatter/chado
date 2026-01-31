@@ -262,12 +262,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.changes = msg.changes
 		m.logPanel.SetContent(msg.raw, msg.changes)
 		// Only load diff if we're in log view (not drilled into files)
-		if m.viewMode == ViewLog && len(msg.changes) > 0 {
-			// Load diff for currently selected change (or first if none selected)
+		if m.viewMode == ViewLog {
 			if selected := m.logPanel.SelectedChange(); selected != nil {
 				cmds = append(cmds, m.loadDiff(selected.ChangeID))
-			} else {
-				cmds = append(cmds, m.loadDiff(msg.changes[0].ChangeID))
 			}
 		}
 
@@ -421,19 +418,19 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 			m.focusedPane = PaneLog
 			m.updatePanelFocus()
 
-			// Dispatch to appropriate panel
+			// Dispatch to appropriate panel, only reload if selection changed
 			if m.viewMode == ViewLog {
-				m.logPanel.HandleClick(contentY)
-				// Load diff for new selection
-				if change := m.logPanel.SelectedChange(); change != nil {
-					return m.loadDiff(change.ChangeID)
+				if m.logPanel.HandleClick(contentY) {
+					if change := m.logPanel.SelectedChange(); change != nil {
+						return m.loadDiff(change.ChangeID)
+					}
 				}
 			} else {
-				m.filesPanel.HandleClick(contentY)
-				// Load file diff for new selection
-				if file := m.filesPanel.SelectedFile(); file != nil {
-					changeID := m.filesPanel.ChangeID()
-					return m.loadFileDiff(changeID, file.Path)
+				if m.filesPanel.HandleClick(contentY) {
+					if file := m.filesPanel.SelectedFile(); file != nil {
+						changeID := m.filesPanel.ChangeID()
+						return m.loadFileDiff(changeID, file.Path)
+					}
 				}
 			}
 		} else if inRightPanel {

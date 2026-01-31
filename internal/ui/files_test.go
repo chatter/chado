@@ -409,11 +409,44 @@ func TestFilesPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 			rapid.IntRange(numFiles, numFiles+100).Draw(t, "tooLargeY"),
 		}).Draw(t, "invalidY")
 
-		panel.HandleClick(invalidY)
+		changed := panel.HandleClick(invalidY)
 
-		// Invariant: cursor unchanged
+		// Invariant: cursor unchanged, returns false
+		if changed {
+			t.Fatalf("HandleClick should return false for out-of-bounds click")
+		}
 		if panel.cursor != startCursor {
 			t.Fatalf("cursor should remain %d after invalid click, got %d", startCursor, panel.cursor)
+		}
+	})
+}
+
+// Property: Clicking same position returns false
+func TestFilesPanel_Click_SamePosition_ReturnsFalse(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewFilesPanel()
+		panel.SetSize(80, 24)
+
+		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
+		files := make([]jj.File, numFiles)
+		for i := 0; i < numFiles; i++ {
+			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
+		}
+		panel.SetFiles("test", files)
+
+		// Set cursor to a position
+		cursorPos := rapid.IntRange(0, numFiles-1).Draw(t, "cursorPos")
+		panel.cursor = cursorPos
+
+		// Click on the same position
+		changed := panel.HandleClick(cursorPos)
+
+		// Invariant: returns false, cursor unchanged
+		if changed {
+			t.Fatalf("HandleClick should return false when clicking already-selected file")
+		}
+		if panel.cursor != cursorPos {
+			t.Fatalf("cursor should remain %d, got %d", cursorPos, panel.cursor)
 		}
 	})
 }

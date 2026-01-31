@@ -25,6 +25,7 @@ type LogPanel struct {
 	height           int
 	rawLog           string // Keep raw log for display
 	changeStartLines []int  // Line number where each change starts (pre-computed)
+	totalLines       int    // Total number of lines in rawLog (for bounds checking)
 }
 
 // NewLogPanel creates a new log panel
@@ -51,10 +52,37 @@ func (p *LogPanel) SetFocused(focused bool) {
 	p.focused = focused
 }
 
+// findChangeIndex returns the index of the change with the given ID, or -1 if not found
+func findChangeIndex(changes []jj.Change, changeID string) int {
+	for i, c := range changes {
+		if c.ChangeID == changeID {
+			return i
+		}
+	}
+	return -1
+}
+
 // SetContent sets the log content from raw jj output
 func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
+	// Capture current selection before overwriting
+	var selectedID string
+	if sel := p.SelectedChange(); sel != nil {
+		selectedID = sel.ChangeID
+	}
+
 	p.rawLog = rawLog
 	p.changes = changes
+
+	// Try to preserve selection by change ID
+	if selectedID != "" {
+		if idx := findChangeIndex(changes, selectedID); idx >= 0 {
+			p.cursor = idx
+		} else {
+			// Change was removed, default to first
+			p.cursor = 0
+		}
+	}
+
 	p.computeChangeStartLines()
 	p.updateViewport()
 }
@@ -62,11 +90,14 @@ func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
 // computeChangeStartLines pre-computes the line number where each change starts
 func (p *LogPanel) computeChangeStartLines() {
 	p.changeStartLines = nil
+	p.totalLines = 0
 	if p.rawLog == "" {
 		return
 	}
 
 	lines := strings.Split(p.rawLog, "\n")
+	// Count actual lines (newlines), not split elements (which includes trailing empty)
+	p.totalLines = strings.Count(p.rawLog, "\n")
 	for i, line := range lines {
 		if isChangeStart(line) {
 			p.changeStartLines = append(p.changeStartLines, i)
@@ -169,9 +200,9 @@ func (p *LogPanel) ensureCursorVisible() {
 }
 
 // lineToChangeIndex maps a visual line number to a change index
-// Returns -1 if the line is before any change or no changes exist
+// Returns -1 if the line is outside content bounds or before any change
 func (p *LogPanel) lineToChangeIndex(visualLine int) int {
-	if len(p.changeStartLines) == 0 || visualLine < 0 {
+	if len(p.changeStartLines) == 0 || visualLine < 0 || visualLine >= p.totalLines {
 		return -1
 	}
 
@@ -188,15 +219,18 @@ func (p *LogPanel) lineToChangeIndex(visualLine int) int {
 }
 
 // HandleClick selects the change at the given Y coordinate (relative to content area)
-func (p *LogPanel) HandleClick(y int) {
+// Returns true if the selection changed
+func (p *LogPanel) HandleClick(y int) bool {
 	// Account for viewport scroll offset
 	visualLine := y + p.viewport.YOffset
 
 	changeIdx := p.lineToChangeIndex(visualLine)
-	if changeIdx >= 0 && changeIdx < len(p.changes) {
+	if changeIdx >= 0 && changeIdx < len(p.changes) && changeIdx != p.cursor {
 		p.cursor = changeIdx
 		p.updateViewport()
+		return true
 	}
+	return false
 }
 
 // Update handles input
