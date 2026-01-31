@@ -338,7 +338,9 @@ func TestFilesPanel_GotoBottomAlwaysLast(t *testing.T) {
 func TestFilesPanel_Click_CursorInBounds(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewFilesPanel()
-		panel.SetSize(80, 24)
+		width := rapid.IntRange(40, 200).Draw(t, "width")
+		height := rapid.IntRange(10, 100).Draw(t, "height")
+		panel.SetSize(width, height)
 
 		// Generate files
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
@@ -366,7 +368,9 @@ func TestFilesPanel_Click_CursorInBounds(t *testing.T) {
 func TestFilesPanel_Click_SelectsCorrectFile(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewFilesPanel()
-		panel.SetSize(80, 24)
+		width := rapid.IntRange(40, 200).Draw(t, "width")
+		height := rapid.IntRange(10, 100).Draw(t, "height")
+		panel.SetSize(width, height)
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
@@ -390,7 +394,9 @@ func TestFilesPanel_Click_SelectsCorrectFile(t *testing.T) {
 func TestFilesPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewFilesPanel()
-		panel.SetSize(80, 24)
+		width := rapid.IntRange(40, 200).Draw(t, "width")
+		height := rapid.IntRange(10, 100).Draw(t, "height")
+		panel.SetSize(width, height)
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
@@ -425,7 +431,9 @@ func TestFilesPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 func TestFilesPanel_Click_SamePosition_ReturnsFalse(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewFilesPanel()
-		panel.SetSize(80, 24)
+		width := rapid.IntRange(40, 200).Draw(t, "width")
+		height := rapid.IntRange(10, 100).Draw(t, "height")
+		panel.SetSize(width, height)
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)

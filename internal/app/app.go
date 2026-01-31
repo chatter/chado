@@ -391,8 +391,13 @@ func (m *Model) updatePanelFocus() {
 }
 
 func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
-	// Calculate panel boundaries
-	leftWidth := m.width * 40 / 100
+	// Get left panel width from rendered content
+	var leftWidth int
+	if m.viewMode == ViewLog {
+		leftWidth = lipgloss.Width(m.logPanel.View())
+	} else {
+		leftWidth = lipgloss.Width(m.filesPanel.View())
+	}
 	// Panel content starts after border (1) and title line (1)
 	contentYOffset := 2
 

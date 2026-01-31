@@ -443,7 +443,9 @@ func TestIsChangeStart_ANSIInvariant(t *testing.T) {
 func TestLogPanel_Click_CursorInBounds(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewLogPanel()
-		panel.SetSize(80, 24)
+		width := rapid.IntRange(40, 200).Draw(t, "width")
+		height := rapid.IntRange(10, 100).Draw(t, "height")
+		panel.SetSize(width, height)
 
 		// Generate changes
 		numChanges := rapid.IntRange(1, 30).Draw(t, "numChanges")
@@ -473,7 +475,9 @@ func TestLogPanel_Click_CursorInBounds(t *testing.T) {
 func TestLogPanel_Click_SelectsCorrectChange(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewLogPanel()
-		panel.SetSize(80, 24)
+		width := rapid.IntRange(40, 200).Draw(t, "width")
+		height := rapid.IntRange(10, 100).Draw(t, "height")
+		panel.SetSize(width, height)
 
 		numChanges := rapid.IntRange(2, 10).Draw(t, "numChanges")
 		linesPerChange := rapid.IntRange(1, 4).Draw(t, "linesPerChange")
@@ -514,7 +518,9 @@ func TestLogPanel_Click_SelectsCorrectChange(t *testing.T) {
 func TestLogPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewLogPanel()
-		panel.SetSize(80, 24)
+		width := rapid.IntRange(40, 200).Draw(t, "width")
+		height := rapid.IntRange(10, 100).Draw(t, "height")
+		panel.SetSize(width, height)
 
 		numChanges := rapid.IntRange(1, 30).Draw(t, "numChanges")
 		changes := make([]jj.Change, numChanges)
@@ -547,7 +553,9 @@ func TestLogPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 func TestLogPanel_Click_PastEnd_NoChange(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewLogPanel()
-		panel.SetSize(80, 24)
+		width := rapid.IntRange(40, 200).Draw(t, "width")
+		height := rapid.IntRange(10, 100).Draw(t, "height")
+		panel.SetSize(width, height)
 
 		numChanges := rapid.IntRange(2, 20).Draw(t, "numChanges")
 		linesPerChange := rapid.IntRange(1, 4).Draw(t, "linesPerChange")
@@ -588,7 +596,9 @@ func TestLogPanel_Click_PastEnd_NoChange(t *testing.T) {
 func TestLogPanel_Click_SamePosition_ReturnsFalse(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewLogPanel()
-		panel.SetSize(80, 24)
+		width := rapid.IntRange(40, 200).Draw(t, "width")
+		height := rapid.IntRange(10, 100).Draw(t, "height")
+		panel.SetSize(width, height)
 
 		numChanges := rapid.IntRange(1, 20).Draw(t, "numChanges")
 
