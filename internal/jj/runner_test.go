@@ -323,7 +323,7 @@ func TestStripANSI_Idempotent(t *testing.T) {
 // Property: stripANSI result should not contain escape sequences
 func TestStripANSI_NoEscapeSequences(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		input := rapid.String().Draw(t, "input")
+		input := ansiString().Draw(t, "input")
 		result := stripANSI(input)
 		if strings.Contains(result, "\x1b[") {
 			t.Fatalf("stripANSI result still contains escape sequence: %q", result)

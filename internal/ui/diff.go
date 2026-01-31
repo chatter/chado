@@ -130,33 +130,22 @@ func (p *DiffPanel) updateContent() {
 	p.viewport.SetContent(content.String())
 }
 
-// NextHunk jumps to the next hunk/section, or scrolls down if no hunks
+// NextHunk jumps to the next hunk/section
 func (p *DiffPanel) NextHunk() {
-	if len(p.hunks) == 0 {
-		// Fall back to line-by-line scrolling
-		p.viewport.ScrollDown(3)
+	if p.currentHunk >= len(p.hunks)-1 {
 		return
 	}
-	if p.currentHunk < len(p.hunks)-1 {
-		p.currentHunk++
-
-		// Add header offset to get correct viewport position
-		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
-	}
+	p.currentHunk++
+	p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
 }
 
-// PrevHunk jumps to the previous hunk/section, or scrolls up if no hunks
+// PrevHunk jumps to the previous hunk/section
 func (p *DiffPanel) PrevHunk() {
-	if len(p.hunks) == 0 {
-		// Fall back to line-by-line scrolling
-		p.viewport.ScrollUp(3)
+	if p.currentHunk <= 0 {
 		return
 	}
-	if p.currentHunk > 0 {
-		p.currentHunk--
-		// Add header offset to get correct viewport position
-		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
-	}
+	p.currentHunk--
+	p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
 }
 
 // GotoTop scrolls to the top
@@ -183,8 +172,12 @@ func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "j", "down":
-			p.NextHunk()
+			p.viewport.ScrollDown(1)
 		case "k", "up":
+			p.viewport.ScrollUp(1)
+		case "}":
+			p.NextHunk()
+		case "{":
 			p.PrevHunk()
 		case "g":
 			p.GotoTop()
