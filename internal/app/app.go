@@ -250,6 +250,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.updateFocusedPanel(msg))
 		}
 
+	case tea.MouseMsg:
+		cmds = append(cmds, m.handleMouse(msg))
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -388,6 +391,59 @@ func (m *Model) updatePanelFocus() {
 		m.filesPanel.SetFocused(false)
 		m.diffPanel.SetFocused(true)
 	}
+}
+
+func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	// Calculate panel boundaries
+	leftWidth := m.width * 40 / 100
+	// Panel content starts after border (1) and title line (1)
+	contentYOffset := 2
+
+	// Determine which panel was interacted with
+	inLeftPanel := msg.X < leftWidth
+	inRightPanel := msg.X >= leftWidth
+
+	// Handle scroll events (wheel)
+	if msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown {
+		if inRightPanel {
+			m.diffPanel.HandleMouseScroll(msg.Button)
+		}
+		return nil
+	}
+
+	// Handle click events
+	if msg.Button == tea.MouseButtonLeft {
+		// Y relative to content area
+		contentY := msg.Y - contentYOffset
+
+		if inLeftPanel {
+			// Focus left panel
+			m.focusedPane = PaneLog
+			m.updatePanelFocus()
+
+			// Dispatch to appropriate panel
+			if m.viewMode == ViewLog {
+				m.logPanel.HandleClick(contentY)
+				// Load diff for new selection
+				if change := m.logPanel.SelectedChange(); change != nil {
+					return m.loadDiff(change.ChangeID)
+				}
+			} else {
+				m.filesPanel.HandleClick(contentY)
+				// Load file diff for new selection
+				if file := m.filesPanel.SelectedFile(); file != nil {
+					changeID := m.filesPanel.ChangeID()
+					return m.loadFileDiff(changeID, file.Path)
+				}
+			}
+		} else if inRightPanel {
+			// Focus right panel
+			m.focusedPane = PaneDiff
+			m.updatePanelFocus()
+		}
+	}
+
+	return nil
 }
 
 func (m *Model) updatePanelSizes() {

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/chatter/lazyjj/internal/jj"
 	"pgregory.net/rapid"
 )
@@ -636,6 +637,143 @@ func TestHunkNavigation_ViewportIncludesHeaderOffset(t *testing.T) {
 		if panel.viewport.YOffset != expectedOffset {
 			t.Fatalf("expected YOffset=%d (hunk %d start %d + header %d), got %d",
 				expectedOffset, targetHunk, panel.hunks[targetHunk].StartLine, headerLines, panel.viewport.YOffset)
+		}
+	})
+}
+
+// =============================================================================
+// Mouse Support Property Tests
+// =============================================================================
+
+// setupScrollablePanel creates a panel with enough content to scroll
+func setupScrollablePanel(t *rapid.T) (*DiffPanel, int, int) {
+	panel := NewDiffPanel()
+
+	viewportHeight := rapid.IntRange(10, 50).Draw(t, "viewportHeight")
+	// Ensure at least 10 lines more than viewport so there's room to scroll
+	numLines := rapid.IntRange(viewportHeight+10, 300).Draw(t, "numLines")
+
+	panel.SetSize(80, viewportHeight+3) // +3 for border and title
+
+	// Create content without trailing newline to avoid off-by-one in line count
+	// strings.Split("a\nb\n", "\n") = ["a", "b", ""] (3 elements, not 2)
+	content := strings.TrimSuffix(strings.Repeat("line\n", numLines), "\n")
+	panel.viewport.SetContent(content)
+
+	return &panel, numLines, viewportHeight
+}
+
+// Property: After any sequence of mouse scroll events, viewport stays within bounds
+func TestDiffPanel_MouseScroll_StaysInBounds(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numLines, viewportHeight := setupScrollablePanel(t)
+
+		// Random starting position
+		startOffset := rapid.IntRange(0, numLines-viewportHeight).Draw(t, "startOffset")
+		panel.viewport.SetYOffset(startOffset)
+
+		// Perform random scroll events
+		numScrolls := rapid.IntRange(0, 100).Draw(t, "numScrolls")
+		for i := 0; i < numScrolls; i++ {
+			scrollUp := rapid.Bool().Draw(t, "scrollUp")
+			if scrollUp {
+				panel.HandleMouseScroll(tea.MouseButtonWheelUp)
+			} else {
+				panel.HandleMouseScroll(tea.MouseButtonWheelDown)
+			}
+		}
+
+		// Invariant: YOffset in valid range [0, maxScroll]
+		maxScroll := numLines - viewportHeight
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		if panel.viewport.YOffset < 0 {
+			t.Fatalf("YOffset should be >= 0, got %d", panel.viewport.YOffset)
+		}
+		if panel.viewport.YOffset > maxScroll {
+			t.Fatalf("YOffset should be <= %d, got %d", maxScroll, panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: Mouse wheel up decreases YOffset (when not at top)
+func TestDiffPanel_MouseWheelUp_ScrollsUp(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numLines, viewportHeight := setupScrollablePanel(t)
+
+		// Start at a random non-zero position (so we can scroll up)
+		maxScroll := numLines - viewportHeight
+		if maxScroll <= 0 {
+			return // Can't scroll
+		}
+		startOffset := rapid.IntRange(mouseScrollLines, maxScroll).Draw(t, "startOffset") // At least mouseScrollLines so scroll has room
+		panel.viewport.SetYOffset(startOffset)
+
+		beforeOffset := panel.viewport.YOffset
+		panel.HandleMouseScroll(tea.MouseButtonWheelUp)
+
+		// Invariant: offset must decrease (we had room to scroll)
+		if panel.viewport.YOffset >= beforeOffset {
+			t.Fatalf("wheel up should decrease offset: before=%d, after=%d",
+				beforeOffset, panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: Mouse wheel down increases YOffset (when not at bottom)
+func TestDiffPanel_MouseWheelDown_ScrollsDown(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numLines, viewportHeight := setupScrollablePanel(t)
+
+		maxScroll := numLines - viewportHeight
+		if maxScroll <= mouseScrollLines {
+			return // Not enough room to scroll
+		}
+		// Start at a position with room to scroll down
+		startOffset := rapid.IntRange(0, maxScroll-mouseScrollLines).Draw(t, "startOffset")
+		panel.viewport.SetYOffset(startOffset)
+
+		beforeOffset := panel.viewport.YOffset
+		panel.HandleMouseScroll(tea.MouseButtonWheelDown)
+
+		// Invariant: offset must increase (we had room to scroll)
+		if panel.viewport.YOffset <= beforeOffset {
+			t.Fatalf("wheel down should increase offset: before=%d, after=%d",
+				beforeOffset, panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: Mouse scroll syncs currentHunk correctly
+func TestDiffPanel_MouseScroll_SyncsHunk(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numHunks, headerLines := setupPanelWithHunks(t)
+
+		// Scroll randomly
+		numScrolls := rapid.IntRange(1, 20).Draw(t, "numScrolls")
+		for i := 0; i < numScrolls; i++ {
+			scrollUp := rapid.Bool().Draw(t, "scrollUp")
+			if scrollUp {
+				panel.HandleMouseScroll(tea.MouseButtonWheelUp)
+			} else {
+				panel.HandleMouseScroll(tea.MouseButtonWheelDown)
+			}
+		}
+
+		// Invariant: currentHunk matches viewport position
+		pos := panel.viewport.YOffset - headerLines
+		expectedHunk := noHunkSelected
+		for i := numHunks - 1; i >= 0; i-- {
+			if pos >= panel.hunks[i].StartLine {
+				expectedHunk = i
+				break
+			}
+		}
+
+		if panel.currentHunk != expectedHunk {
+			t.Fatalf("currentHunk=%d doesn't match viewport position (expected %d, offset=%d, headerLines=%d)",
+				panel.currentHunk, expectedHunk, panel.viewport.YOffset, headerLines)
 		}
 	})
 }

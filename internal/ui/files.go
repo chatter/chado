@@ -137,6 +137,17 @@ func (p *FilesPanel) updateViewport() {
 	}
 }
 
+// HandleClick selects the file at the given Y coordinate (relative to content area)
+func (p *FilesPanel) HandleClick(y int) {
+	// Account for viewport scroll offset
+	visualLine := y + p.viewport.YOffset
+
+	if visualLine >= 0 && visualLine < len(p.files) {
+		p.cursor = visualLine
+		p.updateViewport()
+	}
+}
+
 // Update handles input
 func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
 	if !p.focused {

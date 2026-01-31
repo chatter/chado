@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -333,6 +334,111 @@ func TestIsChangeStart_ANSIInvariant(t *testing.T) {
 		if plainResult != ansiResult {
 			t.Fatalf("ANSI invariant violated: plain=%v, ansi=%v for symbol=%s",
 				plainResult, ansiResult, symbol)
+		}
+	})
+}
+
+// =============================================================================
+// Mouse Click Property Tests
+// =============================================================================
+
+// Property: After any click, cursor stays in valid range [0, len(changes)-1]
+func TestLogPanel_Click_CursorInBounds(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewLogPanel()
+		panel.SetSize(80, 24)
+
+		// Generate changes
+		numChanges := rapid.IntRange(1, 30).Draw(t, "numChanges")
+		changes := make([]jj.Change, numChanges)
+		for i := 0; i < numChanges; i++ {
+			changes[i] = jj.Change{
+				ChangeID: rapid.StringMatching(`[a-z]{8}`).Draw(t, "changeID"),
+			}
+		}
+		panel.SetContent("test content", changes)
+
+		// Click at any Y position (including invalid: negative, huge)
+		clickY := rapid.IntRange(-100, 500).Draw(t, "clickY")
+		panel.HandleClick(clickY)
+
+		// Invariant: cursor in bounds
+		if panel.cursor < 0 {
+			t.Fatalf("cursor should be >= 0, got %d", panel.cursor)
+		}
+		if panel.cursor >= numChanges {
+			t.Fatalf("cursor should be < %d, got %d", numChanges, panel.cursor)
+		}
+	})
+}
+
+// Property: Click at visual line selects correct change (multi-line entries)
+func TestLogPanel_Click_SelectsCorrectChange(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewLogPanel()
+		panel.SetSize(80, 24)
+
+		numChanges := rapid.IntRange(2, 10).Draw(t, "numChanges")
+		linesPerChange := rapid.IntRange(1, 4).Draw(t, "linesPerChange")
+
+		// Build realistic log content with multi-line entries
+		var logContent strings.Builder
+		changes := make([]jj.Change, numChanges)
+		for i := 0; i < numChanges; i++ {
+			// Use letter-based change IDs to match the regex [a-z]{8,}
+			changeID := fmt.Sprintf("aaaaaaa%c", 'a'+i) // e.g., "aaaaaaaa", "aaaaaaab"
+			changes[i] = jj.Change{ChangeID: changeID}
+
+			// First line has change marker
+			logContent.WriteString(fmt.Sprintf("○  %s user@example.com\n", changeID))
+			// Additional description lines
+			for j := 1; j < linesPerChange; j++ {
+				logContent.WriteString("│  description line\n")
+			}
+		}
+		panel.SetContent(logContent.String(), changes)
+
+		// Pick a target change and click somewhere within its visual lines
+		targetChange := rapid.IntRange(0, numChanges-1).Draw(t, "targetChange")
+		lineWithinChange := rapid.IntRange(0, linesPerChange-1).Draw(t, "lineWithinChange")
+		clickY := targetChange*linesPerChange + lineWithinChange
+
+		panel.HandleClick(clickY)
+
+		// Invariant: cursor matches target change
+		if panel.cursor != targetChange {
+			t.Fatalf("clicking line %d (change %d, offset %d) should select change %d, got %d",
+				clickY, targetChange, lineWithinChange, targetChange, panel.cursor)
+		}
+	})
+}
+
+// Property: Click outside bounds doesn't change cursor
+func TestLogPanel_Click_OutOfBounds_NoChange(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewLogPanel()
+		panel.SetSize(80, 24)
+
+		numChanges := rapid.IntRange(1, 30).Draw(t, "numChanges")
+		changes := make([]jj.Change, numChanges)
+		for i := 0; i < numChanges; i++ {
+			changes[i] = jj.Change{
+				ChangeID: rapid.StringMatching(`[a-z]{8}`).Draw(t, "changeID"),
+			}
+		}
+		panel.SetContent("test content", changes)
+
+		// Set cursor to random valid position
+		startCursor := rapid.IntRange(0, numChanges-1).Draw(t, "startCursor")
+		panel.cursor = startCursor
+
+		// Click outside bounds (negative)
+		invalidY := rapid.IntRange(-100, -1).Draw(t, "negativeY")
+		panel.HandleClick(invalidY)
+
+		// Invariant: cursor unchanged
+		if panel.cursor != startCursor {
+			t.Fatalf("cursor should remain %d after negative click, got %d", startCursor, panel.cursor)
 		}
 	})
 }

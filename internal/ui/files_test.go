@@ -330,6 +330,94 @@ func TestFilesPanel_GotoBottomAlwaysLast(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// Mouse Click Property Tests
+// =============================================================================
+
+// Property: After any click, cursor stays in valid range [0, len(files)-1]
+func TestFilesPanel_Click_CursorInBounds(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewFilesPanel()
+		panel.SetSize(80, 24)
+
+		// Generate files
+		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
+		files := make([]jj.File, numFiles)
+		for i := 0; i < numFiles; i++ {
+			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
+		}
+		panel.SetFiles("test", files)
+
+		// Click at any Y position (including invalid: negative, huge)
+		clickY := rapid.IntRange(-100, 500).Draw(t, "clickY")
+		panel.HandleClick(clickY)
+
+		// Invariant: cursor in bounds
+		if panel.cursor < 0 {
+			t.Fatalf("cursor should be >= 0, got %d", panel.cursor)
+		}
+		if panel.cursor >= numFiles {
+			t.Fatalf("cursor should be < %d, got %d", numFiles, panel.cursor)
+		}
+	})
+}
+
+// Property: Click at valid index selects that file
+func TestFilesPanel_Click_SelectsCorrectFile(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewFilesPanel()
+		panel.SetSize(80, 24)
+
+		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
+		files := make([]jj.File, numFiles)
+		for i := 0; i < numFiles; i++ {
+			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
+		}
+		panel.SetFiles("test", files)
+
+		// Click at valid index
+		targetIdx := rapid.IntRange(0, numFiles-1).Draw(t, "targetIdx")
+		panel.HandleClick(targetIdx)
+
+		// Invariant: cursor matches clicked index
+		if panel.cursor != targetIdx {
+			t.Fatalf("cursor should be %d, got %d", targetIdx, panel.cursor)
+		}
+	})
+}
+
+// Property: Click outside bounds doesn't change cursor
+func TestFilesPanel_Click_OutOfBounds_NoChange(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewFilesPanel()
+		panel.SetSize(80, 24)
+
+		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
+		files := make([]jj.File, numFiles)
+		for i := 0; i < numFiles; i++ {
+			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
+		}
+		panel.SetFiles("test", files)
+
+		// Set cursor to random valid position
+		startCursor := rapid.IntRange(0, numFiles-1).Draw(t, "startCursor")
+		panel.cursor = startCursor
+
+		// Click outside bounds (negative or >= numFiles)
+		invalidY := rapid.SampledFrom([]int{
+			rapid.IntRange(-100, -1).Draw(t, "negativeY"),
+			rapid.IntRange(numFiles, numFiles+100).Draw(t, "tooLargeY"),
+		}).Draw(t, "invalidY")
+
+		panel.HandleClick(invalidY)
+
+		// Invariant: cursor unchanged
+		if panel.cursor != startCursor {
+			t.Fatalf("cursor should remain %d after invalid click, got %d", startCursor, panel.cursor)
+		}
+	})
+}
+
 // Benchmark for cursor navigation
 func BenchmarkFilesPanel_Navigation(b *testing.B) {
 	panel := NewFilesPanel()

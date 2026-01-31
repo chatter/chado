@@ -14,6 +14,9 @@ import (
 // noHunkSelected indicates viewport is in header area, before any hunk
 const noHunkSelected = -1
 
+// mouseScrollLines is the number of lines to scroll per mouse wheel tick
+const mouseScrollLines = 3
+
 // DiffPanel displays diff content with optional details header
 type DiffPanel struct {
 	viewport    viewport.Model
@@ -200,6 +203,17 @@ func (p *DiffPanel) GotoBottom() {
 	if len(p.hunks) > 0 {
 		p.currentHunk = len(p.hunks) - 1
 	}
+}
+
+// HandleMouseScroll handles mouse wheel events
+func (p *DiffPanel) HandleMouseScroll(button tea.MouseButton) {
+	switch button {
+	case tea.MouseButtonWheelUp:
+		p.viewport.ScrollUp(mouseScrollLines)
+	case tea.MouseButtonWheelDown:
+		p.viewport.ScrollDown(mouseScrollLines)
+	}
+	p.syncCurrentHunk()
 }
 
 // Update handles input

@@ -17,13 +17,14 @@ var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
 // LogPanel displays the jj log
 type LogPanel struct {
-	viewport viewport.Model
-	changes  []jj.Change
-	cursor   int
-	focused  bool
-	width    int
-	height   int
-	rawLog   string // Keep raw log for display
+	viewport         viewport.Model
+	changes          []jj.Change
+	cursor           int
+	focused          bool
+	width            int
+	height           int
+	rawLog           string // Keep raw log for display
+	changeStartLines []int  // Line number where each change starts (pre-computed)
 }
 
 // NewLogPanel creates a new log panel
@@ -54,7 +55,23 @@ func (p *LogPanel) SetFocused(focused bool) {
 func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
 	p.rawLog = rawLog
 	p.changes = changes
+	p.computeChangeStartLines()
 	p.updateViewport()
+}
+
+// computeChangeStartLines pre-computes the line number where each change starts
+func (p *LogPanel) computeChangeStartLines() {
+	p.changeStartLines = nil
+	if p.rawLog == "" {
+		return
+	}
+
+	lines := strings.Split(p.rawLog, "\n")
+	for i, line := range lines {
+		if isChangeStart(line) {
+			p.changeStartLines = append(p.changeStartLines, i)
+		}
+	}
 }
 
 // SelectedChange returns the currently selected change
@@ -113,19 +130,21 @@ func (p *LogPanel) updateViewport() {
 
 	lines := strings.Split(p.rawLog, "\n")
 	var result strings.Builder
-	changeIdx := -1
+	nextChangeIdx := 0
 
-	for _, line := range lines {
-		isStart := false
-		if isStart = isChangeStart(line); isStart {
-			changeIdx++
-		}
+	for i, line := range lines {
+		// Check if this line starts a change (using pre-computed array)
+		isStart := nextChangeIdx < len(p.changeStartLines) && i == p.changeStartLines[nextChangeIdx]
 
-		// Add selection indicator
-		if changeIdx == p.cursor && isStart {
+		// Add selection indicator on the start line of the selected change
+		if isStart && nextChangeIdx == p.cursor {
 			fmt.Fprintf(&result, "→ %s\n", line)
 		} else {
 			fmt.Fprintf(&result, "  %s\n", line)
+		}
+
+		if isStart {
+			nextChangeIdx++
 		}
 	}
 
@@ -134,24 +153,11 @@ func (p *LogPanel) updateViewport() {
 }
 
 func (p *LogPanel) ensureCursorVisible() {
-	if p.cursor < 0 || p.rawLog == "" {
+	if p.cursor < 0 || p.cursor >= len(p.changeStartLines) {
 		return
 	}
 
-	lines := strings.Split(p.rawLog, "\n")
-	changeIdx := -1
-	cursorLine := 0
-
-	for i, line := range lines {
-		if isChangeStart(line) {
-			changeIdx++
-			if changeIdx == p.cursor {
-				cursorLine = i
-				break
-			}
-		}
-	}
-
+	cursorLine := p.changeStartLines[p.cursor]
 	viewTop := p.viewport.YOffset
 	viewBottom := viewTop + p.viewport.Height
 
@@ -159,6 +165,37 @@ func (p *LogPanel) ensureCursorVisible() {
 		p.viewport.SetYOffset(cursorLine)
 	} else if cursorLine >= viewBottom {
 		p.viewport.SetYOffset(cursorLine - p.viewport.Height + 2)
+	}
+}
+
+// lineToChangeIndex maps a visual line number to a change index
+// Returns -1 if the line is before any change or no changes exist
+func (p *LogPanel) lineToChangeIndex(visualLine int) int {
+	if len(p.changeStartLines) == 0 || visualLine < 0 {
+		return -1
+	}
+
+	// Find the largest change index where changeStartLines[i] <= visualLine
+	changeIdx := -1
+	for i, startLine := range p.changeStartLines {
+		if startLine <= visualLine {
+			changeIdx = i
+		} else {
+			break
+		}
+	}
+	return changeIdx
+}
+
+// HandleClick selects the change at the given Y coordinate (relative to content area)
+func (p *LogPanel) HandleClick(y int) {
+	// Account for viewport scroll offset
+	visualLine := y + p.viewport.YOffset
+
+	changeIdx := p.lineToChangeIndex(visualLine)
+	if changeIdx >= 0 && changeIdx < len(p.changes) {
+		p.cursor = changeIdx
+		p.updateViewport()
 	}
 }
 
