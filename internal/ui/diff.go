@@ -11,6 +11,9 @@ import (
 	"github.com/chatter/lazyjj/internal/jj"
 )
 
+// noHunkSelected indicates viewport is in header area, before any hunk
+const noHunkSelected = -1
+
 // DiffPanel displays diff content with optional details header
 type DiffPanel struct {
 	viewport    viewport.Model
@@ -79,8 +82,9 @@ func (p *DiffPanel) SetDetails(details DetailsHeader) {
 func (p *DiffPanel) SetDiff(diff string) {
 	p.diffContent = diff
 	p.hunks = jj.FindHunks(diff)
-	p.currentHunk = 0
+	p.currentHunk = noHunkSelected
 	p.updateContent()
+	p.viewport.GotoTop()
 }
 
 func (p *DiffPanel) updateContent() {
@@ -132,26 +136,62 @@ func (p *DiffPanel) updateContent() {
 
 // NextHunk jumps to the next hunk/section
 func (p *DiffPanel) NextHunk() {
-	if p.currentHunk >= len(p.hunks)-1 {
+	if len(p.hunks) == 0 || p.currentHunk >= len(p.hunks)-1 {
 		return
 	}
 	p.currentHunk++
 	p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
 }
 
-// PrevHunk jumps to the previous hunk/section
+// PrevHunk jumps to start of current hunk, or previous hunk if already at start
 func (p *DiffPanel) PrevHunk() {
-	if p.currentHunk <= 0 {
+	if len(p.hunks) == 0 {
 		return
 	}
+
+	// If no hunk selected, go to top
+	if p.currentHunk == noHunkSelected {
+		p.viewport.GotoTop()
+		return
+	}
+
+	currentHunkStart := p.hunks[p.currentHunk].StartLine + p.headerLines
+
+	// If not at start of current hunk, go to start of current hunk
+	if p.viewport.YOffset > currentHunkStart {
+		p.viewport.SetYOffset(currentHunkStart)
+		return
+	}
+
+	// Already at start of current hunk, go to previous hunk (or top if at hunk 0)
 	p.currentHunk--
-	p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
+	if p.currentHunk >= 0 {
+		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
+	} else {
+		p.viewport.GotoTop()
+	}
+}
+
+// syncCurrentHunk updates currentHunk based on viewport position
+func (p *DiffPanel) syncCurrentHunk() {
+	if len(p.hunks) == 0 {
+		p.currentHunk = noHunkSelected
+		return
+	}
+	pos := p.viewport.YOffset - p.headerLines
+	for i := len(p.hunks) - 1; i >= 0; i-- {
+		if pos >= p.hunks[i].StartLine {
+			p.currentHunk = i
+			return
+		}
+	}
+	p.currentHunk = noHunkSelected
 }
 
 // GotoTop scrolls to the top
 func (p *DiffPanel) GotoTop() {
 	p.viewport.GotoTop()
-	p.currentHunk = 0
+	p.currentHunk = noHunkSelected
 }
 
 // GotoBottom scrolls to the bottom
@@ -173,8 +213,10 @@ func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 		switch msg.String() {
 		case "j", "down":
 			p.viewport.ScrollDown(1)
+			p.syncCurrentHunk()
 		case "k", "up":
 			p.viewport.ScrollUp(1)
+			p.syncCurrentHunk()
 		case "}":
 			p.NextHunk()
 		case "{":

@@ -87,7 +87,8 @@ func (r *Runner) ParseLogLines(output string) []Change {
 
 	// Regex to detect change lines - requires a graph symbol (@○◆◇●), not just whitespace
 	// Matches lines like: "@ xsssnyux ..." or "○ nlkzwoyt ..." or "◆ kyztkmnt ..."
-	changeLineRe := regexp.MustCompile(`^[│├└\s]*[@○◆◇●]\s*([a-z]{8,})\s`)
+	// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
+	changeLineRe := regexp.MustCompile(`^[│├└\s]*[@○◆◇●×]\s*([a-z]{8,})\s`)
 
 	for _, line := range lines {
 		stripped := stripANSI(line)

@@ -96,8 +96,8 @@ func (p *LogPanel) GotoBottom() {
 }
 
 // changeLineRe matches change lines - requires a graph symbol (not just whitespace)
-// The graph symbol (@○◆◇) must be present, followed by the change ID
-var changeLineRe = regexp.MustCompile(`^[│├└\s]*[@○◆◇●]\s*([a-z]{8,})\s`)
+// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
+var changeLineRe = regexp.MustCompile(`^[│├└\s]*[@○◆◇●×]\s*([a-z]{8,})\s`)
 
 // isChangeStart checks if a line starts a new change entry
 func isChangeStart(line string) bool {

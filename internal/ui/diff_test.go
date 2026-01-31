@@ -4,8 +4,54 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chatter/lazyjj/internal/jj"
 	"pgregory.net/rapid"
 )
+
+// =============================================================================
+// Test Helpers
+// =============================================================================
+
+// generateHunks creates a slice of non-overlapping hunks with random sizes
+func generateHunks(t *rapid.T, count int) []jj.Hunk {
+	if count == 0 {
+		return nil
+	}
+	hunks := make([]jj.Hunk, count)
+	startLine := 0
+	for i := 0; i < count; i++ {
+		size := rapid.IntRange(1, 10).Draw(t, "hunkSize")
+		hunks[i] = jj.Hunk{
+			StartLine: startLine,
+			EndLine:   startLine + size - 1,
+		}
+		startLine += size
+	}
+	return hunks
+}
+
+// setupPanelWithHunks creates a panel with generated hunks and enough content
+func setupPanelWithHunks(t *rapid.T) (*DiffPanel, int, int) {
+	panel := NewDiffPanel()
+	panel.SetSize(80, 24)
+
+	numHunks := rapid.IntRange(1, 10).Draw(t, "numHunks")
+	headerLines := rapid.IntRange(0, 10).Draw(t, "headerLines")
+
+	panel.hunks = generateHunks(t, numHunks)
+	panel.headerLines = headerLines
+
+	// Calculate total content lines needed
+	totalLines := headerLines
+	if len(panel.hunks) > 0 {
+		lastHunk := panel.hunks[len(panel.hunks)-1]
+		totalLines += lastHunk.EndLine + 10 // Extra padding
+	}
+	content := strings.Repeat("line\n", totalLines+50)
+	panel.viewport.SetContent(content)
+
+	return &panel, numHunks, headerLines
+}
 
 // =============================================================================
 // Unit Tests
@@ -86,17 +132,37 @@ func TestDiffPanel_SetDetails(t *testing.T) {
 
 func TestDiffPanel_HunkNavigation(t *testing.T) {
 	panel := NewDiffPanel()
-	panel.SetSize(80, 24)
+	panel.SetSize(80, 40) // Taller to allow scrolling
 
-	// Set diff with multiple sections
+	// Set diff with multiple sections (more lines so viewport can scroll)
 	diff := `Added regular file main.go:
         1: package main
         2: func main() {}
+        3:
+        4:
+        5:
+        6:
+        7:
+        8:
+        9:
+       10:
 Added regular file app.go:
         1: package app
         2: func init() {}
+        3:
+        4:
+        5:
+        6:
+        7:
+        8:
+        9:
+       10:
 Added regular file test.go:
-        1: package test`
+        1: package test
+        2:
+        3:
+        4:
+        5:`
 
 	panel.SetDiff(diff)
 
@@ -105,19 +171,24 @@ Added regular file test.go:
 		t.Errorf("expected 3 hunks, got %d", len(panel.hunks))
 	}
 
-	// Test navigation
+	// Test navigation - starts with no hunk selected (in header)
+	if panel.currentHunk != noHunkSelected {
+		t.Errorf("currentHunk should start at noHunkSelected, got %d", panel.currentHunk)
+	}
+
+	panel.NextHunk()
 	if panel.currentHunk != 0 {
-		t.Errorf("currentHunk should start at 0, got %d", panel.currentHunk)
+		t.Errorf("currentHunk should be 0 after first NextHunk, got %d", panel.currentHunk)
 	}
 
 	panel.NextHunk()
 	if panel.currentHunk != 1 {
-		t.Errorf("currentHunk should be 1 after NextHunk, got %d", panel.currentHunk)
+		t.Errorf("currentHunk should be 1 after second NextHunk, got %d", panel.currentHunk)
 	}
 
 	panel.NextHunk()
 	if panel.currentHunk != 2 {
-		t.Errorf("currentHunk should be 2 after NextHunk, got %d", panel.currentHunk)
+		t.Errorf("currentHunk should be 2 after third NextHunk, got %d", panel.currentHunk)
 	}
 
 	// Should stop at last hunk
@@ -138,8 +209,8 @@ Added regular file test.go:
 	}
 
 	panel.GotoTop()
-	if panel.currentHunk != 0 {
-		t.Errorf("currentHunk should be 0 after GotoTop, got %d", panel.currentHunk)
+	if panel.currentHunk != noHunkSelected {
+		t.Errorf("currentHunk should be noHunkSelected after GotoTop, got %d", panel.currentHunk)
 	}
 }
 
@@ -268,18 +339,12 @@ func TestDiffPanel_HunkBounds(t *testing.T) {
 			}
 		}
 
-		// Check invariants
-		if len(panel.hunks) == 0 {
-			if panel.currentHunk != 0 {
-				t.Fatalf("currentHunk should be 0 for empty hunks, got %d", panel.currentHunk)
-			}
-		} else {
-			if panel.currentHunk < 0 {
-				t.Fatalf("currentHunk should never be negative, got %d", panel.currentHunk)
-			}
-			if panel.currentHunk >= len(panel.hunks) {
-				t.Fatalf("currentHunk %d should be < len(hunks) %d", panel.currentHunk, len(panel.hunks))
-			}
+		// Check invariants - currentHunk can be noHunkSelected or 0 to len-1
+		if panel.currentHunk < noHunkSelected {
+			t.Fatalf("currentHunk should be >= noHunkSelected, got %d", panel.currentHunk)
+		}
+		if len(panel.hunks) > 0 && panel.currentHunk >= len(panel.hunks) {
+			t.Fatalf("currentHunk %d should be < len(hunks) %d", panel.currentHunk, len(panel.hunks))
 		}
 	})
 }
@@ -306,32 +371,271 @@ func TestDiffPanel_GotoTopResetsHunk(t *testing.T) {
 		}
 
 		panel.GotoTop()
-		if panel.currentHunk != 0 {
-			t.Fatalf("currentHunk should be 0 after GotoTop, got %d", panel.currentHunk)
+		if panel.currentHunk != noHunkSelected {
+			t.Fatalf("currentHunk should be noHunkSelected after GotoTop, got %d", panel.currentHunk)
 		}
 	})
 }
 
-// Property: SetDiff should reset currentHunk to 0
+// Property: SetDiff resets viewport to top and currentHunk to noHunkSelected
 func TestDiffPanel_SetDiffResetsHunk(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		panel := NewDiffPanel()
 		panel.SetSize(80, 24)
 
-		// Set initial diff and navigate
-		panel.SetDiff("Added regular file a.go:\n        1: a\nAdded regular file b.go:\n        1: b")
-		panel.NextHunk()
+		// Set initial state
+		content := strings.Repeat("line\n", 100)
+		panel.viewport.SetContent(content)
+		panel.viewport.SetYOffset(rapid.IntRange(1, 50).Draw(t, "initialOffset"))
+		panel.currentHunk = rapid.IntRange(0, 10).Draw(t, "initialHunk")
 
 		// Set new diff
-		numSections := rapid.IntRange(0, 5).Draw(t, "numSections")
-		var lines []string
-		for i := 0; i < numSections; i++ {
-			lines = append(lines, "Modified regular file x"+string(rune('a'+i))+".go:")
+		panel.SetDiff("new diff content\n")
+
+		if panel.viewport.YOffset != 0 {
+			t.Fatalf("expected YOffset=0 after SetDiff, got %d", panel.viewport.YOffset)
 		}
-		panel.SetDiff(strings.Join(lines, "\n"))
+		if panel.currentHunk != noHunkSelected {
+			t.Fatalf("currentHunk should be noHunkSelected after SetDiff, got %d", panel.currentHunk)
+		}
+	})
+}
+
+// Property: NextHunk increments currentHunk and positions viewport at hunk start
+func TestNextHunk_IncrementsAndPositions(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numHunks, headerLines := setupPanelWithHunks(t)
+
+		// Start at a random hunk (not the last one)
+		if numHunks < 2 {
+			return // Need at least 2 hunks to test NextHunk
+		}
+		startHunk := rapid.IntRange(0, numHunks-2).Draw(t, "startHunk")
+		panel.currentHunk = startHunk
+		panel.viewport.SetYOffset(panel.hunks[startHunk].StartLine + headerLines)
+
+		panel.NextHunk()
+
+		expectedHunk := startHunk + 1
+		expectedOffset := panel.hunks[expectedHunk].StartLine + headerLines
+
+		if panel.currentHunk != expectedHunk {
+			t.Fatalf("expected currentHunk=%d, got %d", expectedHunk, panel.currentHunk)
+		}
+		if panel.viewport.YOffset != expectedOffset {
+			t.Fatalf("expected YOffset=%d, got %d", expectedOffset, panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: NextHunk from noHunkSelected goes to first hunk
+func TestNextHunk_FromNoSelection_GoesToFirstHunk(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, _, headerLines := setupPanelWithHunks(t)
+
+		panel.currentHunk = noHunkSelected
+		panel.viewport.SetYOffset(0)
+
+		panel.NextHunk()
+
+		expectedOffset := panel.hunks[0].StartLine + headerLines
 
 		if panel.currentHunk != 0 {
-			t.Fatalf("currentHunk should be 0 after SetDiff, got %d", panel.currentHunk)
+			t.Fatalf("expected currentHunk=0, got %d", panel.currentHunk)
+		}
+		if panel.viewport.YOffset != expectedOffset {
+			t.Fatalf("expected YOffset=%d, got %d", expectedOffset, panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: NextHunk at last hunk stays at last hunk
+func TestNextHunk_AtLastHunk_StaysAtLastHunk(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numHunks, headerLines := setupPanelWithHunks(t)
+
+		lastHunk := numHunks - 1
+		panel.currentHunk = lastHunk
+		expectedOffset := panel.hunks[lastHunk].StartLine + headerLines
+		panel.viewport.SetYOffset(expectedOffset)
+
+		panel.NextHunk()
+
+		if panel.currentHunk != lastHunk {
+			t.Fatalf("expected currentHunk=%d (unchanged), got %d", lastHunk, panel.currentHunk)
+		}
+		if panel.viewport.YOffset != expectedOffset {
+			t.Fatalf("expected YOffset=%d (unchanged), got %d", expectedOffset, panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: PrevHunk at start of hunk goes to previous hunk
+func TestPrevHunk_AtHunkStart_GoesToPreviousHunk(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numHunks, headerLines := setupPanelWithHunks(t)
+
+		if numHunks < 2 {
+			return // Need at least 2 hunks
+		}
+		// Start at hunk 1 or later
+		startHunk := rapid.IntRange(1, numHunks-1).Draw(t, "startHunk")
+		panel.currentHunk = startHunk
+		panel.viewport.SetYOffset(panel.hunks[startHunk].StartLine + headerLines)
+
+		panel.PrevHunk()
+
+		expectedHunk := startHunk - 1
+		expectedOffset := panel.hunks[expectedHunk].StartLine + headerLines
+
+		if panel.currentHunk != expectedHunk {
+			t.Fatalf("expected currentHunk=%d, got %d", expectedHunk, panel.currentHunk)
+		}
+		if panel.viewport.YOffset != expectedOffset {
+			t.Fatalf("expected YOffset=%d, got %d", expectedOffset, panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: PrevHunk in middle of hunk goes to start of current hunk
+func TestPrevHunk_InMiddleOfHunk_GoesToHunkStart(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numHunks, headerLines := setupPanelWithHunks(t)
+
+		// Pick a hunk with size > 1 so we can be "in the middle"
+		var hunkIdx int
+		var hunk jj.Hunk
+		for i := 0; i < numHunks; i++ {
+			h := panel.hunks[i]
+			if h.EndLine > h.StartLine { // Has at least 2 lines
+				hunkIdx = i
+				hunk = h
+				break
+			}
+		}
+		if hunk.EndLine == hunk.StartLine {
+			return // No multi-line hunks, skip
+		}
+
+		panel.currentHunk = hunkIdx
+		// Position somewhere after the start but within the hunk
+		offsetInHunk := rapid.IntRange(1, hunk.EndLine-hunk.StartLine).Draw(t, "offsetInHunk")
+		panel.viewport.SetYOffset(hunk.StartLine + headerLines + offsetInHunk)
+
+		panel.PrevHunk()
+
+		expectedOffset := hunk.StartLine + headerLines
+
+		if panel.currentHunk != hunkIdx {
+			t.Fatalf("expected currentHunk=%d (same), got %d", hunkIdx, panel.currentHunk)
+		}
+		if panel.viewport.YOffset != expectedOffset {
+			t.Fatalf("expected YOffset=%d (hunk start), got %d", expectedOffset, panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: PrevHunk at first hunk start goes to top (noHunkSelected)
+func TestPrevHunk_AtFirstHunkStart_GoesToTop(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, _, headerLines := setupPanelWithHunks(t)
+
+		panel.currentHunk = 0
+		panel.viewport.SetYOffset(panel.hunks[0].StartLine + headerLines)
+
+		panel.PrevHunk()
+
+		if panel.currentHunk != noHunkSelected {
+			t.Fatalf("expected currentHunk=noHunkSelected, got %d", panel.currentHunk)
+		}
+		if panel.viewport.YOffset != 0 {
+			t.Fatalf("expected YOffset=0, got %d", panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: PrevHunk with noHunkSelected stays at top
+func TestPrevHunk_NoHunkSelected_StaysAtTop(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, _, _ := setupPanelWithHunks(t)
+
+		panel.currentHunk = noHunkSelected
+		panel.viewport.SetYOffset(0)
+
+		panel.PrevHunk()
+
+		if panel.currentHunk != noHunkSelected {
+			t.Fatalf("expected currentHunk=noHunkSelected, got %d", panel.currentHunk)
+		}
+		if panel.viewport.YOffset != 0 {
+			t.Fatalf("expected YOffset=0, got %d", panel.viewport.YOffset)
+		}
+	})
+}
+
+// Property: syncCurrentHunk correctly identifies which hunk contains viewport
+func TestSyncCurrentHunk_IdentifiesCorrectHunk(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numHunks, headerLines := setupPanelWithHunks(t)
+
+		// Pick a random hunk and position within it
+		hunkIdx := rapid.IntRange(0, numHunks-1).Draw(t, "hunkIdx")
+		hunk := panel.hunks[hunkIdx]
+		offsetInHunk := rapid.IntRange(0, hunk.EndLine-hunk.StartLine).Draw(t, "offsetInHunk")
+		panel.viewport.SetYOffset(hunk.StartLine + headerLines + offsetInHunk)
+		panel.currentHunk = 999 // Wrong value
+
+		panel.syncCurrentHunk()
+
+		if panel.currentHunk != hunkIdx {
+			t.Fatalf("expected currentHunk=%d, got %d (viewport at %d, hunk range %d-%d)",
+				hunkIdx, panel.currentHunk, panel.viewport.YOffset, hunk.StartLine, hunk.EndLine)
+		}
+	})
+}
+
+// Property: syncCurrentHunk in header area sets noHunkSelected
+func TestSyncCurrentHunk_InHeader_SetsNoHunkSelected(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, _, headerLines := setupPanelWithHunks(t)
+
+		if headerLines == 0 {
+			return // No header to test
+		}
+
+		// Position in header (before first hunk)
+		panel.viewport.SetYOffset(rapid.IntRange(0, headerLines-1).Draw(t, "headerPos"))
+		panel.currentHunk = 999 // Wrong value
+
+		panel.syncCurrentHunk()
+
+		if panel.currentHunk != noHunkSelected {
+			t.Fatalf("expected currentHunk=noHunkSelected, got %d", panel.currentHunk)
+		}
+	})
+}
+
+// Property: Viewport offset after navigation always accounts for headerLines
+func TestHunkNavigation_ViewportIncludesHeaderOffset(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel, numHunks, headerLines := setupPanelWithHunks(t)
+
+		// Navigate to a random hunk
+		targetHunk := rapid.IntRange(0, numHunks-1).Draw(t, "targetHunk")
+
+		// Start from noHunkSelected and navigate forward
+		panel.currentHunk = noHunkSelected
+		panel.viewport.SetYOffset(0)
+
+		for i := 0; i <= targetHunk; i++ {
+			panel.NextHunk()
+		}
+
+		expectedOffset := panel.hunks[targetHunk].StartLine + headerLines
+
+		if panel.viewport.YOffset != expectedOffset {
+			t.Fatalf("expected YOffset=%d (hunk %d start %d + header %d), got %d",
+				expectedOffset, targetHunk, panel.hunks[targetHunk].StartLine, headerLines, panel.viewport.YOffset)
 		}
 	})
 }
