@@ -12,16 +12,17 @@ import (
 // Runner executes jj commands and returns output
 type Runner struct {
 	workDir string
+	log     *logger.Logger
 }
 
 // NewRunner creates a new jj command runner
-func NewRunner(workDir string) *Runner {
-	return &Runner{workDir: workDir}
+func NewRunner(workDir string, log *logger.Logger) *Runner {
+	return &Runner{workDir: workDir, log: log}
 }
 
 // Run executes a jj command and returns the output with colors preserved
 func (r *Runner) Run(args ...string) (string, error) {
-	logger.Debug("executing jj command", "args", args)
+	r.log.Debug("executing jj command", "args", args)
 
 	cmd := exec.Command("jj", args...)
 	cmd.Dir = r.workDir
@@ -39,14 +40,14 @@ func (r *Runner) Run(args ...string) (string, error) {
 				Stderr:  stderr.String(),
 				Err:     err,
 			}
-			logger.Error("jj command failed", "args", args, "err", jjErr)
+			r.log.Error("jj command failed", "args", args, "err", jjErr)
 			return "", jjErr
 		}
-		logger.Error("jj command failed", "args", args, "err", err)
+		r.log.Error("jj command failed", "args", args, "err", err)
 		return "", err
 	}
 
-	logger.Debug("jj command completed", "args", args, "output_len", len(stdout.String()))
+	r.log.Debug("jj command completed", "args", args, "output_len", len(stdout.String()))
 	return stdout.String(), nil
 }
 

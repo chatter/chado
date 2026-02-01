@@ -34,6 +34,7 @@ type Model struct {
 	workDir string
 	version string
 	keys    KeyMap
+	log     *logger.Logger
 
 	// JJ integration
 	runner  *jj.Runner
@@ -66,8 +67,8 @@ type Model struct {
 }
 
 // New creates a new application model
-func New(workDir string, version string) Model {
-	runner := jj.NewRunner(workDir)
+func New(workDir string, version string, log *logger.Logger) Model {
+	runner := jj.NewRunner(workDir, log)
 
 	logPanel := ui.NewLogPanel()
 	filesPanel := ui.NewFilesPanel()
@@ -84,6 +85,7 @@ func New(workDir string, version string) Model {
 		workDir:      workDir,
 		version:      version,
 		keys:         DefaultKeyMap(),
+		log:          log,
 		runner:       runner,
 		viewMode:     ViewLog,
 		focusedPane:  PaneLog,
@@ -97,7 +99,7 @@ func New(workDir string, version string) Model {
 
 // Init initializes the application
 func (m Model) Init() tea.Cmd {
-	logger.Info("initializing app", "workdir", m.workDir, "version", m.version)
+	m.log.Info("initializing app", "workdir", m.workDir, "version", m.version)
 	return tea.Batch(
 		m.loadLog(),
 		m.startWatcher(),
@@ -169,7 +171,7 @@ func (m Model) loadFiles(changeID string) tea.Cmd {
 // startWatcher starts the file system watcher
 func (m Model) startWatcher() tea.Cmd {
 	return func() tea.Msg {
-		watcher, err := jj.NewWatcher(m.workDir)
+		watcher, err := jj.NewWatcher(m.workDir, m.log)
 		if err != nil {
 			// Don't fail if watcher can't start, just disable auto-refresh
 			return watcherStartedMsg{watcher: nil, err: err}
@@ -299,7 +301,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case watcherStartedMsg:
 		m.watcher = msg.watcher
 		if msg.err != nil {
-			logger.Warn("watcher failed to start", "err", msg.err)
+			m.log.Warn("watcher failed to start", "err", msg.err)
 		}
 		if msg.watcher != nil {
 			cmds = append(cmds, m.waitForChange())
@@ -319,7 +321,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case errMsg:
-		logger.Error("app error", "err", msg.err)
+		m.log.Error("app error", "err", msg.err)
 		m.lastError = msg.err.Error()
 	}
 
@@ -331,7 +333,7 @@ func (m *Model) handleEnter() tea.Cmd {
 	case ViewLog:
 		// Drill into files
 		if change := m.logPanel.SelectedChange(); change != nil {
-			logger.Debug("drilling into files view", "change_id", change.ChangeID)
+			m.log.Debug("drilling into files view", "change_id", change.ChangeID)
 			m.viewMode = ViewFiles
 			m.focusedPane = PaneLog
 			m.updatePanelFocus()

@@ -4,8 +4,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chatter/chado/internal/logger"
 	"pgregory.net/rapid"
 )
+
+// testLogger creates a no-op logger for tests
+func testLogger(t *testing.T) *logger.Logger {
+	t.Helper()
+	log, _ := logger.New("")
+	return log
+}
 
 // =============================================================================
 // Unit Tests
@@ -70,7 +78,7 @@ func TestStripANSI(t *testing.T) {
 }
 
 func TestParseFiles(t *testing.T) {
-	runner := NewRunner(".")
+	runner := NewRunner(".", testLogger(t))
 
 	tests := []struct {
 		name     string
@@ -254,7 +262,7 @@ Modified regular file app.go:
 }
 
 func TestParseLogLines(t *testing.T) {
-	runner := NewRunner(".")
+	runner := NewRunner(".", testLogger(t))
 
 	tests := []struct {
 		name          string
@@ -394,7 +402,7 @@ func TestFindHunks_NonOverlapping(t *testing.T) {
 
 // Property: ParseFiles should never return duplicate paths
 func TestParseFiles_NoDuplicatePaths(t *testing.T) {
-	runner := NewRunner(".")
+	runner := NewRunner(".", testLogger(t))
 
 	rapid.Check(t, func(t *rapid.T) {
 		// Generate a diff with unique filenames
@@ -424,7 +432,7 @@ func TestParseFiles_NoDuplicatePaths(t *testing.T) {
 
 // Property: File status should only be one of the valid values
 func TestParseFiles_ValidStatus(t *testing.T) {
-	runner := NewRunner(".")
+	runner := NewRunner(".", testLogger(t))
 
 	rapid.Check(t, func(t *rapid.T) {
 		status := rapid.SampledFrom([]string{"Added", "Modified", "Removed"}).Draw(t, "status")

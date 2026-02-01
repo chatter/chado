@@ -11,88 +11,117 @@ import (
 	"strings"
 )
 
-var log *slog.Logger
-var logFile *os.File
+// Logger wraps slog with file-based output for TUI applications.
+type Logger struct {
+	log     *slog.Logger
+	logFile *os.File
+}
 
-// Init initializes the logger. If level is empty, uses a no-op logger.
+// New creates a new Logger. If level is empty, returns a no-op logger.
 // Valid levels: debug, info, warn, error (case-insensitive).
-func Init(level string) error {
+func New(level string) (*Logger, error) {
 	if level == "" {
 		// No-op logger - zero overhead
-		log = slog.New(slog.NewTextHandler(io.Discard, nil))
-		return nil
+		return &Logger{
+			log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}, nil
 	}
 
 	// Parse level
-	var slogLevel slog.Level
-	switch strings.ToLower(level) {
-	case "debug":
-		slogLevel = slog.LevelDebug
-	case "info":
-		slogLevel = slog.LevelInfo
-	case "warn":
-		slogLevel = slog.LevelWarn
-	case "error":
-		slogLevel = slog.LevelError
-	default:
-		return fmt.Errorf("invalid log level: %s (use debug, info, warn, error)", level)
+	slogLevel, err := parseLogLevel(level)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create log directory
-	stateDir := os.Getenv("XDG_STATE_HOME")
-	if stateDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("could not determine home directory: %w", err)
-		}
-		stateDir = filepath.Join(home, ".local", "state")
-	}
-	logDir := filepath.Join(stateDir, "chado")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return fmt.Errorf("could not create log directory: %w", err)
+	logDir, err := createLogDir()
+	if err != nil {
+		return nil, err
 	}
 
 	// Open session-based log file (clobber existing)
-	logPath := filepath.Join(logDir, fmt.Sprintf("chado-%d.log", os.Getpid()))
-	var err error
-	logFile, err = os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	logFile, err := openLogFile(logDir)
 	if err != nil {
-		return fmt.Errorf("could not open log file: %w", err)
+		return nil, err
 	}
 
-	// Create handler with level filtering
+	// Create slog handler
 	handler := slog.NewTextHandler(logFile, &slog.HandlerOptions{
 		Level: slogLevel,
 	})
-	log = slog.New(handler)
 
-	log.Info("chado started", "pid", os.Getpid(), "level", level, "log_path", logPath)
-	return nil
+	l := &Logger{
+		log:     slog.New(handler),
+		logFile: logFile,
+	}
+
+	l.Info("chado started", "pid", os.Getpid(), "level", level, "log_path", logFile.Name())
+	return l, nil
 }
 
 // Close closes the log file if open.
-func Close() {
-	if logFile != nil {
-		logFile.Close()
+func (l *Logger) Close() {
+	if l.logFile != nil {
+		l.logFile.Close()
 	}
 }
 
 // Debug logs a debug message with optional key-value pairs.
-func Debug(msg string, args ...any) {
-	log.Debug(msg, args...)
+func (l *Logger) Debug(msg string, args ...any) {
+	l.log.Debug(msg, args...)
 }
 
 // Info logs an info message with optional key-value pairs.
-func Info(msg string, args ...any) {
-	log.Info(msg, args...)
+func (l *Logger) Info(msg string, args ...any) {
+	l.log.Info(msg, args...)
 }
 
 // Warn logs a warning message with optional key-value pairs.
-func Warn(msg string, args ...any) {
-	log.Warn(msg, args...)
+func (l *Logger) Warn(msg string, args ...any) {
+	l.log.Warn(msg, args...)
 }
 
 // Error logs an error message with optional key-value pairs.
-func Error(msg string, args ...any) {
-	log.Error(msg, args...)
+func (l *Logger) Error(msg string, args ...any) {
+	l.log.Error(msg, args...)
+}
+
+func createLogDir() (string, error) {
+	stateDir := os.Getenv("XDG_STATE_HOME")
+	if stateDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("could not determine home directory: %w", err)
+		}
+		stateDir = filepath.Join(home, ".local", "state")
+	}
+	logDir := filepath.Join(stateDir, "chado")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return "", fmt.Errorf("could not create log directory: %w", err)
+	}
+	return logDir, nil
+}
+
+func openLogFile(logDir string) (*os.File, error) {
+	logPath := filepath.Join(logDir, fmt.Sprintf("chado-%d.log", os.Getpid()))
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("could not open log file: %w", err)
+	}
+	return logFile, nil
+}
+
+func parseLogLevel(level string) (slog.Level, error) {
+	switch strings.ToLower(level) {
+	case "debug":
+		return slog.LevelDebug, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "warn":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return -1, fmt.Errorf("invalid log level: %s (use debug, info, warn, error)", level)
+	}
 }

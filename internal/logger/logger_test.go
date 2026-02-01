@@ -9,7 +9,7 @@ import (
 	"pgregory.net/rapid"
 )
 
-func TestInit_ValidLevels(t *testing.T) {
+func TestNew_ValidLevels(t *testing.T) {
 	validLevels := []string{"debug", "info", "warn", "error", "DEBUG", "INFO", "WARN", "ERROR", "Debug", "Info", "Warn", "Error"}
 
 	for _, level := range validLevels {
@@ -18,11 +18,11 @@ func TestInit_ValidLevels(t *testing.T) {
 			tempDir := t.TempDir()
 			t.Setenv("XDG_STATE_HOME", tempDir)
 
-			err := Init(level)
+			l, err := New(level)
 			if err != nil {
-				t.Errorf("Init(%q) returned error: %v", level, err)
+				t.Errorf("New(%q) returned error: %v", level, err)
 			}
-			Close()
+			l.Close()
 
 			// Verify log file was created
 			logDir := filepath.Join(tempDir, "chado")
@@ -37,22 +37,18 @@ func TestInit_ValidLevels(t *testing.T) {
 	}
 }
 
-func TestInit_InvalidLevels(t *testing.T) {
-	invalidLevels := []string{"trace", "verbose", "warning", "fatal", "critical", "all", "none", "off", "123", ""}
+func TestNew_InvalidLevels(t *testing.T) {
+	invalidLevels := []string{"trace", "verbose", "warning", "fatal", "critical", "all", "none", "off", "123"}
 
-	// Filter out empty string as that's a valid "disabled" case
 	for _, level := range invalidLevels {
-		if level == "" {
-			continue
-		}
 		t.Run(level, func(t *testing.T) {
 			tempDir := t.TempDir()
 			t.Setenv("XDG_STATE_HOME", tempDir)
 
-			err := Init(level)
+			l, err := New(level)
 			if err == nil {
-				Close()
-				t.Errorf("Init(%q) should return error for invalid level", level)
+				l.Close()
+				t.Errorf("New(%q) should return error for invalid level", level)
 				return
 			}
 
@@ -63,7 +59,7 @@ func TestInit_InvalidLevels(t *testing.T) {
 	}
 }
 
-func TestInit_InvalidLevels_Property(t *testing.T) {
+func TestNew_InvalidLevels_Property(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		// Generate random strings that are NOT valid levels
 		level := rapid.StringMatching(`[a-z]{1,10}`).Draw(rt, "level")
@@ -75,30 +71,29 @@ func TestInit_InvalidLevels_Property(t *testing.T) {
 		}
 
 		// For property test, we just verify the error is returned
-		// We can't easily use temp dirs in rapid.T, so test error path only
-		err := Init(level)
+		l, err := New(level)
 		if err == nil {
-			Close()
-			rt.Errorf("Init(%q) should return error for invalid level", level)
+			l.Close()
+			rt.Errorf("New(%q) should return error for invalid level", level)
 		}
 	})
 }
 
-func TestInit_EmptyLevel_NoOpLogger(t *testing.T) {
+func TestNew_EmptyLevel_NoOpLogger(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
-	err := Init("")
+	l, err := New("")
 	if err != nil {
-		t.Errorf("Init(\"\") returned error: %v", err)
+		t.Errorf("New(\"\") returned error: %v", err)
 	}
-	defer Close()
+	defer l.Close()
 
 	// Logging should not panic
-	Debug("test debug")
-	Info("test info")
-	Warn("test warn")
-	Error("test error")
+	l.Debug("test debug")
+	l.Info("test info")
+	l.Warn("test warn")
+	l.Error("test error")
 
 	// No log file should be created
 	logDir := filepath.Join(tempDir, "chado")
@@ -108,15 +103,15 @@ func TestInit_EmptyLevel_NoOpLogger(t *testing.T) {
 	}
 }
 
-func TestInit_CreatesLogDirectory(t *testing.T) {
+func TestNew_CreatesLogDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
-	err := Init("info")
+	l, err := New("info")
 	if err != nil {
-		t.Errorf("Init returned error: %v", err)
+		t.Errorf("New returned error: %v", err)
 	}
-	defer Close()
+	defer l.Close()
 
 	logDir := filepath.Join(tempDir, "chado")
 	info, err := os.Stat(logDir)
@@ -128,15 +123,15 @@ func TestInit_CreatesLogDirectory(t *testing.T) {
 	}
 }
 
-func TestInit_LogFileContainsPID(t *testing.T) {
+func TestNew_LogFileContainsPID(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
-	err := Init("debug")
+	l, err := New("debug")
 	if err != nil {
-		t.Errorf("Init returned error: %v", err)
+		t.Errorf("New returned error: %v", err)
 	}
-	defer Close()
+	defer l.Close()
 
 	logDir := filepath.Join(tempDir, "chado")
 	entries, err := os.ReadDir(logDir)
@@ -166,17 +161,17 @@ func TestInit_LogFileContainsPID(t *testing.T) {
 	}
 }
 
-func TestInit_ClobbersExistingFile(t *testing.T) {
+func TestNew_ClobbersExistingFile(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
-	// First init
-	err := Init("debug")
+	// First logger
+	l1, err := New("debug")
 	if err != nil {
-		t.Fatalf("first Init returned error: %v", err)
+		t.Fatalf("first New returned error: %v", err)
 	}
-	Info("first session")
-	Close()
+	l1.Info("first session")
+	l1.Close()
 
 	// Read file content
 	logDir := filepath.Join(tempDir, "chado")
@@ -184,13 +179,13 @@ func TestInit_ClobbersExistingFile(t *testing.T) {
 	logPath := filepath.Join(logDir, entries[0].Name())
 	firstContent, _ := os.ReadFile(logPath)
 
-	// Second init with same PID (simulated by not changing process)
-	err = Init("debug")
+	// Second logger with same PID (simulated by not changing process)
+	l2, err := New("debug")
 	if err != nil {
-		t.Fatalf("second Init returned error: %v", err)
+		t.Fatalf("second New returned error: %v", err)
 	}
-	Info("second session")
-	Close()
+	l2.Info("second session")
+	l2.Close()
 
 	// Read file content again
 	secondContent, _ := os.ReadFile(logPath)
@@ -213,16 +208,16 @@ func TestLevelFiltering_DebugLogsAll(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
-	err := Init("debug")
+	l, err := New("debug")
 	if err != nil {
-		t.Fatalf("Init returned error: %v", err)
+		t.Fatalf("New returned error: %v", err)
 	}
 
-	Debug("debug msg")
-	Info("info msg")
-	Warn("warn msg")
-	Error("error msg")
-	Close()
+	l.Debug("debug msg")
+	l.Info("info msg")
+	l.Warn("warn msg")
+	l.Error("error msg")
+	l.Close()
 
 	content := readLogFile(t, tempDir)
 	if !strings.Contains(content, "debug msg") {
@@ -243,16 +238,16 @@ func TestLevelFiltering_InfoFiltersDebug(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
-	err := Init("info")
+	l, err := New("info")
 	if err != nil {
-		t.Fatalf("Init returned error: %v", err)
+		t.Fatalf("New returned error: %v", err)
 	}
 
-	Debug("debug msg")
-	Info("info msg")
-	Warn("warn msg")
-	Error("error msg")
-	Close()
+	l.Debug("debug msg")
+	l.Info("info msg")
+	l.Warn("warn msg")
+	l.Error("error msg")
+	l.Close()
 
 	content := readLogFile(t, tempDir)
 	if strings.Contains(content, "debug msg") {
@@ -273,16 +268,16 @@ func TestLevelFiltering_WarnFiltersInfoAndDebug(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
-	err := Init("warn")
+	l, err := New("warn")
 	if err != nil {
-		t.Fatalf("Init returned error: %v", err)
+		t.Fatalf("New returned error: %v", err)
 	}
 
-	Debug("debug msg")
-	Info("info msg")
-	Warn("warn msg")
-	Error("error msg")
-	Close()
+	l.Debug("debug msg")
+	l.Info("info msg")
+	l.Warn("warn msg")
+	l.Error("error msg")
+	l.Close()
 
 	content := readLogFile(t, tempDir)
 	if strings.Contains(content, "debug msg") {
@@ -303,16 +298,16 @@ func TestLevelFiltering_ErrorFiltersAll(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
-	err := Init("error")
+	l, err := New("error")
 	if err != nil {
-		t.Fatalf("Init returned error: %v", err)
+		t.Fatalf("New returned error: %v", err)
 	}
 
-	Debug("debug msg")
-	Info("info msg")
-	Warn("warn msg")
-	Error("error msg")
-	Close()
+	l.Debug("debug msg")
+	l.Info("info msg")
+	l.Warn("warn msg")
+	l.Error("error msg")
+	l.Close()
 
 	content := readLogFile(t, tempDir)
 	if strings.Contains(content, "debug msg") {
@@ -333,13 +328,13 @@ func TestLogging_StructuredArgs(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
-	err := Init("debug")
+	l, err := New("debug")
 	if err != nil {
-		t.Fatalf("Init returned error: %v", err)
+		t.Fatalf("New returned error: %v", err)
 	}
 
-	Info("test message", "key1", "value1", "key2", 42)
-	Close()
+	l.Info("test message", "key1", "value1", "key2", 42)
+	l.Close()
 
 	content := readLogFile(t, tempDir)
 	if !strings.Contains(content, "key1=value1") {

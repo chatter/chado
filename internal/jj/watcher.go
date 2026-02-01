@@ -19,22 +19,23 @@ type Watcher struct {
 	watcher  *fsnotify.Watcher
 	filtered chan fsnotify.Event
 	done     chan struct{}
+	log      *logger.Logger
 }
 
 // NewWatcher creates a new file watcher for the jj repo
-func NewWatcher(repoPath string) (*Watcher, error) {
-	logger.Debug("creating file watcher", "repo_path", repoPath)
+func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
+	log.Debug("creating file watcher", "repo_path", repoPath)
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		logger.Error("failed to create fsnotify watcher", "err", err)
+		log.Error("failed to create fsnotify watcher", "err", err)
 		return nil, err
 	}
 
 	// Watch the .jj/repo/op_heads/heads directory for changes
 	jjPath := filepath.Join(repoPath, ".jj", "repo", "op_heads", "heads")
 	if err := watcher.Add(jjPath); err != nil {
-		logger.Error("failed to watch .jj directory", "path", jjPath, "err", err)
+		log.Error("failed to watch .jj directory", "path", jjPath, "err", err)
 		watcher.Close()
 		return nil, err
 	}
@@ -59,12 +60,13 @@ func NewWatcher(repoPath string) (*Watcher, error) {
 		return nil
 	})
 
-	logger.Info("watcher started", "watched_dirs", watchCount)
+	log.Info("watcher started", "watched_dirs", watchCount)
 
 	self := &Watcher{
 		watcher:  watcher,
 		filtered: make(chan fsnotify.Event),
 		done:     make(chan struct{}),
+		log:      log,
 	}
 
 	go self.filterEvents()
@@ -104,11 +106,11 @@ func (w *Watcher) filterEvents() {
 				continue // Ignore other operations
 			}
 
-			logger.Debug("file change detected", "path", event.Name, "op", event.Op.String())
+			w.log.Debug("file change detected", "path", event.Name, "op", event.Op.String())
 			w.filtered <- event
 		case err := <-w.watcher.Errors:
 			if err != nil {
-				logger.Warn("watcher error", "err", err)
+				w.log.Warn("watcher error", "err", err)
 			}
 		}
 	}

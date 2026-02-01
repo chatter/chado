@@ -38,10 +38,13 @@ func run(ctx context.Context, args []string) error {
 	}
 
 	// Initialize logger
-	if err := logger.Init(*logLevel); err != nil {
+	log, err := logger.New(*logLevel)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+		// Create no-op logger so we can continue
+		log, _ = logger.New("")
 	}
-	defer logger.Close()
+	defer log.Close()
 
 	if _, err := os.Stat(".jj"); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "error: not a jj repository (or any parent up to mount point /)")
@@ -54,7 +57,7 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 
-	model := app.New(cwd, version)
+	model := app.New(cwd, version, log)
 
 	p := tea.NewProgram(
 		model,
