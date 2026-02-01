@@ -4,11 +4,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/chatter/chado/internal/jj"
+	"github.com/chatter/chado/internal/ui/help"
 )
 
 // noHunkSelected indicates viewport is in header area, before any hunk
@@ -337,4 +339,20 @@ func ParseDetailsFromShow(showOutput string) DetailsHeader {
 func stripANSI(s string) string {
 	ansiRe := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 	return ansiRe.ReplaceAllString(s, "")
+}
+
+// HelpBindings returns the keybindings for this panel (display-only, for status bar)
+func (p DiffPanel) HelpBindings() []help.HelpBinding {
+	return []help.HelpBinding{
+		{
+			Binding:  key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "next/prev hunk")),
+			Category: help.CategoryDiff,
+			Order:    1,
+		},
+		{
+			Binding:  key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Category: help.CategoryNavigation,
+			Order:    2,
+		},
+	}
 }

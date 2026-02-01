@@ -5,11 +5,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/chatter/chado/internal/jj"
+	"github.com/chatter/chado/internal/ui/help"
 )
 
 // ansiRegex matches ANSI escape codes
@@ -276,4 +278,20 @@ func (p LogPanel) View() string {
 	content := title + "\n" + p.viewport.View()
 
 	return style.Render(content)
+}
+
+// HelpBindings returns the keybindings for this panel (display-only, for status bar)
+func (p LogPanel) HelpBindings() []help.HelpBinding {
+	return []help.HelpBinding{
+		{
+			Binding:  key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Category: help.CategoryNavigation,
+			Order:    1,
+		},
+		{
+			Binding:  key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Category: help.CategoryNavigation,
+			Order:    2,
+		},
+	}
 }

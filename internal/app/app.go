@@ -1,7 +1,6 @@
 package app
 
 import (
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/chatter/chado/internal/jj"
 	"github.com/chatter/chado/internal/ui"
+	"github.com/chatter/chado/internal/ui/help"
 )
 
 // ViewMode represents the current view hierarchy
@@ -47,6 +47,9 @@ type Model struct {
 	filesPanel ui.FilesPanel
 	diffPanel  ui.DiffPanel
 
+	// Help
+	statusBar *help.StatusBar
+
 	// Data
 	changes     []jj.Change
 	currentDiff string
@@ -66,6 +69,7 @@ func New(workDir string, version string) Model {
 	logPanel := ui.NewLogPanel()
 	filesPanel := ui.NewFilesPanel()
 	diffPanel := ui.NewDiffPanel()
+	statusBar := help.NewStatusBar("chado " + version)
 
 	// Set initial focus - log panel starts focused
 	logPanel.SetFocused(true)
@@ -82,6 +86,7 @@ func New(workDir string, version string) Model {
 		logPanel:    logPanel,
 		filesPanel:  filesPanel,
 		diffPanel:   diffPanel,
+		statusBar:   statusBar,
 	}
 }
 
@@ -407,71 +412,113 @@ func (m *Model) actionBack() (Model, tea.Cmd) {
 	return *m, nil
 }
 
-// activeBindings returns all currently active keybindings
-// For now, just global bindings. Panel-specific bindings will be added in Issue 2.
-func (m *Model) activeBindings() []HelpBinding {
+// activeBindings returns all currently active keybindings for dispatch.
+// Merges global bindings with context-specific panel bindings.
+func (m *Model) activeBindings() []ActionBinding {
 	return m.globalBindings()
+	// Note: Panel bindings (j/k, g/G) are handled by updateFocusedPanel()
+	// They don't need to be in activeBindings() for dispatch since they're
+	// not ActionBindings - they're handled directly by the panels.
 }
 
-// globalBindings returns the app-level keybindings with their actions
-func (m *Model) globalBindings() []HelpBinding {
-	return []HelpBinding{
+// activeHelpBindings returns all display bindings for the current context.
+// Used by the status bar to show context-sensitive help.
+func (m *Model) activeHelpBindings() []help.HelpBinding {
+	// Start with global bindings
+	bindings := ToHelpBindings(m.globalBindings())
+
+	// Add panel-specific bindings based on focus
+	switch m.focusedPane {
+	case PaneLog:
+		if m.viewMode == ViewLog {
+			bindings = append(bindings, m.logPanel.HelpBindings()...)
+		} else {
+			bindings = append(bindings, m.filesPanel.HelpBindings()...)
+		}
+	case PaneDiff:
+		bindings = append(bindings, m.diffPanel.HelpBindings()...)
+	}
+
+	return bindings
+}
+
+// globalBindings returns the app-level keybindings with their actions.
+func (m *Model) globalBindings() []ActionBinding {
+	return []ActionBinding{
 		// Quit - highest order (always visible)
 		{
-			Binding:  m.keys.Quit,
-			Category: CategoryActions,
-			Order:    100,
-			Action:   (*Model).actionQuit,
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Quit,
+				Category: help.CategoryActions,
+				Order:    100,
+			},
+			Action: (*Model).actionQuit,
 		},
 		// Pane focus
 		{
-			Binding:  m.keys.FocusPane0,
-			Category: CategoryNavigation,
-			Order:    50,
-			Action:   (*Model).actionFocusPane0,
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.FocusPane0,
+				Category: help.CategoryNavigation,
+				Order:    50,
+			},
+			Action: (*Model).actionFocusPane0,
 		},
 		{
-			Binding:  m.keys.FocusPane1,
-			Category: CategoryNavigation,
-			Order:    51,
-			Action:   (*Model).actionFocusPane1,
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.FocusPane1,
+				Category: help.CategoryNavigation,
+				Order:    51,
+			},
+			Action: (*Model).actionFocusPane1,
 		},
 		{
-			Binding:  m.keys.NextPane,
-			Category: CategoryNavigation,
-			Order:    20,
-			Action:   (*Model).actionNextPane,
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.NextPane,
+				Category: help.CategoryNavigation,
+				Order:    20,
+			},
+			Action: (*Model).actionNextPane,
 		},
 		{
-			Binding:  m.keys.PrevPane,
-			Category: CategoryNavigation,
-			Order:    21,
-			Action:   (*Model).actionPrevPane,
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.PrevPane,
+				Category: help.CategoryNavigation,
+				Order:    21,
+			},
+			Action: (*Model).actionPrevPane,
 		},
 		{
-			Binding:  m.keys.Right,
-			Category: CategoryNavigation,
-			Order:    22,
-			Action:   (*Model).actionNextPane,
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Right,
+				Category: help.CategoryNavigation,
+				Order:    22,
+			},
+			Action: (*Model).actionNextPane,
 		},
 		{
-			Binding:  m.keys.Left,
-			Category: CategoryNavigation,
-			Order:    23,
-			Action:   (*Model).actionPrevPane,
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Left,
+				Category: help.CategoryNavigation,
+				Order:    23,
+			},
+			Action: (*Model).actionPrevPane,
 		},
 		// Actions
 		{
-			Binding:  m.keys.Enter,
-			Category: CategoryActions,
-			Order:    10,
-			Action:   (*Model).actionEnter,
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Enter,
+				Category: help.CategoryActions,
+				Order:    10,
+			},
+			Action: (*Model).actionEnter,
 		},
 		{
-			Binding:  m.keys.Back,
-			Category: CategoryActions,
-			Order:    11,
-			Action:   (*Model).actionBack,
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Back,
+				Category: help.CategoryActions,
+				Order:    11,
+			},
+			Action: (*Model).actionBack,
 		},
 	}
 }
@@ -576,11 +623,7 @@ func (m Model) View() string {
 }
 
 func (m Model) renderStatusBar() string {
-	// For now, just version on the right
-	version := "chado v" + m.version
-
-	// Pad to full width
-	padding := max(m.width-len(version), 0)
-
-	return ui.StatusBarStyle.Render(strings.Repeat(" ", padding) + version)
+	m.statusBar.SetWidth(m.width)
+	m.statusBar.SetBindings(m.activeHelpBindings())
+	return ui.StatusBarStyle.Render(m.statusBar.View())
 }

@@ -11,11 +11,17 @@ import (
 )
 
 // version is set from build info or falls back to "dev"
-var version = "dev"
+var version string
 
 func init() {
 	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
-		version = info.Main.Version
+		v := info.Main.Version
+		// Pseudo-versions are very long (40+ chars); real versions are short
+		if len(v) > 20 {
+			version = "(devel)"
+		} else {
+			version = v
+		}
 	}
 }
 

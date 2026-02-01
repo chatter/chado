@@ -5,6 +5,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/chatter/chado/internal/ui/help"
 )
 
 // testAction creates an action that sends a specific message
@@ -19,16 +21,20 @@ type testMsg struct {
 }
 
 func TestDispatch_MatchesAndExecutes(t *testing.T) {
-	bindings := []HelpBinding{
+	bindings := []ActionBinding{
 		{
-			Binding:  key.NewBinding(key.WithKeys("a")),
-			Category: CategoryNavigation,
-			Action:   testAction("action-a"),
+			HelpBinding: help.HelpBinding{
+				Binding:  key.NewBinding(key.WithKeys("a")),
+				Category: help.CategoryNavigation,
+			},
+			Action: testAction("action-a"),
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("b")),
-			Category: CategoryNavigation,
-			Action:   testAction("action-b"),
+			HelpBinding: help.HelpBinding{
+				Binding:  key.NewBinding(key.WithKeys("b")),
+				Category: help.CategoryNavigation,
+			},
+			Action: testAction("action-b"),
 		},
 	}
 
@@ -51,11 +57,13 @@ func TestDispatch_MatchesAndExecutes(t *testing.T) {
 }
 
 func TestDispatch_NoMatchNoAction(t *testing.T) {
-	bindings := []HelpBinding{
+	bindings := []ActionBinding{
 		{
-			Binding:  key.NewBinding(key.WithKeys("a")),
-			Category: CategoryNavigation,
-			Action:   testAction("action-a"),
+			HelpBinding: help.HelpBinding{
+				Binding:  key.NewBinding(key.WithKeys("a")),
+				Category: help.CategoryNavigation,
+			},
+			Action: testAction("action-a"),
 		},
 	}
 
@@ -72,16 +80,20 @@ func TestDispatch_NoMatchNoAction(t *testing.T) {
 }
 
 func TestDispatch_NilActionSkipped(t *testing.T) {
-	bindings := []HelpBinding{
+	bindings := []ActionBinding{
 		{
-			Binding:  key.NewBinding(key.WithKeys("a")),
-			Category: CategoryNavigation,
-			Action:   nil, // display-only binding
+			HelpBinding: help.HelpBinding{
+				Binding:  key.NewBinding(key.WithKeys("a")),
+				Category: help.CategoryNavigation,
+			},
+			Action: nil, // display-only binding
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("a")), // same key, but with action
-			Category: CategoryNavigation,
-			Action:   testAction("fallback"),
+			HelpBinding: help.HelpBinding{
+				Binding:  key.NewBinding(key.WithKeys("a")), // same key, but with action
+				Category: help.CategoryNavigation,
+			},
+			Action: testAction("fallback"),
 		},
 	}
 
@@ -100,16 +112,20 @@ func TestDispatch_NilActionSkipped(t *testing.T) {
 }
 
 func TestDispatch_FirstMatchWins(t *testing.T) {
-	bindings := []HelpBinding{
+	bindings := []ActionBinding{
 		{
-			Binding:  key.NewBinding(key.WithKeys("a")),
-			Category: CategoryNavigation,
-			Action:   testAction("first"),
+			HelpBinding: help.HelpBinding{
+				Binding:  key.NewBinding(key.WithKeys("a")),
+				Category: help.CategoryNavigation,
+			},
+			Action: testAction("first"),
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("a")), // same key
-			Category: CategoryNavigation,
-			Action:   testAction("second"),
+			HelpBinding: help.HelpBinding{
+				Binding:  key.NewBinding(key.WithKeys("a")), // same key
+				Category: help.CategoryNavigation,
+			},
+			Action: testAction("second"),
 		},
 	}
 
@@ -131,16 +147,20 @@ func TestDispatch_DisabledBindingSkipped(t *testing.T) {
 	disabledBinding := key.NewBinding(key.WithKeys("a"))
 	disabledBinding.SetEnabled(false)
 
-	bindings := []HelpBinding{
+	bindings := []ActionBinding{
 		{
-			Binding:  disabledBinding,
-			Category: CategoryNavigation,
-			Action:   testAction("disabled"),
+			HelpBinding: help.HelpBinding{
+				Binding:  disabledBinding,
+				Category: help.CategoryNavigation,
+			},
+			Action: testAction("disabled"),
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("a")), // same key, enabled
-			Category: CategoryNavigation,
-			Action:   testAction("enabled"),
+			HelpBinding: help.HelpBinding{
+				Binding:  key.NewBinding(key.WithKeys("a")), // same key, enabled
+				Category: help.CategoryNavigation,
+			},
+			Action: testAction("enabled"),
 		},
 	}
 

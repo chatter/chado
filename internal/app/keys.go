@@ -3,38 +3,38 @@ package app
 import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-)
 
-// Category represents a logical grouping of keybindings for help display
-type Category string
-
-const (
-	CategoryNavigation Category = "Navigation"
-	CategoryActions    Category = "Actions"
-	CategoryDiff       Category = "Diff"
+	"github.com/chatter/chado/internal/ui/help"
 )
 
 // Action is a function that executes a keybinding's behavior
 type Action func(m *Model) (Model, tea.Cmd)
 
-// HelpBinding combines a key binding with its category, display order, and action
-type HelpBinding struct {
-	Binding  key.Binding
-	Category Category
-	Order    int    // lower = higher priority for inline status bar
-	Action   Action // nil = display-only (no action)
+// ActionBinding combines a display binding with its action for dispatch.
+type ActionBinding struct {
+	help.HelpBinding        // embedded for display (Binding, Category, Order)
+	Action           Action // nil = display-only (no action)
 }
 
-// dispatchKey iterates through bindings and executes the first matching action
-// Returns nil, nil if no binding matches
-func dispatchKey(m *Model, msg tea.KeyMsg, bindings []HelpBinding) (*Model, tea.Cmd) {
-	for _, hb := range bindings {
-		if key.Matches(msg, hb.Binding) && hb.Action != nil {
-			newModel, cmd := hb.Action(m)
+// dispatchKey iterates through bindings and executes the first matching action.
+// Returns nil, nil if no binding matches.
+func dispatchKey(m *Model, msg tea.KeyMsg, bindings []ActionBinding) (*Model, tea.Cmd) {
+	for _, ab := range bindings {
+		if key.Matches(msg, ab.Binding) && ab.Action != nil {
+			newModel, cmd := ab.Action(m)
 			return &newModel, cmd
 		}
 	}
 	return nil, nil
+}
+
+// ToHelpBindings extracts display-only bindings from action bindings.
+func ToHelpBindings(abs []ActionBinding) []help.HelpBinding {
+	result := make([]help.HelpBinding, len(abs))
+	for i, ab := range abs {
+		result[i] = ab.HelpBinding
+	}
+	return result
 }
 
 // KeyMap defines the key bindings for the application
