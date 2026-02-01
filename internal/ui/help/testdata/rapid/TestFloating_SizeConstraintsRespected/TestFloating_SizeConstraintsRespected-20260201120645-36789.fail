@@ -1,0 +1,90 @@
+# 2026/02/01 12:06:45.556610 [TestFloating_SizeConstraintsRespected] [rapid] draw width: 40
+# 2026/02/01 12:06:45.556612 [TestFloating_SizeConstraintsRespected] [rapid] draw height: 10
+# 2026/02/01 12:06:45.556612 [TestFloating_SizeConstraintsRespected] [rapid] draw numBindings: 3
+# 2026/02/01 12:06:45.556614 [TestFloating_SizeConstraintsRespected] [rapid] draw desc: "aaa"
+# 2026/02/01 12:06:45.556615 [TestFloating_SizeConstraintsRespected] [rapid] draw category: "Navigation"
+# 2026/02/01 12:06:45.556617 [TestFloating_SizeConstraintsRespected] [rapid] draw enabledChance: 1
+# 2026/02/01 12:06:45.556619 [TestFloating_SizeConstraintsRespected] [rapid] draw desc: "aaa"
+# 2026/02/01 12:06:45.556619 [TestFloating_SizeConstraintsRespected] [rapid] draw category: "Navigation"
+# 2026/02/01 12:06:45.556620 [TestFloating_SizeConstraintsRespected] [rapid] draw enabledChance: 1
+# 2026/02/01 12:06:45.556620 [TestFloating_SizeConstraintsRespected] [rapid] draw desc: "aaa"
+# 2026/02/01 12:06:45.556621 [TestFloating_SizeConstraintsRespected] [rapid] draw category: "Actions"
+# 2026/02/01 12:06:45.556621 [TestFloating_SizeConstraintsRespected] [rapid] draw enabledChance: 1
+# 2026/02/01 12:06:45.556647 [TestFloating_SizeConstraintsRespected] view height 11 exceeds specified height 10
+# 
+v0.4.8#18274278837184586224
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x38e38e38e38e4
+0x3
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

@@ -162,18 +162,35 @@ func TestFloating_BindingsGroupedByCategory(t *testing.T) {
 		fh.SetBindings(bindings)
 
 		view := fh.View()
+		lines := strings.Split(view, "\n")
 
-		// Within the same category, bindings should appear together
-		// Check that nav1 and nav2 are closer to each other than to act1/act2
-		nav1Pos := strings.Index(view, "nav1")
-		nav2Pos := strings.Index(view, "nav2")
-		act1Pos := strings.Index(view, "act1")
+		// In a column layout, items in the same category should be in the same column
+		// Find which lines contain nav1, nav2, act1, act2
+		findColumn := func(text string) int {
+			for _, line := range lines {
+				if idx := strings.Index(line, text); idx >= 0 {
+					return idx // column position
+				}
+			}
+			return -1
+		}
 
-		if nav1Pos >= 0 && nav2Pos >= 0 && act1Pos >= 0 {
-			navDist := abs(nav2Pos - nav1Pos)
-			crossDist := abs(act1Pos - nav1Pos)
-			if navDist > crossDist {
-				t.Errorf("bindings in same category should be grouped together")
+		nav1Col := findColumn("nav1")
+		nav2Col := findColumn("nav2")
+		act1Col := findColumn("act1")
+		act2Col := findColumn("act2")
+
+		// nav1 and nav2 should be in the same column (Navigation)
+		if nav1Col >= 0 && nav2Col >= 0 {
+			if abs(nav1Col-nav2Col) > 5 { // allow small variance for alignment
+				t.Errorf("nav1 and nav2 should be in same column, got cols %d and %d", nav1Col, nav2Col)
+			}
+		}
+
+		// act1 and act2 should be in the same column (Actions)
+		if act1Col >= 0 && act2Col >= 0 {
+			if abs(act1Col-act2Col) > 5 {
+				t.Errorf("act1 and act2 should be in same column, got cols %d and %d", act1Col, act2Col)
 			}
 		}
 	})
