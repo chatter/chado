@@ -4,7 +4,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -211,42 +210,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Global keys
-		switch {
-		case key.Matches(msg, m.keys.Quit):
-			if m.watcher != nil {
-				m.watcher.Close()
+		// Try active bindings first
+		if newModel, cmd := dispatchKey(&m, msg, m.activeBindings()); newModel != nil {
+			m = *newModel
+			if cmd != nil {
+				cmds = append(cmds, cmd)
 			}
-			return m, tea.Quit
-
-		case key.Matches(msg, m.keys.FocusPane0):
-			m.focusedPane = PaneDiff
-			m.updatePanelFocus()
-
-		case key.Matches(msg, m.keys.FocusPane1):
-			m.focusedPane = PaneLog
-			m.updatePanelFocus()
-
-		case key.Matches(msg, m.keys.NextPane), key.Matches(msg, m.keys.Right):
-			m.focusedPane = (m.focusedPane + 1) % 2
-			m.updatePanelFocus()
-
-		case key.Matches(msg, m.keys.PrevPane), key.Matches(msg, m.keys.Left):
-			m.focusedPane = (m.focusedPane + 1) % 2
-			m.updatePanelFocus()
-
-		case key.Matches(msg, m.keys.Enter):
-			cmds = append(cmds, m.handleEnter())
-
-		case key.Matches(msg, m.keys.Back):
-			// Only handle Esc when we're in a drilled-down view AND focused on left pane
-			if m.viewMode != ViewLog && m.focusedPane == PaneLog {
-				m.handleBack()
-			}
-			// Otherwise, Esc does nothing (or could pass to focused panel later)
-
-		default:
-			// Pass to focused panel
+		} else {
+			// No binding matched, pass to focused panel
 			cmds = append(cmds, m.updateFocusedPanel(msg))
 		}
 
@@ -387,6 +358,121 @@ func (m *Model) updatePanelFocus() {
 		m.logPanel.SetFocused(false)
 		m.filesPanel.SetFocused(false)
 		m.diffPanel.SetFocused(true)
+	}
+}
+
+// Action methods for keybindings
+
+func (m *Model) actionQuit() (Model, tea.Cmd) {
+	if m.watcher != nil {
+		m.watcher.Close()
+	}
+	return *m, tea.Quit
+}
+
+func (m *Model) actionFocusPane0() (Model, tea.Cmd) {
+	m.focusedPane = PaneDiff
+	m.updatePanelFocus()
+	return *m, nil
+}
+
+func (m *Model) actionFocusPane1() (Model, tea.Cmd) {
+	m.focusedPane = PaneLog
+	m.updatePanelFocus()
+	return *m, nil
+}
+
+func (m *Model) actionNextPane() (Model, tea.Cmd) {
+	m.focusedPane = (m.focusedPane + 1) % 2
+	m.updatePanelFocus()
+	return *m, nil
+}
+
+func (m *Model) actionPrevPane() (Model, tea.Cmd) {
+	m.focusedPane = (m.focusedPane + 1) % 2
+	m.updatePanelFocus()
+	return *m, nil
+}
+
+func (m *Model) actionEnter() (Model, tea.Cmd) {
+	cmd := m.handleEnter()
+	return *m, cmd
+}
+
+func (m *Model) actionBack() (Model, tea.Cmd) {
+	// Only handle Esc when we're in a drilled-down view AND focused on left pane
+	if m.viewMode != ViewLog && m.focusedPane == PaneLog {
+		m.handleBack()
+	}
+	return *m, nil
+}
+
+// activeBindings returns all currently active keybindings
+// For now, just global bindings. Panel-specific bindings will be added in Issue 2.
+func (m *Model) activeBindings() []HelpBinding {
+	return m.globalBindings()
+}
+
+// globalBindings returns the app-level keybindings with their actions
+func (m *Model) globalBindings() []HelpBinding {
+	return []HelpBinding{
+		// Quit - highest order (always visible)
+		{
+			Binding:  m.keys.Quit,
+			Category: CategoryActions,
+			Order:    100,
+			Action:   (*Model).actionQuit,
+		},
+		// Pane focus
+		{
+			Binding:  m.keys.FocusPane0,
+			Category: CategoryNavigation,
+			Order:    50,
+			Action:   (*Model).actionFocusPane0,
+		},
+		{
+			Binding:  m.keys.FocusPane1,
+			Category: CategoryNavigation,
+			Order:    51,
+			Action:   (*Model).actionFocusPane1,
+		},
+		{
+			Binding:  m.keys.NextPane,
+			Category: CategoryNavigation,
+			Order:    20,
+			Action:   (*Model).actionNextPane,
+		},
+		{
+			Binding:  m.keys.PrevPane,
+			Category: CategoryNavigation,
+			Order:    21,
+			Action:   (*Model).actionPrevPane,
+		},
+		{
+			Binding:  m.keys.Right,
+			Category: CategoryNavigation,
+			Order:    22,
+			Action:   (*Model).actionNextPane,
+		},
+		{
+			Binding:  m.keys.Left,
+			Category: CategoryNavigation,
+			Order:    23,
+			Action:   (*Model).actionPrevPane,
+		},
+		// Actions
+		{
+			Binding:  m.keys.Enter,
+			Category: CategoryActions,
+			Order:    10,
+			Action:   (*Model).actionEnter,
+		},
+		{
+			Binding:  m.keys.Back,
+			Category: CategoryActions,
+			Order:    11,
+			Action:   (*Model).actionBack,
+		},
 	}
 }
 
