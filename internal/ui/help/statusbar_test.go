@@ -228,3 +228,40 @@ func TestStatusBar_EmptyBindingsShowsVersion(t *testing.T) {
 		}
 	})
 }
+
+func TestStatusBar_PinnedBindingsAlwaysAppear(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		width := rapid.IntRange(40, 100).Draw(t, "width")
+
+		// Create many regular bindings that will get truncated
+		numRegular := rapid.IntRange(5, 15).Draw(t, "numRegular")
+		bindings := make([]HelpBinding, numRegular+1)
+		for i := 0; i < numRegular; i++ {
+			bindings[i] = HelpBinding{
+				Binding:  key.NewBinding(key.WithKeys(string(rune('a'+i))), key.WithHelp(string(rune('a'+i)), "action"+string(rune('0'+i)))),
+				Category: CategoryNavigation,
+				Order:    i,
+				Pinned:   false,
+			}
+		}
+
+		// Add one pinned binding
+		bindings[numRegular] = HelpBinding{
+			Binding:  key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+			Category: CategoryActions,
+			Order:    99,
+			Pinned:   true,
+		}
+
+		sb := NewStatusBar("v1.0.0")
+		sb.SetBindings(bindings)
+		sb.SetWidth(width)
+
+		view := sb.View()
+
+		// Pinned binding should always appear
+		if !strings.Contains(view, "help") {
+			t.Errorf("pinned binding 'help' should always appear: %q", view)
+		}
+	})
+}

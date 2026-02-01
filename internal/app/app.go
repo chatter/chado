@@ -41,6 +41,7 @@ type Model struct {
 	// View state
 	viewMode    ViewMode
 	focusedPane FocusedPane
+	showHelp    bool
 
 	// Panels
 	logPanel   ui.LogPanel
@@ -48,7 +49,8 @@ type Model struct {
 	diffPanel  ui.DiffPanel
 
 	// Help
-	statusBar *help.StatusBar
+	statusBar    *help.StatusBar
+	floatingHelp *help.FloatingHelp
 
 	// Data
 	changes     []jj.Change
@@ -70,6 +72,7 @@ func New(workDir string, version string) Model {
 	filesPanel := ui.NewFilesPanel()
 	diffPanel := ui.NewDiffPanel()
 	statusBar := help.NewStatusBar("chado " + version)
+	floatingHelp := help.NewFloatingHelp()
 
 	// Set initial focus - log panel starts focused
 	logPanel.SetFocused(true)
@@ -77,16 +80,17 @@ func New(workDir string, version string) Model {
 	diffPanel.SetFocused(false)
 
 	return Model{
-		workDir:     workDir,
-		version:     version,
-		keys:        DefaultKeyMap(),
-		runner:      runner,
-		viewMode:    ViewLog,
-		focusedPane: PaneLog,
-		logPanel:    logPanel,
-		filesPanel:  filesPanel,
-		diffPanel:   diffPanel,
-		statusBar:   statusBar,
+		workDir:      workDir,
+		version:      version,
+		keys:         DefaultKeyMap(),
+		runner:       runner,
+		viewMode:     ViewLog,
+		focusedPane:  PaneLog,
+		logPanel:     logPanel,
+		filesPanel:   filesPanel,
+		diffPanel:    diffPanel,
+		statusBar:    statusBar,
+		floatingHelp: floatingHelp,
 	}
 }
 
@@ -215,6 +219,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// When help modal is open, only handle ? and esc
+		if m.showHelp {
+			if msg.String() == "?" || msg.String() == "esc" {
+				m.showHelp = false
+			}
+			// Absorb all other keys
+			return m, nil
+		}
+
 		// Try active bindings first
 		if newModel, cmd := dispatchKey(&m, msg, m.activeBindings()); newModel != nil {
 			m = *newModel
@@ -412,6 +425,11 @@ func (m *Model) actionBack() (Model, tea.Cmd) {
 	return *m, nil
 }
 
+func (m *Model) actionToggleHelp() (Model, tea.Cmd) {
+	m.showHelp = !m.showHelp
+	return *m, nil
+}
+
 // activeBindings returns all currently active keybindings for dispatch.
 // Merges global bindings with context-specific panel bindings.
 func (m *Model) activeBindings() []ActionBinding {
@@ -520,6 +538,16 @@ func (m *Model) globalBindings() []ActionBinding {
 			},
 			Action: (*Model).actionBack,
 		},
+		// Help toggle - pinned, always visible
+		{
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Help,
+				Category: help.CategoryActions,
+				Order:    99,
+				Pinned:   true, // Always visible in status bar
+			},
+			Action: (*Model).actionToggleHelp,
+		},
 	}
 }
 
@@ -619,7 +647,41 @@ func (m Model) View() string {
 	statusBar := m.renderStatusBar()
 
 	// Join vertically
-	return lipgloss.JoinVertical(lipgloss.Left, panels, statusBar)
+	base := lipgloss.JoinVertical(lipgloss.Left, panels, statusBar)
+
+	// Show floating help modal if active
+	if m.showHelp {
+		return m.renderWithOverlay(base)
+	}
+
+	return base
+}
+
+func (m Model) renderWithOverlay(base string) string {
+	// Calculate modal size (centered, ~80% of screen)
+	modalWidth := m.width * 80 / 100
+	modalHeight := m.height * 70 / 100
+
+	if modalWidth < 40 {
+		modalWidth = min(40, m.width-4)
+	}
+	if modalHeight < 10 {
+		modalHeight = min(10, m.height-4)
+	}
+
+	// Set up and render floating help
+	m.floatingHelp.SetSize(modalWidth, modalHeight)
+	m.floatingHelp.SetBindings(m.activeHelpBindings())
+	modal := m.floatingHelp.View()
+
+	// Center the modal on the base content
+	return lipgloss.Place(
+		m.width, m.height,
+		lipgloss.Center, lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")),
+	)
 }
 
 func (m Model) renderStatusBar() string {

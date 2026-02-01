@@ -60,8 +60,23 @@ func (s *StatusBar) View() string {
 		return ""
 	}
 
-	// Sort bindings by order
-	sorted := s.sortedBindings()
+	// Separate pinned and regular bindings
+	var pinned, regular []HelpBinding
+	for _, hb := range s.bindings {
+		if !hb.Binding.Enabled() {
+			continue
+		}
+		if hb.Pinned {
+			pinned = append(pinned, hb)
+		} else {
+			regular = append(regular, hb)
+		}
+	}
+
+	// Sort regular bindings by order
+	sort.Slice(regular, func(i, j int) bool {
+		return regular[i].Order < regular[j].Order
+	})
 
 	// Build help text, respecting width
 	separator := s.sepStyle.Render(" • ")
@@ -71,32 +86,40 @@ func (s *StatusBar) View() string {
 	versionText := s.version
 	versionWidth := len(versionText)
 
-	// Available width for bindings (leave space for version + padding)
-	availableWidth := s.width - versionWidth - 2 // 2 for minimum padding
+	// Calculate space needed for pinned bindings
+	var pinnedParts []string
+	pinnedWidth := 0
+	for _, hb := range pinned {
+		help := hb.Binding.Help()
+		part := s.keyStyle.Render(help.Key) + " " + s.descStyle.Render(help.Desc)
+		pinnedParts = append(pinnedParts, part)
+		if pinnedWidth > 0 {
+			pinnedWidth += separatorWidth
+		}
+		pinnedWidth += lipgloss.Width(part)
+	}
 
-	var helpParts []string
+	// Available width for regular bindings
+	availableWidth := s.width - versionWidth - pinnedWidth - 4 // 4 for padding and separators
+
+	var regularParts []string
 	currentWidth := 0
 	ellipsis := "…"
 	ellipsisWidth := lipgloss.Width(ellipsis)
 
-	for i, hb := range sorted {
-		if !hb.Binding.Enabled() {
-			continue
-		}
-
+	for i, hb := range regular {
 		help := hb.Binding.Help()
 		part := s.keyStyle.Render(help.Key) + " " + s.descStyle.Render(help.Desc)
 		partWidth := lipgloss.Width(part)
 
 		// Calculate width with separator
 		widthWithSep := partWidth
-		if len(helpParts) > 0 {
+		if len(regularParts) > 0 {
 			widthWithSep += separatorWidth
 		}
 
 		// Check if adding this part would exceed available width
-		// Also need to reserve space for ellipsis if there are more bindings
-		hasMore := i < len(sorted)-1
+		hasMore := i < len(regular)-1
 		reserveForEllipsis := 0
 		if hasMore {
 			reserveForEllipsis = ellipsisWidth + separatorWidth
@@ -104,18 +127,23 @@ func (s *StatusBar) View() string {
 
 		if currentWidth+widthWithSep+reserveForEllipsis > availableWidth {
 			// Can't fit this one, add ellipsis and stop
-			if len(helpParts) > 0 {
-				helpParts = append(helpParts, ellipsis)
+			if len(regularParts) > 0 {
+				regularParts = append(regularParts, ellipsis)
 			}
 			break
 		}
 
-		helpParts = append(helpParts, part)
+		regularParts = append(regularParts, part)
 		currentWidth += widthWithSep
 	}
 
+	// Combine regular and pinned parts
+	var allParts []string
+	allParts = append(allParts, regularParts...)
+	allParts = append(allParts, pinnedParts...)
+
 	// Join help parts with separator
-	helpText := strings.Join(helpParts, separator)
+	helpText := strings.Join(allParts, separator)
 	helpWidth := lipgloss.Width(helpText)
 
 	// Calculate padding between help and version

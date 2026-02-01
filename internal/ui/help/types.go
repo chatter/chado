@@ -19,5 +19,6 @@ const (
 type HelpBinding struct {
 	Binding  key.Binding
 	Category Category
-	Order    int // lower = higher priority for inline status bar
+	Order    int  // lower = higher priority for inline status bar
+	Pinned   bool // if true, always shown in status bar (never truncated)
 }

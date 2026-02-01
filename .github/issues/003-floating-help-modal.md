@@ -90,6 +90,18 @@ func (m Model) renderWithOverlay(base, overlay string) string {
 }
 ```
 
+## Pinned Status Bar Binding
+
+The `?` binding should **always** appear in the status bar, never truncated:
+
+```
+j/k up • h/l pane • …  • ? help                    chado v1.0.0
+                       ^^^^^^^^
+                       always visible
+```
+
+Add `Pinned bool` to `HelpBinding` or handle specially in StatusBar rendering.
+
 ## Tasks
 
 - [ ] Create `FloatingHelp` component in `internal/ui/help/floating.go`
@@ -101,6 +113,7 @@ func (m Model) renderWithOverlay(base, overlay string) string {
 - [ ] Absorb keypresses while modal is open
 - [ ] Implement overlay rendering in View()
 - [ ] Pass bindings to FloatingHelp on toggle
+- [ ] Pin `?` binding in status bar (never truncated)
 
 ## Tests
 
