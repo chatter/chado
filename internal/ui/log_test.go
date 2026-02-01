@@ -646,4 +646,3 @@ func BenchmarkIsChangeStart(b *testing.B) {
 		}
 	}
 }
-

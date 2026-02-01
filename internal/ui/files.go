@@ -179,33 +179,20 @@ func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
 
 // View renders the panel
 func (p FilesPanel) View() string {
-	// Build title with colored change ID
-	// We construct this manually because nested ANSI codes don't compose well
-	var titleColor lipgloss.Style
-	if p.focused {
-		titleColor = lipgloss.NewStyle().Bold(true).Foreground(accentColor)
-	} else {
-		titleColor = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
-	}
-
-	prefix := ""
-	if p.focused {
-		prefix = "● "
-	}
-
-	// Build: prefix + [1] + shortcode (magenta) + rest (title color) + " / files" (title color)
-	var titleText string
+	// Build change ID with shortcode highlighted
+	coloredID := p.changeID
 	if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
 		rest := p.changeID[len(p.shortCode):]
-		titleText = titleColor.Render(prefix+"[1] ") +
-			ShortCodeStyle.Render(p.shortCode) +
-			titleColor.Render(rest+" / files")
-	} else {
-		titleText = titleColor.Render(prefix + "[1] " + p.changeID + " / files")
+		// Replace the reset with the outer title color so styling continues
+		var outerColor lipgloss.Color
+		if p.focused {
+			outerColor = accentColor
+		} else {
+			outerColor = primaryColor
+		}
+		coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColor) + rest
 	}
-
-	// Apply padding to match PanelTitle
-	title := lipgloss.NewStyle().Padding(0, 1).Render(titleText)
+	title := PanelTitle(1, coloredID+" / files", p.focused)
 
 	// Get the appropriate border style
 	var style lipgloss.Style

@@ -69,7 +69,7 @@ func TestFilesPanel_CursorNavigation(t *testing.T) {
 		{Path: "b.go", Status: jj.FileAdded},
 		{Path: "c.go", Status: jj.FileDeleted},
 	}
-	panel.SetFiles("test", "test", files)
+	panel.SetFiles("test", "t", files)
 
 	// Test CursorDown
 	panel.CursorDown()
@@ -123,7 +123,7 @@ func TestFilesPanel_SelectedFile(t *testing.T) {
 		{Path: "a.go", Status: jj.FileModified},
 		{Path: "b.go", Status: jj.FileAdded},
 	}
-	panel.SetFiles("test", "test", files)
+	panel.SetFiles("test", "t", files)
 
 	selected := panel.SelectedFile()
 	if selected == nil {
@@ -183,17 +183,17 @@ func TestFilesPanel_CursorAlwaysInBounds(t *testing.T) {
 		// Generate random files
 		numFiles := rapid.IntRange(0, 100).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			files[i] = jj.File{
 				Path:   rapid.StringMatching(`[a-z]{3,10}\.go`).Draw(t, "path"),
 				Status: jj.FileStatus(rapid.SampledFrom([]string{"M", "A", "D"}).Draw(t, "status")),
 			}
 		}
-		panel.SetFiles("test", "test", files)
+		panel.SetFiles("test", "t", files)
 
 		// Perform random operations
 		numOps := rapid.IntRange(0, 50).Draw(t, "numOps")
-		for i := 0; i < numOps; i++ {
+		for range numOps {
 			op := rapid.IntRange(0, 3).Draw(t, "op")
 			switch op {
 			case 0:
@@ -231,17 +231,17 @@ func TestFilesPanel_SelectedFileMatchesCursor(t *testing.T) {
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			files[i] = jj.File{
 				Path:   rapid.StringMatching(`[a-z]{5,10}\.go`).Draw(t, "path") + string(rune('0'+i)),
 				Status: jj.FileModified,
 			}
 		}
-		panel.SetFiles("test", "test", files)
+		panel.SetFiles("test", "t", files)
 
 		// Random cursor position
 		targetPos := rapid.IntRange(0, numFiles-1).Draw(t, "targetPos")
-		for i := 0; i < targetPos; i++ {
+		for range targetPos {
 			panel.CursorDown()
 		}
 
@@ -267,14 +267,14 @@ func TestFilesPanel_SetFilesResetsCursor(t *testing.T) {
 		initialFiles := []jj.File{{Path: "a.go"}, {Path: "b.go"}, {Path: "c.go"}}
 		panel.SetFiles("first", "first", initialFiles)
 		moves := rapid.IntRange(0, 5).Draw(t, "moves")
-		for i := 0; i < moves; i++ {
+		for range moves {
 			panel.CursorDown()
 		}
 
 		// Set new files
 		numFiles := rapid.IntRange(0, 10).Draw(t, "numFiles")
 		newFiles := make([]jj.File, numFiles)
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			newFiles[i] = jj.File{Path: rapid.String().Draw(t, "path")}
 		}
 		panel.SetFiles("second", "second", newFiles)
@@ -293,14 +293,14 @@ func TestFilesPanel_GotoTopAlwaysZero(t *testing.T) {
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i))}
 		}
-		panel.SetFiles("test", "test", files)
+		panel.SetFiles("test", "t", files)
 
 		// Move around
 		moves := rapid.IntRange(0, 30).Draw(t, "moves")
-		for i := 0; i < moves; i++ {
+		for range moves {
 			panel.CursorDown()
 		}
 
@@ -319,10 +319,10 @@ func TestFilesPanel_GotoBottomAlwaysLast(t *testing.T) {
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i))}
 		}
-		panel.SetFiles("test", "test", files)
+		panel.SetFiles("test", "t", files)
 
 		panel.GotoBottom()
 		if panel.cursor != numFiles-1 {
@@ -346,10 +346,10 @@ func TestFilesPanel_Click_CursorInBounds(t *testing.T) {
 		// Generate files
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
 		}
-		panel.SetFiles("test", "test", files)
+		panel.SetFiles("test", "t", files)
 
 		// Click at any Y position (including invalid: negative, huge)
 		clickY := rapid.IntRange(-100, 500).Draw(t, "clickY")
@@ -375,10 +375,10 @@ func TestFilesPanel_Click_SelectsCorrectFile(t *testing.T) {
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
 		}
-		panel.SetFiles("test", "test", files)
+		panel.SetFiles("test", "t", files)
 
 		// Click at valid index
 		targetIdx := rapid.IntRange(0, numFiles-1).Draw(t, "targetIdx")
@@ -401,10 +401,10 @@ func TestFilesPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
 		}
-		panel.SetFiles("test", "test", files)
+		panel.SetFiles("test", "t", files)
 
 		// Set cursor to random valid position
 		startCursor := rapid.IntRange(0, numFiles-1).Draw(t, "startCursor")
@@ -438,10 +438,10 @@ func TestFilesPanel_Click_SamePosition_ReturnsFalse(t *testing.T) {
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
 		files := make([]jj.File, numFiles)
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
 		}
-		panel.SetFiles("test", "test", files)
+		panel.SetFiles("test", "t", files)
 
 		// Set cursor to a position
 		cursorPos := rapid.IntRange(0, numFiles-1).Draw(t, "cursorPos")
@@ -466,13 +466,12 @@ func BenchmarkFilesPanel_Navigation(b *testing.B) {
 	panel.SetSize(80, 24)
 
 	files := make([]jj.File, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		files[i] = jj.File{Path: "file" + string(rune(i))}
 	}
-	panel.SetFiles("test", "test", files)
+	panel.SetFiles("test", "t", files)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		panel.CursorDown()
 		panel.CursorDown()
 		panel.CursorUp()

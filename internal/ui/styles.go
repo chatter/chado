@@ -51,9 +51,11 @@ var (
 	DimStyle = lipgloss.NewStyle().
 			Foreground(secondaryColor)
 
-	// ShortCodeStyle for the unique prefix of change IDs (matches jj's bright magenta)
+	// ShortCodeStyle for the unique prefix of change IDs (matches jj's default)
 	ShortCodeStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("205"))
+			Foreground(lipgloss.Color("13")). // Bright magenta - matches jj
+			Bold(true).
+			Inline(true)
 )
 
 // PanelTitle returns a formatted panel title with optional focus indicator
