@@ -248,6 +248,7 @@ func TestFilesPanel_SelectedFileMatchesCursor(t *testing.T) {
 		selected := panel.SelectedFile()
 		if selected == nil {
 			t.Fatal("SelectedFile should not be nil")
+			return
 		}
 		if selected.Path != files[panel.cursor].Path {
 			t.Fatalf("selected file path mismatch: got %s, expected %s",

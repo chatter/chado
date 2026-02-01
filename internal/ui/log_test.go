@@ -362,6 +362,7 @@ func TestLogPanel_SelectedChangeMatchesCursor(t *testing.T) {
 		selected := panel.SelectedChange()
 		if selected == nil {
 			t.Fatal("SelectedChange should not be nil")
+			return
 		}
 		if selected.ChangeID != changes[panel.cursor].ChangeID {
 			t.Fatalf("selected change ID mismatch: got %s, expected %s",
@@ -646,16 +647,3 @@ func BenchmarkIsChangeStart(b *testing.B) {
 	}
 }
 
-// Helper to generate log output
-func generateLogOutput(numChanges int) string {
-	var lines []string
-	for i := 0; i < numChanges; i++ {
-		symbol := "○"
-		if i == 0 {
-			symbol = "@"
-		}
-		lines = append(lines, symbol+"  "+strings.Repeat("x", 8)+" description "+string(rune('a'+i)))
-		lines = append(lines, "│  continued")
-	}
-	return strings.Join(lines, "\n")
-}
