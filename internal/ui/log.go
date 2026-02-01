@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/chatter/lazyjj/internal/jj"
+	"github.com/chatter/chado/internal/jj"
 )
 
 // ansiRegex matches ANSI escape codes

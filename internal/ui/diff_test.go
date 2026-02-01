@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/chatter/lazyjj/internal/jj"
+	"github.com/chatter/chado/internal/jj"
 	"pgregory.net/rapid"
 )
 

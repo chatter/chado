@@ -1,4 +1,4 @@
-module github.com/chatter/lazyjj
+module github.com/chatter/chado
 
 go 1.25.0
 

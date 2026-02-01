@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/chatter/lazyjj/internal/jj"
-	"github.com/chatter/lazyjj/internal/ui"
+	"github.com/chatter/chado/internal/jj"
+	"github.com/chatter/chado/internal/ui"
 )
 
 // ViewMode represents the current view hierarchy
@@ -491,7 +491,7 @@ func (m Model) View() string {
 
 func (m Model) renderStatusBar() string {
 	// For now, just version on the right
-	version := "lazyjj v" + m.version
+	version := "chado v" + m.version
 
 	// Pad to full width
 	padding := max(m.width-len(version), 0)

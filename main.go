@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/chatter/lazyjj/internal/app"
+	"github.com/chatter/chado/internal/app"
 )
 
 // version is set from build info or falls back to "dev"

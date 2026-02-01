@@ -7,7 +7,7 @@ import (
 
 	"pgregory.net/rapid"
 
-	"github.com/chatter/lazyjj/internal/jj"
+	"github.com/chatter/chado/internal/jj"
 )
 
 // =============================================================================

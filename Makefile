@@ -1,7 +1,7 @@
 .PHONY: all build clean test test-verbose test-cover test-race lint install
 
 # Binary name
-BINARY := lazyjj
+BINARY := chado
 VERSION := 0.1.0
 
 # Go parameters

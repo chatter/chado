@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/chatter/lazyjj/internal/jj"
+	"github.com/chatter/chado/internal/jj"
 )
 
 // noHunkSelected indicates viewport is in header area, before any hunk
