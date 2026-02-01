@@ -163,11 +163,14 @@ func TestReplaceResetWithColor_ReplacementCount(t *testing.T) {
 		result := ReplaceResetWithColor(input, color)
 
 		expectedCode := fmt.Sprintf("\x1b[38;5;%dm", colorCode)
-		insertedCount := strings.Count(result, expectedCode)
+		// Count new insertions, not pre-existing occurrences
+		preExisting := strings.Count(input, expectedCode)
+		totalInResult := strings.Count(result, expectedCode)
+		insertedCount := totalInResult - preExisting
 
 		if insertedCount != resetCount {
-			t.Fatalf("expected %d color insertions, got %d (input=%q, result=%q)",
-				resetCount, insertedCount, input, result)
+			t.Fatalf("expected %d color insertions, got %d (input=%q, result=%q, preExisting=%d)",
+				resetCount, insertedCount, input, result, preExisting)
 		}
 	})
 }
