@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/chatter/chado/internal/jj"
+	"github.com/chatter/chado/internal/logger"
 	"github.com/chatter/chado/internal/ui"
 	"github.com/chatter/chado/internal/ui/help"
 )
@@ -96,6 +97,7 @@ func New(workDir string, version string) Model {
 
 // Init initializes the application
 func (m Model) Init() tea.Cmd {
+	logger.Info("initializing app", "workdir", m.workDir, "version", m.version)
 	return tea.Batch(
 		m.loadLog(),
 		m.startWatcher(),
@@ -296,6 +298,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case watcherStartedMsg:
 		m.watcher = msg.watcher
+		if msg.err != nil {
+			logger.Warn("watcher failed to start", "err", msg.err)
+		}
 		if msg.watcher != nil {
 			cmds = append(cmds, m.waitForChange())
 		}
@@ -314,6 +319,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case errMsg:
+		logger.Error("app error", "err", msg.err)
 		m.lastError = msg.err.Error()
 	}
 
@@ -325,6 +331,7 @@ func (m *Model) handleEnter() tea.Cmd {
 	case ViewLog:
 		// Drill into files
 		if change := m.logPanel.SelectedChange(); change != nil {
+			logger.Debug("drilling into files view", "change_id", change.ChangeID)
 			m.viewMode = ViewFiles
 			m.focusedPane = PaneLog
 			m.updatePanelFocus()

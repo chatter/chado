@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"runtime/debug"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/chatter/chado/internal/app"
+	"github.com/chatter/chado/internal/logger"
 )
 
 // version is set from build info or falls back to "dev"
@@ -25,7 +27,22 @@ func init() {
 	}
 }
 
-func run(ctx context.Context, _ []string) error {
+func run(ctx context.Context, args []string) error {
+	// Parse flags
+	fs := flag.NewFlagSet("chado", flag.ContinueOnError)
+	logLevel := fs.String("log-level", "", "log level: debug, info, warn, error")
+	fs.StringVar(logLevel, "l", "", "log level (shorthand)")
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	// Initialize logger
+	if err := logger.Init(*logLevel); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	}
+	defer logger.Close()
+
 	if _, err := os.Stat(".jj"); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "error: not a jj repository (or any parent up to mount point /)")
 		return err
@@ -56,7 +73,7 @@ func run(ctx context.Context, _ []string) error {
 
 func main() {
 	ctx := context.Background()
-	if err := run(ctx, os.Args); err != nil {
+	if err := run(ctx, os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

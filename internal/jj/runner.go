@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+
+	"github.com/chatter/chado/internal/logger"
 )
 
 // Runner executes jj commands and returns output
@@ -19,6 +21,8 @@ func NewRunner(workDir string) *Runner {
 
 // Run executes a jj command and returns the output with colors preserved
 func (r *Runner) Run(args ...string) (string, error) {
+	logger.Debug("executing jj command", "args", args)
+
 	cmd := exec.Command("jj", args...)
 	cmd.Dir = r.workDir
 
@@ -30,15 +34,19 @@ func (r *Runner) Run(args ...string) (string, error) {
 	if err != nil {
 		// Return stderr content for debugging
 		if stderr.Len() > 0 {
-			return "", &JJError{
+			jjErr := &JJError{
 				Command: strings.Join(args, " "),
 				Stderr:  stderr.String(),
 				Err:     err,
 			}
+			logger.Error("jj command failed", "args", args, "err", jjErr)
+			return "", jjErr
 		}
+		logger.Error("jj command failed", "args", args, "err", err)
 		return "", err
 	}
 
+	logger.Debug("jj command completed", "args", args, "output_len", len(stdout.String()))
 	return stdout.String(), nil
 }
 

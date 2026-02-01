@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/chatter/chado/internal/logger"
 )
 
 // WatcherMsg is sent when the jj repo changes
@@ -21,19 +23,24 @@ type Watcher struct {
 
 // NewWatcher creates a new file watcher for the jj repo
 func NewWatcher(repoPath string) (*Watcher, error) {
+	logger.Debug("creating file watcher", "repo_path", repoPath)
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
+		logger.Error("failed to create fsnotify watcher", "err", err)
 		return nil, err
 	}
 
 	// Watch the .jj/repo/op_heads/heads directory for changes
 	jjPath := filepath.Join(repoPath, ".jj", "repo", "op_heads", "heads")
 	if err := watcher.Add(jjPath); err != nil {
+		logger.Error("failed to watch .jj directory", "path", jjPath, "err", err)
 		watcher.Close()
 		return nil, err
 	}
 
 	// Walk the repo directory and add all subdirectories to the watcher
+	watchCount := 0
 	_ = filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -43,11 +50,16 @@ func NewWatcher(repoPath string) (*Watcher, error) {
 			if strings.Contains(path, ".jj") || strings.Contains(path, ".git") {
 				return filepath.SkipDir
 			}
-			return watcher.Add(path)
+			if err := watcher.Add(path); err == nil {
+				watchCount++
+			}
+			return nil
 		}
 
 		return nil
 	})
+
+	logger.Info("watcher started", "watched_dirs", watchCount)
 
 	self := &Watcher{
 		watcher:  watcher,
@@ -92,9 +104,12 @@ func (w *Watcher) filterEvents() {
 				continue // Ignore other operations
 			}
 
+			logger.Debug("file change detected", "path", event.Name, "op", event.Op.String())
 			w.filtered <- event
-		case <-w.watcher.Errors:
-			// handle errors if needed
+		case err := <-w.watcher.Errors:
+			if err != nil {
+				logger.Warn("watcher error", "err", err)
+			}
 		}
 	}
 }
