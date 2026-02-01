@@ -72,6 +72,15 @@ func (r *Runner) Status() (string, error) {
 	return r.Run("status", "--color=always")
 }
 
+// ShortestChangeID returns the shortest unique prefix for a change ID
+func (r *Runner) ShortestChangeID(rev string) (string, error) {
+	output, err := r.Run("log", "-r", rev, "-T", "change_id.shortest()", "--no-graph")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
 // LogStat returns log with file stats
 func (r *Runner) LogStat(rev string) (string, error) {
 	return r.Run("log", "-r", rev, "--stat", "--color=always")

@@ -15,13 +15,14 @@ import (
 
 // FilesPanel displays the list of files in a change
 type FilesPanel struct {
-	viewport viewport.Model
-	files    []jj.File
-	cursor   int
-	focused  bool
-	width    int
-	height   int
-	changeID string
+	viewport  viewport.Model
+	files     []jj.File
+	cursor    int
+	focused   bool
+	width     int
+	height    int
+	changeID  string
+	shortCode string // shortest unique prefix for coloring
 }
 
 // NewFilesPanel creates a new files panel
@@ -49,8 +50,9 @@ func (p *FilesPanel) SetFocused(focused bool) {
 }
 
 // SetFiles sets the file list
-func (p *FilesPanel) SetFiles(changeID string, files []jj.File) {
+func (p *FilesPanel) SetFiles(changeID string, shortCode string, files []jj.File) {
 	p.changeID = changeID
+	p.shortCode = shortCode
 	p.files = files
 	p.cursor = 0
 	p.updateViewport()
@@ -177,7 +179,33 @@ func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
 
 // View renders the panel
 func (p FilesPanel) View() string {
-	title := PanelTitle(1, p.changeID+" / files", p.focused)
+	// Build title with colored change ID
+	// We construct this manually because nested ANSI codes don't compose well
+	var titleColor lipgloss.Style
+	if p.focused {
+		titleColor = lipgloss.NewStyle().Bold(true).Foreground(accentColor)
+	} else {
+		titleColor = lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+	}
+
+	prefix := ""
+	if p.focused {
+		prefix = "● "
+	}
+
+	// Build: prefix + [1] + shortcode (magenta) + rest (title color) + " / files" (title color)
+	var titleText string
+	if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
+		rest := p.changeID[len(p.shortCode):]
+		titleText = titleColor.Render(prefix+"[1] ") +
+			ShortCodeStyle.Render(p.shortCode) +
+			titleColor.Render(rest+" / files")
+	} else {
+		titleText = titleColor.Render(prefix + "[1] " + p.changeID + " / files")
+	}
+
+	// Apply padding to match PanelTitle
+	title := lipgloss.NewStyle().Padding(0, 1).Render(titleText)
 
 	// Get the appropriate border style
 	var style lipgloss.Style

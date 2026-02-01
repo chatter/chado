@@ -50,6 +50,10 @@ var (
 	// Dim style for non-focused content
 	DimStyle = lipgloss.NewStyle().
 			Foreground(secondaryColor)
+
+	// ShortCodeStyle for the unique prefix of change IDs (matches jj's bright magenta)
+	ShortCodeStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("205"))
 )
 
 // PanelTitle returns a formatted panel title with optional focus indicator

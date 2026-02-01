@@ -153,7 +153,14 @@ func (m Model) loadFiles(changeID string) tea.Cmd {
 			return errMsg{err}
 		}
 		files := m.runner.ParseFiles(diffOutput)
-		return filesLoadedMsg{changeID: changeID, files: files, diffOutput: diffOutput}
+
+		// Get the shortest unique prefix for coloring
+		shortCode, _ := m.runner.ShortestChangeID(changeID)
+		if shortCode == "" {
+			shortCode = changeID // Fallback to full ID if call fails
+		}
+
+		return filesLoadedMsg{changeID: changeID, shortCode: shortCode, files: files, diffOutput: diffOutput}
 	}
 }
 
@@ -200,6 +207,7 @@ type fileDiffLoadedMsg struct {
 
 type filesLoadedMsg struct {
 	changeID   string
+	shortCode  string
 	files      []jj.File
 	diffOutput string
 }
@@ -274,7 +282,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diffPanel.SetDiff(msg.diffOutput)
 
 	case filesLoadedMsg:
-		m.filesPanel.SetFiles(msg.changeID, msg.files)
+		m.filesPanel.SetFiles(msg.changeID, msg.shortCode, msg.files)
 		m.currentDiff = msg.diffOutput
 		// If there are files, show diff for the first one
 		if len(msg.files) > 0 {

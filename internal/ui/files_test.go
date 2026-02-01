@@ -47,7 +47,7 @@ func TestFilesPanel_SetFiles(t *testing.T) {
 		{Path: "old.go", Status: jj.FileDeleted},
 	}
 
-	panel.SetFiles("xsssnyux", files)
+	panel.SetFiles("xsssnyux", "xsss", files)
 
 	if panel.changeID != "xsssnyux" {
 		t.Errorf("changeID should be 'xsssnyux', got %s", panel.changeID)
@@ -69,7 +69,7 @@ func TestFilesPanel_CursorNavigation(t *testing.T) {
 		{Path: "b.go", Status: jj.FileAdded},
 		{Path: "c.go", Status: jj.FileDeleted},
 	}
-	panel.SetFiles("test", files)
+	panel.SetFiles("test", "test", files)
 
 	// Test CursorDown
 	panel.CursorDown()
@@ -123,7 +123,7 @@ func TestFilesPanel_SelectedFile(t *testing.T) {
 		{Path: "a.go", Status: jj.FileModified},
 		{Path: "b.go", Status: jj.FileAdded},
 	}
-	panel.SetFiles("test", files)
+	panel.SetFiles("test", "test", files)
 
 	selected := panel.SelectedFile()
 	if selected == nil {
@@ -148,7 +148,7 @@ func TestFilesPanel_ChangeID(t *testing.T) {
 		t.Error("ChangeID should be empty initially")
 	}
 
-	panel.SetFiles("xsssnyux", nil)
+	panel.SetFiles("xsssnyux", "xsss", nil)
 	if panel.ChangeID() != "xsssnyux" {
 		t.Errorf("ChangeID should be 'xsssnyux', got %s", panel.ChangeID())
 	}
@@ -157,7 +157,7 @@ func TestFilesPanel_ChangeID(t *testing.T) {
 func TestFilesPanel_EmptyFiles(t *testing.T) {
 	panel := NewFilesPanel()
 	panel.SetSize(80, 24)
-	panel.SetFiles("test", nil)
+	panel.SetFiles("test", "", nil)
 
 	// Should not panic
 	panel.CursorDown()
@@ -189,7 +189,7 @@ func TestFilesPanel_CursorAlwaysInBounds(t *testing.T) {
 				Status: jj.FileStatus(rapid.SampledFrom([]string{"M", "A", "D"}).Draw(t, "status")),
 			}
 		}
-		panel.SetFiles("test", files)
+		panel.SetFiles("test", "test", files)
 
 		// Perform random operations
 		numOps := rapid.IntRange(0, 50).Draw(t, "numOps")
@@ -237,7 +237,7 @@ func TestFilesPanel_SelectedFileMatchesCursor(t *testing.T) {
 				Status: jj.FileModified,
 			}
 		}
-		panel.SetFiles("test", files)
+		panel.SetFiles("test", "test", files)
 
 		// Random cursor position
 		targetPos := rapid.IntRange(0, numFiles-1).Draw(t, "targetPos")
@@ -265,7 +265,7 @@ func TestFilesPanel_SetFilesResetsCursor(t *testing.T) {
 
 		// Set initial files and move cursor
 		initialFiles := []jj.File{{Path: "a.go"}, {Path: "b.go"}, {Path: "c.go"}}
-		panel.SetFiles("first", initialFiles)
+		panel.SetFiles("first", "first", initialFiles)
 		moves := rapid.IntRange(0, 5).Draw(t, "moves")
 		for i := 0; i < moves; i++ {
 			panel.CursorDown()
@@ -277,7 +277,7 @@ func TestFilesPanel_SetFilesResetsCursor(t *testing.T) {
 		for i := 0; i < numFiles; i++ {
 			newFiles[i] = jj.File{Path: rapid.String().Draw(t, "path")}
 		}
-		panel.SetFiles("second", newFiles)
+		panel.SetFiles("second", "second", newFiles)
 
 		if panel.cursor != 0 {
 			t.Fatalf("cursor should be 0 after SetFiles, got %d", panel.cursor)
@@ -296,7 +296,7 @@ func TestFilesPanel_GotoTopAlwaysZero(t *testing.T) {
 		for i := 0; i < numFiles; i++ {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i))}
 		}
-		panel.SetFiles("test", files)
+		panel.SetFiles("test", "test", files)
 
 		// Move around
 		moves := rapid.IntRange(0, 30).Draw(t, "moves")
@@ -322,7 +322,7 @@ func TestFilesPanel_GotoBottomAlwaysLast(t *testing.T) {
 		for i := 0; i < numFiles; i++ {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i))}
 		}
-		panel.SetFiles("test", files)
+		panel.SetFiles("test", "test", files)
 
 		panel.GotoBottom()
 		if panel.cursor != numFiles-1 {
@@ -349,7 +349,7 @@ func TestFilesPanel_Click_CursorInBounds(t *testing.T) {
 		for i := 0; i < numFiles; i++ {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
 		}
-		panel.SetFiles("test", files)
+		panel.SetFiles("test", "test", files)
 
 		// Click at any Y position (including invalid: negative, huge)
 		clickY := rapid.IntRange(-100, 500).Draw(t, "clickY")
@@ -378,7 +378,7 @@ func TestFilesPanel_Click_SelectsCorrectFile(t *testing.T) {
 		for i := 0; i < numFiles; i++ {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
 		}
-		panel.SetFiles("test", files)
+		panel.SetFiles("test", "test", files)
 
 		// Click at valid index
 		targetIdx := rapid.IntRange(0, numFiles-1).Draw(t, "targetIdx")
@@ -404,7 +404,7 @@ func TestFilesPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 		for i := 0; i < numFiles; i++ {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
 		}
-		panel.SetFiles("test", files)
+		panel.SetFiles("test", "test", files)
 
 		// Set cursor to random valid position
 		startCursor := rapid.IntRange(0, numFiles-1).Draw(t, "startCursor")
@@ -441,7 +441,7 @@ func TestFilesPanel_Click_SamePosition_ReturnsFalse(t *testing.T) {
 		for i := 0; i < numFiles; i++ {
 			files[i] = jj.File{Path: "file" + string(rune('a'+i)), Status: jj.FileModified}
 		}
-		panel.SetFiles("test", files)
+		panel.SetFiles("test", "test", files)
 
 		// Set cursor to a position
 		cursorPos := rapid.IntRange(0, numFiles-1).Draw(t, "cursorPos")
@@ -469,7 +469,7 @@ func BenchmarkFilesPanel_Navigation(b *testing.B) {
 	for i := 0; i < 1000; i++ {
 		files[i] = jj.File{Path: "file" + string(rune(i))}
 	}
-	panel.SetFiles("test", files)
+	panel.SetFiles("test", "test", files)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
