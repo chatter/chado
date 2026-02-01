@@ -311,9 +311,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Refresh on file system changes
 		cmds = append(cmds, m.loadLog(), m.waitForChange())
 
-		// If drilled into file, reload it
+		// If drilled into files view, reload file list and current diff
 		if m.viewMode == ViewFiles {
 			if change := m.filesPanel.ChangeID(); change != "" {
+				cmds = append(cmds, m.loadFiles(change))
 				if file := m.filesPanel.SelectedFile(); file != nil {
 					cmds = append(cmds, m.loadFileDiff(change, file.Path))
 				}

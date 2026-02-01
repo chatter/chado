@@ -102,7 +102,7 @@ func (w *Watcher) filterEvents() {
 				continue // Ignore lock files
 			}
 
-			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove) == 0 {
+			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) == 0 {
 				continue // Ignore other operations
 			}
 
