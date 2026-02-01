@@ -345,7 +345,12 @@ func stripANSI(s string) string {
 func (p DiffPanel) HelpBindings() []help.HelpBinding {
 	return []help.HelpBinding{
 		{
-			Binding:  key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "next/prev hunk")),
+			Binding:  key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Category: help.CategoryNavigation,
+			Order:    1,
+		},
+		{
+			Binding:  key.NewBinding(key.WithKeys("{", "}"), key.WithHelp("{/}", "next/prev hunk")),
 			Category: help.CategoryDiff,
 			Order:    1,
 		},

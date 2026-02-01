@@ -65,19 +65,19 @@ func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		FocusPane0: key.NewBinding(
 			key.WithKeys("0"),
-			key.WithHelp("0", "focus diff pane"),
+			key.WithHelp("#", "focus pane"), // Combined display
 		),
 		FocusPane1: key.NewBinding(
 			key.WithKeys("1"),
-			key.WithHelp("1", "focus log pane"),
+			key.WithHelp("1", "focus pane"), // Hidden in help (duplicate)
 		),
 		NextPane: key.NewBinding(
-			key.WithKeys("tab", "l"),
-			key.WithHelp("⇥/l", "next pane"),
+			key.WithKeys("tab", "l", "right"),
+			key.WithHelp("→/l/⇥", "next pane"),
 		),
 		PrevPane: key.NewBinding(
-			key.WithKeys("shift+tab", "h"),
-			key.WithHelp("⇧⇥/h", "prev pane"),
+			key.WithKeys("shift+tab", "h", "left"),
+			key.WithHelp("←/h/⇧⇥", "prev pane"),
 		),
 		Left: key.NewBinding(
 			key.WithKeys("left"),

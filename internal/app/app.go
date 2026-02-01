@@ -219,10 +219,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// When help modal is open, only handle ? and esc
+		// When help modal is open, only handle ?, esc, and q
 		if m.showHelp {
 			if msg.String() == "?" || msg.String() == "esc" {
 				m.showHelp = false
+				return m, nil
+			}
+			if msg.String() == "q" {
+				if m.watcher != nil {
+					m.watcher.Close()
+				}
+				return m, tea.Quit
 			}
 			// Absorb all other keys
 			return m, nil
@@ -473,7 +480,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			},
 			Action: (*Model).actionQuit,
 		},
-		// Pane focus
+		// Pane focus - "#" represents 0/1 (deduped by description)
 		{
 			HelpBinding: help.HelpBinding{
 				Binding:  m.keys.FocusPane0,
@@ -490,6 +497,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			},
 			Action: (*Model).actionFocusPane1,
 		},
+		// Next/prev pane - combined keys
 		{
 			HelpBinding: help.HelpBinding{
 				Binding:  m.keys.NextPane,
@@ -503,22 +511,6 @@ func (m *Model) globalBindings() []ActionBinding {
 				Binding:  m.keys.PrevPane,
 				Category: help.CategoryNavigation,
 				Order:    21,
-			},
-			Action: (*Model).actionPrevPane,
-		},
-		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Right,
-				Category: help.CategoryNavigation,
-				Order:    22,
-			},
-			Action: (*Model).actionNextPane,
-		},
-		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Left,
-				Category: help.CategoryNavigation,
-				Order:    23,
 			},
 			Action: (*Model).actionPrevPane,
 		},
@@ -545,7 +537,7 @@ func (m *Model) globalBindings() []ActionBinding {
 				Binding:  m.keys.Help,
 				Category: help.CategoryActions,
 				Order:    99,
-				Pinned:   true, // Always visible in status bar
+				Pinned:   true,
 			},
 			Action: (*Model).actionToggleHelp,
 		},

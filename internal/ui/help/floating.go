@@ -109,14 +109,30 @@ var categoryOrder = []Category{
 	CategoryDiff,
 }
 
-// groupByCategory groups enabled bindings by their category.
+// groupByCategory groups enabled bindings by category, deduping by description.
+// If multiple bindings have the same description, only the first (lowest Order) is kept.
 func (f *FloatingHelp) groupByCategory() map[Category][]HelpBinding {
 	groups := make(map[Category][]HelpBinding)
+
+	// Track seen descriptions per category to dedupe
+	seen := make(map[Category]map[string]bool)
 
 	for _, hb := range f.bindings {
 		if !hb.Binding.Enabled() {
 			continue
 		}
+
+		desc := hb.Binding.Help().Desc
+		if seen[hb.Category] == nil {
+			seen[hb.Category] = make(map[string]bool)
+		}
+
+		// Skip if we've already seen this description in this category
+		if seen[hb.Category][desc] {
+			continue
+		}
+		seen[hb.Category][desc] = true
+
 		groups[hb.Category] = append(groups[hb.Category], hb)
 	}
 

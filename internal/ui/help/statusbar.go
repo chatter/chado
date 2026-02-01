@@ -60,12 +60,24 @@ func (s *StatusBar) View() string {
 		return ""
 	}
 
-	// Separate pinned and regular bindings
-	var pinned, regular []HelpBinding
+	// Dedupe bindings by description (keep first occurrence)
+	seen := make(map[string]bool)
+	var deduped []HelpBinding
 	for _, hb := range s.bindings {
 		if !hb.Binding.Enabled() {
 			continue
 		}
+		desc := hb.Binding.Help().Desc
+		if seen[desc] {
+			continue
+		}
+		seen[desc] = true
+		deduped = append(deduped, hb)
+	}
+
+	// Separate pinned and regular bindings
+	var pinned, regular []HelpBinding
+	for _, hb := range deduped {
 		if hb.Pinned {
 			pinned = append(pinned, hb)
 		} else {
@@ -76,6 +88,11 @@ func (s *StatusBar) View() string {
 	// Sort regular bindings by order
 	sort.Slice(regular, func(i, j int) bool {
 		return regular[i].Order < regular[j].Order
+	})
+
+	// Sort pinned bindings by order too
+	sort.Slice(pinned, func(i, j int) bool {
+		return pinned[i].Order < pinned[j].Order
 	})
 
 	// Build help text, respecting width
