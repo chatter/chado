@@ -463,12 +463,13 @@ func (m *Model) activeHelpBindings() []help.HelpBinding {
 // globalBindings returns the app-level keybindings with their actions.
 func (m *Model) globalBindings() []ActionBinding {
 	return []ActionBinding{
-		// Quit - highest order (always visible)
+		// Quit - pinned, always visible
 		{
 			HelpBinding: help.HelpBinding{
 				Binding:  m.keys.Quit,
 				Category: help.CategoryActions,
 				Order:    100,
+				Pinned:   true,
 			},
 			Action: (*Model).actionQuit,
 		},

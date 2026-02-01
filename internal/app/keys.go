@@ -73,15 +73,15 @@ func DefaultKeyMap() KeyMap {
 		),
 		NextPane: key.NewBinding(
 			key.WithKeys("tab", "l"),
-			key.WithHelp("tab/l", "next pane"),
+			key.WithHelp("⇥/l", "next pane"),
 		),
 		PrevPane: key.NewBinding(
 			key.WithKeys("shift+tab", "h"),
-			key.WithHelp("shift+tab/h", "previous pane"),
+			key.WithHelp("⇧⇥/h", "prev pane"),
 		),
 		Left: key.NewBinding(
 			key.WithKeys("left"),
-			key.WithHelp("←", "previous pane"),
+			key.WithHelp("←", "prev pane"),
 		),
 		Right: key.NewBinding(
 			key.WithKeys("right"),
@@ -97,19 +97,19 @@ func DefaultKeyMap() KeyMap {
 		),
 		Top: key.NewBinding(
 			key.WithKeys("g"),
-			key.WithHelp("gg", "go to top"),
+			key.WithHelp("gg", "top"),
 		),
 		Bottom: key.NewBinding(
 			key.WithKeys("G"),
-			key.WithHelp("G", "go to bottom"),
+			key.WithHelp("G", "bottom"),
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),
-			key.WithHelp("enter", "drill down / select"),
+			key.WithHelp("⏎", "select"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc"),
-			key.WithHelp("esc", "go back"),
+			key.WithHelp("⎋", "back"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
