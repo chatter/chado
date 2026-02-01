@@ -11,6 +11,12 @@ import (
 	"github.com/chatter/lazyjj/internal/jj"
 )
 
+// noHunkSelected indicates viewport is in header area, before any hunk
+const noHunkSelected = -1
+
+// mouseScrollLines is the number of lines to scroll per mouse wheel tick
+const mouseScrollLines = 3
+
 // DiffPanel displays diff content with optional details header
 type DiffPanel struct {
 	viewport    viewport.Model
@@ -23,6 +29,7 @@ type DiffPanel struct {
 	diffContent string
 	hunks       []jj.Hunk
 	currentHunk int
+	headerLines int // Number of lines in the header (offset for hunk positions)
 }
 
 // DetailsHeader contains the commit details shown above the diff
@@ -78,12 +85,14 @@ func (p *DiffPanel) SetDetails(details DetailsHeader) {
 func (p *DiffPanel) SetDiff(diff string) {
 	p.diffContent = diff
 	p.hunks = jj.FindHunks(diff)
-	p.currentHunk = 0
+	p.currentHunk = noHunkSelected
 	p.updateContent()
+	p.viewport.GotoTop()
 }
 
 func (p *DiffPanel) updateContent() {
 	var content strings.Builder
+	p.headerLines = 0
 
 	// Add details header if enabled
 	if p.showDetails && p.details.ChangeID != "" {
@@ -91,6 +100,8 @@ func (p *DiffPanel) updateContent() {
 		if p.details.Description != "" {
 			content.WriteString(p.details.Description)
 			content.WriteString("\n\n")
+			// Count lines in description
+			p.headerLines += strings.Count(p.details.Description, "\n") + 2
 		}
 
 		// Metadata line
@@ -101,6 +112,7 @@ func (p *DiffPanel) updateContent() {
 			content.WriteString(p.details.CommitID)
 		}
 		content.WriteString("\n")
+		p.headerLines++
 
 		if p.details.Author != "" {
 			content.WriteString("Author: ")
@@ -111,10 +123,12 @@ func (p *DiffPanel) updateContent() {
 			content.WriteString(p.details.Date)
 		}
 		content.WriteString("\n")
+		p.headerLines++
 
 		// Separator
 		content.WriteString(strings.Repeat("─", p.viewport.Width))
 		content.WriteString("\n")
+		p.headerLines++
 	}
 
 	// Add diff content
@@ -123,32 +137,64 @@ func (p *DiffPanel) updateContent() {
 	p.viewport.SetContent(content.String())
 }
 
-// NextHunk jumps to the next hunk
+// NextHunk jumps to the next hunk/section
 func (p *DiffPanel) NextHunk() {
-	if len(p.hunks) == 0 {
+	if len(p.hunks) == 0 || p.currentHunk >= len(p.hunks)-1 {
 		return
 	}
-	if p.currentHunk < len(p.hunks)-1 {
-		p.currentHunk++
-		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine)
-	}
+	p.currentHunk++
+	p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
 }
 
-// PrevHunk jumps to the previous hunk
+// PrevHunk jumps to start of current hunk, or previous hunk if already at start
 func (p *DiffPanel) PrevHunk() {
 	if len(p.hunks) == 0 {
 		return
 	}
-	if p.currentHunk > 0 {
-		p.currentHunk--
-		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine)
+
+	// If no hunk selected, go to top
+	if p.currentHunk == noHunkSelected {
+		p.viewport.GotoTop()
+		return
 	}
+
+	currentHunkStart := p.hunks[p.currentHunk].StartLine + p.headerLines
+
+	// If not at start of current hunk, go to start of current hunk
+	if p.viewport.YOffset > currentHunkStart {
+		p.viewport.SetYOffset(currentHunkStart)
+		return
+	}
+
+	// Already at start of current hunk, go to previous hunk (or top if at hunk 0)
+	p.currentHunk--
+	if p.currentHunk >= 0 {
+		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
+	} else {
+		p.viewport.GotoTop()
+	}
+}
+
+// syncCurrentHunk updates currentHunk based on viewport position
+func (p *DiffPanel) syncCurrentHunk() {
+	if len(p.hunks) == 0 {
+		p.currentHunk = noHunkSelected
+		return
+	}
+	pos := p.viewport.YOffset - p.headerLines
+	for i := len(p.hunks) - 1; i >= 0; i-- {
+		if pos >= p.hunks[i].StartLine {
+			p.currentHunk = i
+			return
+		}
+	}
+	p.currentHunk = noHunkSelected
 }
 
 // GotoTop scrolls to the top
 func (p *DiffPanel) GotoTop() {
 	p.viewport.GotoTop()
-	p.currentHunk = 0
+	p.currentHunk = noHunkSelected
 }
 
 // GotoBottom scrolls to the bottom
@@ -157,6 +203,17 @@ func (p *DiffPanel) GotoBottom() {
 	if len(p.hunks) > 0 {
 		p.currentHunk = len(p.hunks) - 1
 	}
+}
+
+// HandleMouseScroll handles mouse wheel events
+func (p *DiffPanel) HandleMouseScroll(button tea.MouseButton) {
+	switch button {
+	case tea.MouseButtonWheelUp:
+		p.viewport.ScrollUp(mouseScrollLines)
+	case tea.MouseButtonWheelDown:
+		p.viewport.ScrollDown(mouseScrollLines)
+	}
+	p.syncCurrentHunk()
 }
 
 // Update handles input
@@ -169,8 +226,14 @@ func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "j", "down":
-			p.NextHunk()
+			p.viewport.ScrollDown(1)
+			p.syncCurrentHunk()
 		case "k", "up":
+			p.viewport.ScrollUp(1)
+			p.syncCurrentHunk()
+		case "}":
+			p.NextHunk()
+		case "{":
 			p.PrevHunk()
 		case "g":
 			p.GotoTop()

@@ -7,7 +7,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/fsnotify/fsnotify"
 
 	"github.com/chatter/lazyjj/internal/jj"
 	"github.com/chatter/lazyjj/internal/ui"
@@ -65,6 +64,15 @@ type Model struct {
 func New(workDir string, version string) Model {
 	runner := jj.NewRunner(workDir)
 
+	logPanel := ui.NewLogPanel()
+	filesPanel := ui.NewFilesPanel()
+	diffPanel := ui.NewDiffPanel()
+
+	// Set initial focus - log panel starts focused
+	logPanel.SetFocused(true)
+	filesPanel.SetFocused(true)
+	diffPanel.SetFocused(false)
+
 	return Model{
 		workDir:     workDir,
 		version:     version,
@@ -72,9 +80,9 @@ func New(workDir string, version string) Model {
 		runner:      runner,
 		viewMode:    ViewLog,
 		focusedPane: PaneLog,
-		logPanel:    ui.NewLogPanel(),
-		filesPanel:  ui.NewFilesPanel(),
-		diffPanel:   ui.NewDiffPanel(),
+		logPanel:    logPanel,
+		filesPanel:  filesPanel,
+		diffPanel:   diffPanel,
 	}
 }
 
@@ -160,17 +168,9 @@ func (m Model) waitForChange() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		select {
-		case event := <-m.watcher.Events():
-			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove) != 0 {
-				// Debounce a bit
-				time.Sleep(100 * time.Millisecond)
-				return jj.WatcherMsg{}
-			}
-		case <-m.watcher.Errors():
-			// Ignore errors for now
-		}
-		return nil
+		<-m.watcher.Events()               // Block until valid event
+		time.Sleep(100 * time.Millisecond) // Debounce
+		return jj.WatcherMsg{}
 	}
 }
 
@@ -239,12 +239,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.handleEnter())
 
 		case key.Matches(msg, m.keys.Back):
-			m.handleBack()
+			// Only handle Esc when we're in a drilled-down view AND focused on left pane
+			if m.viewMode != ViewLog && m.focusedPane == PaneLog {
+				m.handleBack()
+			}
+			// Otherwise, Esc does nothing (or could pass to focused panel later)
 
 		default:
 			// Pass to focused panel
 			cmds = append(cmds, m.updateFocusedPanel(msg))
 		}
+
+	case tea.MouseMsg:
+		cmds = append(cmds, m.handleMouse(msg))
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -254,9 +261,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logLoadedMsg:
 		m.changes = msg.changes
 		m.logPanel.SetContent(msg.raw, msg.changes)
-		// Load diff for first change
-		if len(msg.changes) > 0 {
-			cmds = append(cmds, m.loadDiff(msg.changes[0].ChangeID))
+		// Only load diff if we're in log view (not drilled into files)
+		if m.viewMode == ViewLog {
+			if selected := m.logPanel.SelectedChange(); selected != nil {
+				cmds = append(cmds, m.loadDiff(selected.ChangeID))
+			}
 		}
 
 	case diffLoadedMsg:
@@ -290,6 +299,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case jj.WatcherMsg:
 		// Refresh on file system changes
 		cmds = append(cmds, m.loadLog(), m.waitForChange())
+
+		// If drilled into file, reload it
+		if m.viewMode == ViewFiles {
+			if change := m.filesPanel.ChangeID(); change != "" {
+				if file := m.filesPanel.SelectedFile(); file != nil {
+					cmds = append(cmds, m.loadFileDiff(change, file.Path))
+				}
+			}
+		}
 
 	case errMsg:
 		m.lastError = msg.err.Error()
@@ -372,6 +390,64 @@ func (m *Model) updatePanelFocus() {
 	}
 }
 
+func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	// Get left panel width from rendered content
+	var leftWidth int
+	if m.viewMode == ViewLog {
+		leftWidth = lipgloss.Width(m.logPanel.View())
+	} else {
+		leftWidth = lipgloss.Width(m.filesPanel.View())
+	}
+	// Panel content starts after border (1) and title line (1)
+	contentYOffset := 2
+
+	// Determine which panel was interacted with
+	inLeftPanel := msg.X < leftWidth
+	inRightPanel := msg.X >= leftWidth
+
+	// Handle scroll events (wheel)
+	if msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown {
+		if inRightPanel {
+			m.diffPanel.HandleMouseScroll(msg.Button)
+		}
+		return nil
+	}
+
+	// Handle click events
+	if msg.Button == tea.MouseButtonLeft {
+		// Y relative to content area
+		contentY := msg.Y - contentYOffset
+
+		if inLeftPanel {
+			// Focus left panel
+			m.focusedPane = PaneLog
+			m.updatePanelFocus()
+
+			// Dispatch to appropriate panel, only reload if selection changed
+			if m.viewMode == ViewLog {
+				if m.logPanel.HandleClick(contentY) {
+					if change := m.logPanel.SelectedChange(); change != nil {
+						return m.loadDiff(change.ChangeID)
+					}
+				}
+			} else {
+				if m.filesPanel.HandleClick(contentY) {
+					if file := m.filesPanel.SelectedFile(); file != nil {
+						changeID := m.filesPanel.ChangeID()
+						return m.loadFileDiff(changeID, file.Path)
+					}
+				}
+			}
+		} else if inRightPanel {
+			// Focus right panel
+			m.focusedPane = PaneDiff
+			m.updatePanelFocus()
+		}
+	}
+
+	return nil
+}
+
 func (m *Model) updatePanelSizes() {
 	// Leave room for status bar
 	contentHeight := m.height - 1
@@ -418,10 +494,7 @@ func (m Model) renderStatusBar() string {
 	version := "lazyjj v" + m.version
 
 	// Pad to full width
-	padding := m.width - len(version)
-	if padding < 0 {
-		padding = 0
-	}
+	padding := max(m.width-len(version), 0)
 
 	return ui.StatusBarStyle.Render(strings.Repeat(" ", padding) + version)
 }

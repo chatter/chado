@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -10,15 +12,20 @@ import (
 	"github.com/chatter/lazyjj/internal/jj"
 )
 
+// ansiRegex matches ANSI escape codes
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
 // LogPanel displays the jj log
 type LogPanel struct {
-	viewport viewport.Model
-	changes  []jj.Change
-	cursor   int
-	focused  bool
-	width    int
-	height   int
-	rawLog   string // Keep raw log for display
+	viewport         viewport.Model
+	changes          []jj.Change
+	cursor           int
+	focused          bool
+	width            int
+	height           int
+	rawLog           string // Keep raw log for display
+	changeStartLines []int  // Line number where each change starts (pre-computed)
+	totalLines       int    // Total number of lines in rawLog (for bounds checking)
 }
 
 // NewLogPanel creates a new log panel
@@ -45,11 +52,57 @@ func (p *LogPanel) SetFocused(focused bool) {
 	p.focused = focused
 }
 
+// findChangeIndex returns the index of the change with the given ID, or -1 if not found
+func findChangeIndex(changes []jj.Change, changeID string) int {
+	for i, c := range changes {
+		if c.ChangeID == changeID {
+			return i
+		}
+	}
+	return -1
+}
+
 // SetContent sets the log content from raw jj output
 func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
+	// Capture current selection before overwriting
+	var selectedID string
+	if sel := p.SelectedChange(); sel != nil {
+		selectedID = sel.ChangeID
+	}
+
 	p.rawLog = rawLog
 	p.changes = changes
+
+	// Try to preserve selection by change ID
+	if selectedID != "" {
+		if idx := findChangeIndex(changes, selectedID); idx >= 0 {
+			p.cursor = idx
+		} else {
+			// Change was removed, default to first
+			p.cursor = 0
+		}
+	}
+
+	p.computeChangeStartLines()
 	p.updateViewport()
+}
+
+// computeChangeStartLines pre-computes the line number where each change starts
+func (p *LogPanel) computeChangeStartLines() {
+	p.changeStartLines = nil
+	p.totalLines = 0
+	if p.rawLog == "" {
+		return
+	}
+
+	lines := strings.Split(p.rawLog, "\n")
+	// Count actual lines (newlines), not split elements (which includes trailing empty)
+	p.totalLines = strings.Count(p.rawLog, "\n")
+	for i, line := range lines {
+		if isChangeStart(line) {
+			p.changeStartLines = append(p.changeStartLines, i)
+		}
+	}
 }
 
 // SelectedChange returns the currently selected change
@@ -90,79 +143,92 @@ func (p *LogPanel) GotoBottom() {
 	}
 }
 
+// changeLineRe matches change lines - requires a graph symbol (not just whitespace)
+// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
+var changeLineRe = regexp.MustCompile(`^[│├└\s]*[@○◆◇●×]\s*([a-z]{8,})\s`)
+
+// isChangeStart checks if a line starts a new change entry
+func isChangeStart(line string) bool {
+	stripped := ansiRegex.ReplaceAllString(line, "")
+	return changeLineRe.MatchString(stripped)
+}
+
 func (p *LogPanel) updateViewport() {
-	// For now, just display the raw log
-	// We highlight the selected change by adding a marker
 	if p.rawLog == "" {
 		p.viewport.SetContent("No changes")
 		return
 	}
 
-	// Split into change blocks and mark the selected one
 	lines := strings.Split(p.rawLog, "\n")
 	var result strings.Builder
-	changeIdx := -1
+	nextChangeIdx := 0
 
-	for _, line := range lines {
-		// Check if this is a new change line
-		if isChangeStart(line) {
-			changeIdx++
-		}
+	for i, line := range lines {
+		// Check if this line starts a change (using pre-computed array)
+		isStart := nextChangeIdx < len(p.changeStartLines) && i == p.changeStartLines[nextChangeIdx]
 
-		// Add selection indicator
-		if changeIdx == p.cursor && isChangeStart(line) {
-			// Add cursor indicator
-			result.WriteString("→ ")
-			result.WriteString(line)
-		} else if changeIdx == p.cursor {
-			// Continuation of selected change
-			result.WriteString("  ")
-			result.WriteString(line)
+		// Add selection indicator on the start line of the selected change
+		if isStart && nextChangeIdx == p.cursor {
+			fmt.Fprintf(&result, "→ %s\n", line)
 		} else {
-			result.WriteString("  ")
-			result.WriteString(line)
+			fmt.Fprintf(&result, "  %s\n", line)
 		}
-		result.WriteString("\n")
+
+		if isStart {
+			nextChangeIdx++
+		}
 	}
 
 	p.viewport.SetContent(result.String())
-
-	// Ensure cursor is visible
 	p.ensureCursorVisible()
 }
 
 func (p *LogPanel) ensureCursorVisible() {
-	// Calculate approximate line position of cursor
-	// Each change typically takes 2-3 lines
-	approxLine := p.cursor * 2
+	if p.cursor < 0 || p.cursor >= len(p.changeStartLines) {
+		return
+	}
+
+	cursorLine := p.changeStartLines[p.cursor]
 	viewTop := p.viewport.YOffset
 	viewBottom := viewTop + p.viewport.Height
 
-	if approxLine < viewTop {
-		p.viewport.SetYOffset(approxLine)
-	} else if approxLine >= viewBottom {
-		p.viewport.SetYOffset(approxLine - p.viewport.Height + 2)
+	if cursorLine < viewTop {
+		p.viewport.SetYOffset(cursorLine)
+	} else if cursorLine >= viewBottom {
+		p.viewport.SetYOffset(cursorLine - p.viewport.Height + 2)
 	}
 }
 
-// isChangeStart checks if a line starts a new change entry
-func isChangeStart(line string) bool {
-	// Change lines typically start with graph characters followed by change ID
-	// Look for patterns like "@", "○", "◆", "◇" after stripping ANSI
-	trimmed := strings.TrimLeft(line, " │├└")
-	if len(trimmed) == 0 {
-		return false
+// lineToChangeIndex maps a visual line number to a change index
+// Returns -1 if the line is outside content bounds or before any change
+func (p *LogPanel) lineToChangeIndex(visualLine int) int {
+	if len(p.changeStartLines) == 0 || visualLine < 0 || visualLine >= p.totalLines {
+		return -1
 	}
-	// Check for graph symbols
-	for _, r := range trimmed {
-		switch r {
-		case '@', '○', '◆', '◇', '●':
-			return true
-		case ' ', '│', '├', '└':
-			continue
-		default:
-			return false
+
+	// Find the largest change index where changeStartLines[i] <= visualLine
+	changeIdx := -1
+	for i, startLine := range p.changeStartLines {
+		if startLine <= visualLine {
+			changeIdx = i
+		} else {
+			break
 		}
+	}
+	return changeIdx
+}
+
+// HandleClick selects the change at the given Y coordinate (relative to content area)
+// Returns true if the selection changed
+func (p *LogPanel) HandleClick(y int) bool {
+	// Account for viewport scroll offset
+	visualLine := y + p.viewport.YOffset
+
+	changeIdx := p.lineToChangeIndex(visualLine)
+	if changeIdx >= 0 && changeIdx < len(p.changes) && changeIdx != p.cursor {
+		p.cursor = changeIdx
+		p.updateViewport()
+		return true
 	}
 	return false
 }
