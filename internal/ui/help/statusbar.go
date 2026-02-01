@@ -164,26 +164,7 @@ func (s *StatusBar) View() string {
 	helpWidth := lipgloss.Width(helpText)
 
 	// Calculate padding between help and version
-	padding := s.width - helpWidth - versionWidth
-	if padding < 1 {
-		padding = 1
-	}
+	padding := max(s.width-helpWidth-versionWidth, 1)
 
 	return helpText + strings.Repeat(" ", padding) + versionText
-}
-
-// sortedBindings returns bindings sorted by order (ascending).
-func (s *StatusBar) sortedBindings() []HelpBinding {
-	if len(s.bindings) == 0 {
-		return nil
-	}
-
-	sorted := make([]HelpBinding, len(s.bindings))
-	copy(sorted, s.bindings)
-
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Order < sorted[j].Order
-	})
-
-	return sorted
 }
