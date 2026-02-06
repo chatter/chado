@@ -42,6 +42,7 @@ type KeyMap struct {
 	// Navigation between panes
 	FocusPane0 key.Binding
 	FocusPane1 key.Binding
+	FocusPane2 key.Binding
 	NextPane   key.Binding
 	PrevPane   key.Binding
 	Left       key.Binding
@@ -70,6 +71,10 @@ func DefaultKeyMap() KeyMap {
 		FocusPane1: key.NewBinding(
 			key.WithKeys("1"),
 			key.WithHelp("1", "focus pane"), // Hidden in help (duplicate)
+		),
+		FocusPane2: key.NewBinding(
+			key.WithKeys("2"),
+			key.WithHelp("2", "focus pane"), // Hidden in help (duplicate)
 		),
 		NextPane: key.NewBinding(
 			key.WithKeys("tab", "l", "right"),

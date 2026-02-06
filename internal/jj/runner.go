@@ -81,6 +81,16 @@ func (r *Runner) Status() (string, error) {
 	return r.Run("status", "--color=always")
 }
 
+// OpLog returns the jj operation log output with colors
+func (r *Runner) OpLog() (string, error) {
+	return r.Run("op", "log", "--color=always")
+}
+
+// OpShow returns details for a specific operation
+func (r *Runner) OpShow(opID string) (string, error) {
+	return r.Run("op", "show", opID, "--color=always", "--patch")
+}
+
 // ShortestChangeID returns the shortest unique prefix for a change ID
 func (r *Runner) ShortestChangeID(rev string) (string, error) {
 	output, err := r.Run("log", "-r", rev, "-T", "change_id.shortest()", "--no-graph")
@@ -121,10 +131,8 @@ func (r *Runner) ParseLogLines(output string) []Change {
 			changeID := match[1]
 
 			currentChange = &Change{
-				ChangeID:      changeID,
-				Raw:           line,
-				IsWorkingCopy: strings.Contains(stripped, "@"),
-				IsImmutable:   strings.Contains(stripped, "◆"),
+				ChangeID: changeID,
+				Raw:      line,
 			}
 			descLines = nil
 		} else if currentChange != nil && strings.TrimSpace(line) != "" {
@@ -148,6 +156,61 @@ func (r *Runner) ParseLogLines(output string) []Change {
 	}
 
 	return changes
+}
+
+// ParseOpLogLines parses the raw op log output into Operation structs
+func (r *Runner) ParseOpLogLines(output string) []Operation {
+	lines := strings.Split(output, "\n")
+	var operations []Operation
+	var currentOp *Operation
+	var descLines []string
+
+	// Regex to detect operation lines - requires @ or ○ symbol followed by operation ID
+	// Format: "@ bbc9fee12c4d user@host 4 minutes ago, lasted 1 second"
+	// Operation IDs are hex (0-9a-f), 12 characters
+	opLineRe := regexp.MustCompile(`^[│├└\s]*[@○]\s+([0-9a-f]{12})\s`)
+
+	for _, line := range lines {
+		stripped := stripANSI(line)
+		if match := opLineRe.FindStringSubmatch(stripped); match != nil {
+			// Save previous operation if exists
+			if currentOp != nil {
+				currentOp.Description = strings.TrimSpace(strings.Join(descLines, " "))
+				operations = append(operations, *currentOp)
+			}
+
+			// Start new operation
+			opID := match[1]
+
+			currentOp = &Operation{
+				OpID: opID,
+				Raw:  line,
+			}
+			descLines = nil
+		} else if currentOp != nil && strings.TrimSpace(line) != "" {
+			// This is a continuation line (description, args, etc.)
+			stripped := stripANSI(line)
+			trimmed := strings.TrimSpace(strings.TrimPrefix(stripped, "│"))
+
+			// Check for args line
+			if strings.HasPrefix(trimmed, "args:") {
+				currentOp.Args = strings.TrimSpace(strings.TrimPrefix(trimmed, "args:"))
+			} else if trimmed != "" {
+				descLines = append(descLines, trimmed)
+			}
+
+			// Keep appending raw lines for display
+			currentOp.Raw += "\n" + line
+		}
+	}
+
+	// Don't forget the last operation
+	if currentOp != nil {
+		currentOp.Description = strings.TrimSpace(strings.Join(descLines, " "))
+		operations = append(operations, *currentOp)
+	}
+
+	return operations
 }
 
 // ParseFiles parses diff output to extract file list

@@ -450,3 +450,110 @@ func TestParseFiles_ValidStatus(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// Operation Log Tests
+// =============================================================================
+
+func TestParseOpLogLines(t *testing.T) {
+	runner := NewRunner(".", testLogger(t))
+
+	tests := []struct {
+		name          string
+		input         string
+		expectedCount int
+		checkFirst    func(op Operation) bool
+	}{
+		{
+			name:          "empty log",
+			input:         "",
+			expectedCount: 0,
+		},
+		{
+			name: "single operation",
+			input: `@  bbc9fee12c4d user@host 4 minutes ago, lasted 1 second
+│  snapshot working copy
+│  args: jj log`,
+			expectedCount: 1,
+			checkFirst: func(op Operation) bool {
+				return op.OpID == "bbc9fee12c4d" && op.Args == "jj log"
+			},
+		},
+		{
+			name: "multiple operations",
+			input: `@  bbc9fee12c4d user@host 4 minutes ago
+│  snapshot working copy
+│  args: jj log
+○  86d0094c958f user@host 4 days ago
+│  push bookmark main
+│  args: jj git push`,
+			expectedCount: 2,
+			checkFirst: func(op Operation) bool {
+				return op.OpID == "bbc9fee12c4d"
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			operations := runner.ParseOpLogLines(tt.input)
+			if len(operations) != tt.expectedCount {
+				t.Errorf("ParseOpLogLines() returned %d operations, want %d", len(operations), tt.expectedCount)
+				return
+			}
+			if tt.checkFirst != nil && len(operations) > 0 {
+				if !tt.checkFirst(operations[0]) {
+					t.Errorf("first operation check failed: %+v", operations[0])
+				}
+			}
+		})
+	}
+}
+
+func TestParseOpLogLines_ArgsExtraction(t *testing.T) {
+	runner := NewRunner(".", testLogger(t))
+
+	input := `@  aaaaaaaaaaaa user@host now
+│  snapshot working copy
+│  args: jj log --color=always`
+
+	operations := runner.ParseOpLogLines(input)
+	if len(operations) != 1 {
+		t.Fatalf("expected 1 operation, got %d", len(operations))
+	}
+
+	if operations[0].Args != "jj log --color=always" {
+		t.Errorf("expected args 'jj log --color=always', got '%s'", operations[0].Args)
+	}
+}
+
+// Property: All parsed operations should have non-empty OpID
+func TestParseOpLogLines_ValidOpID(t *testing.T) {
+	runner := NewRunner(".", testLogger(t))
+
+	rapid.Check(t, func(t *rapid.T) {
+		// Generate valid op log format
+		numOps := rapid.IntRange(0, 10).Draw(t, "numOps")
+		var lines []string
+		for i := range numOps {
+			symbol := "@"
+			if i > 0 {
+				symbol = "○"
+			}
+			opID := rapid.StringMatching(`[0-9a-f]{12}`).Draw(t, "opID")
+			lines = append(lines, symbol+"  "+opID+" user@host now")
+			lines = append(lines, "│  description")
+		}
+		input := strings.Join(lines, "\n")
+
+		operations := runner.ParseOpLogLines(input)
+		for i, op := range operations {
+			if op.OpID == "" {
+				t.Fatalf("operation[%d] has empty OpID", i)
+			}
+			if len(op.OpID) != 12 {
+				t.Fatalf("operation[%d] OpID should be 12 chars, got %d: %s", i, len(op.OpID), op.OpID)
+			}
+		}
+	})
+}
