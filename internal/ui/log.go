@@ -261,7 +261,7 @@ func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
 
 // View renders the panel
 func (p LogPanel) View() string {
-	title := PanelTitle(1, "Log", p.focused)
+	title := PanelTitle(1, "Change Log", p.focused)
 
 	// Get the appropriate border style
 	var style lipgloss.Style
