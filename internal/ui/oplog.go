@@ -16,15 +16,15 @@ import (
 
 // OpLogPanel displays the jj operation log
 type OpLogPanel struct {
-	viewport       viewport.Model
-	operations     []jj.Operation
-	cursor         int
-	focused        bool
-	width          int
-	height         int
-	rawLog         string // Keep raw log for display
-	opStartLines   []int  // Line number where each operation starts (pre-computed)
-	totalLines     int    // Total number of lines in rawLog (for bounds checking)
+	viewport     viewport.Model
+	operations   []jj.Operation
+	cursor       int
+	focused      bool
+	width        int
+	height       int
+	rawLog       string // Keep raw log for display
+	opStartLines []int  // Line number where each operation starts (pre-computed)
+	totalLines   int    // Total number of lines in rawLog (for bounds checking)
 }
 
 // NewOpLogPanel creates a new operation log panel

@@ -88,7 +88,7 @@ func (r *Runner) OpLog() (string, error) {
 
 // OpShow returns details for a specific operation
 func (r *Runner) OpShow(opID string) (string, error) {
-	return r.Run("op", "show", opID, "--color=always")
+	return r.Run("op", "show", opID, "--color=always", "--patch")
 }
 
 // ShortestChangeID returns the shortest unique prefix for a change ID
@@ -131,10 +131,8 @@ func (r *Runner) ParseLogLines(output string) []Change {
 			changeID := match[1]
 
 			currentChange = &Change{
-				ChangeID:      changeID,
-				Raw:           line,
-				IsCurrent: strings.Contains(stripped, "@"),
-				IsImmutable:   strings.Contains(stripped, "◆"),
+				ChangeID: changeID,
+				Raw:      line,
 			}
 			descLines = nil
 		} else if currentChange != nil && strings.TrimSpace(line) != "" {
@@ -171,8 +169,6 @@ func (r *Runner) ParseOpLogLines(output string) []Operation {
 	// Format: "@ bbc9fee12c4d user@host 4 minutes ago, lasted 1 second"
 	// Operation IDs are hex (0-9a-f), 12 characters
 	opLineRe := regexp.MustCompile(`^[│├└\s]*[@○]\s+([0-9a-f]{12})\s`)
-	// Regex to detect current operation marker (@ at graph position, not in email)
-	currentOpRe := regexp.MustCompile(`^[│├└\s]*@\s+[0-9a-f]{12}\s`)
 
 	for _, line := range lines {
 		stripped := stripANSI(line)
@@ -187,9 +183,8 @@ func (r *Runner) ParseOpLogLines(output string) []Operation {
 			opID := match[1]
 
 			currentOp = &Operation{
-				OpID:      opID,
-				Raw:       line,
-				IsCurrent: currentOpRe.MatchString(stripped),
+				OpID: opID,
+				Raw:  line,
 			}
 			descLines = nil
 		} else if currentOp != nil && strings.TrimSpace(line) != "" {

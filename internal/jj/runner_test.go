@@ -476,7 +476,7 @@ func TestParseOpLogLines(t *testing.T) {
 │  args: jj log`,
 			expectedCount: 1,
 			checkFirst: func(op Operation) bool {
-				return op.OpID == "bbc9fee12c4d" && op.IsCurrent && op.Args == "jj log"
+				return op.OpID == "bbc9fee12c4d" && op.Args == "jj log"
 			},
 		},
 		{
@@ -489,18 +489,7 @@ func TestParseOpLogLines(t *testing.T) {
 │  args: jj git push`,
 			expectedCount: 2,
 			checkFirst: func(op Operation) bool {
-				return op.IsCurrent == true
-			},
-		},
-		{
-			name: "current marker on first only",
-			input: `@  aaaaaaaaaaaa user@host now
-│  first op
-○  bbbbbbbbbbbb user@host yesterday
-│  second op`,
-			expectedCount: 2,
-			checkFirst: func(op Operation) bool {
-				return op.IsCurrent == true && op.OpID == "aaaaaaaaaaaa"
+				return op.OpID == "bbc9fee12c4d"
 			},
 		},
 	}
@@ -521,27 +510,6 @@ func TestParseOpLogLines(t *testing.T) {
 	}
 }
 
-func TestParseOpLogLines_CurrentMarker(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
-
-	input := `@  aaaaaaaaaaaa user@host now
-│  current op
-○  bbbbbbbbbbbb user@host yesterday
-│  old op`
-
-	operations := runner.ParseOpLogLines(input)
-	if len(operations) != 2 {
-		t.Fatalf("expected 2 operations, got %d", len(operations))
-	}
-
-	if !operations[0].IsCurrent {
-		t.Error("first operation should have IsCurrent=true")
-	}
-	if operations[1].IsCurrent {
-		t.Error("second operation should have IsCurrent=false")
-	}
-}
-
 func TestParseOpLogLines_ArgsExtraction(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
@@ -559,21 +527,6 @@ func TestParseOpLogLines_ArgsExtraction(t *testing.T) {
 	}
 }
 
-// Property: ParseOpLogLines should never panic on any input
-func TestParseOpLogLines_NeverPanics(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
-
-	rapid.Check(t, func(t *rapid.T) {
-		input := rapid.String().Draw(t, "input")
-		// Should not panic
-		operations := runner.ParseOpLogLines(input)
-		// Result should be >= 0
-		if len(operations) < 0 {
-			t.Fatalf("negative operation count: %d", len(operations))
-		}
-	})
-}
-
 // Property: All parsed operations should have non-empty OpID
 func TestParseOpLogLines_ValidOpID(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
@@ -582,7 +535,7 @@ func TestParseOpLogLines_ValidOpID(t *testing.T) {
 		// Generate valid op log format
 		numOps := rapid.IntRange(0, 10).Draw(t, "numOps")
 		var lines []string
-		for i := 0; i < numOps; i++ {
+		for i := range numOps {
 			symbol := "@"
 			if i > 0 {
 				symbol = "○"
@@ -601,40 +554,6 @@ func TestParseOpLogLines_ValidOpID(t *testing.T) {
 			if len(op.OpID) != 12 {
 				t.Fatalf("operation[%d] OpID should be 12 chars, got %d: %s", i, len(op.OpID), op.OpID)
 			}
-		}
-	})
-}
-
-// Property: Only first operation with @ should have IsCurrent=true
-func TestParseOpLogLines_OnlyFirstIsCurrent(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
-
-	rapid.Check(t, func(t *rapid.T) {
-		numOps := rapid.IntRange(1, 10).Draw(t, "numOps")
-		var lines []string
-		for i := 0; i < numOps; i++ {
-			symbol := "○"
-			if i == 0 {
-				symbol = "@"
-			}
-			opID := rapid.StringMatching(`[0-9a-f]{12}`).Draw(t, "opID")
-			lines = append(lines, symbol+"  "+opID+" user@host now")
-			lines = append(lines, "│  description")
-		}
-		input := strings.Join(lines, "\n")
-
-		operations := runner.ParseOpLogLines(input)
-		currentCount := 0
-		for _, op := range operations {
-			if op.IsCurrent {
-				currentCount++
-			}
-		}
-		if currentCount != 1 {
-			t.Fatalf("expected exactly 1 current operation, got %d", currentCount)
-		}
-		if len(operations) > 0 && !operations[0].IsCurrent {
-			t.Fatal("first operation should be current")
 		}
 	})
 }

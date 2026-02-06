@@ -189,10 +189,10 @@ func TestOpLogPanel_SetContent_PreservesSelectionByID(t *testing.T) {
 	panel := NewOpLogPanel()
 	panel.SetSize(80, 24)
 
-	// Initial content: 5 operations
-	operations := make([]jj.Operation, 5)
+	initial_op_count := 5
+	operations := make([]jj.Operation, initial_op_count)
 	var content strings.Builder
-	for i := 0; i < 5; i++ {
+	for i := range initial_op_count {
 		opID := fmt.Sprintf("%012x", i) // 12-char hex
 		operations[i] = jj.Operation{OpID: opID}
 		fmt.Fprintf(&content, "○  %s description\n", opID)
@@ -217,9 +217,10 @@ func TestOpLogPanel_SetContent_SelectionRemovedDefaultsToFirst(t *testing.T) {
 	panel.SetSize(80, 24)
 
 	// Initial content: 3 operations
-	operations := make([]jj.Operation, 3)
+	initial_op_count := 3
+	operations := make([]jj.Operation, initial_op_count)
 	var content strings.Builder
-	for i := 0; i < 3; i++ {
+	for i := range initial_op_count {
 		opID := fmt.Sprintf("%012x", i)
 		operations[i] = jj.Operation{OpID: opID}
 		fmt.Fprintf(&content, "○  %s description\n", opID)
@@ -232,7 +233,7 @@ func TestOpLogPanel_SetContent_SelectionRemovedDefaultsToFirst(t *testing.T) {
 	// Refresh with fewer operations (last one gone)
 	smallerOps := operations[:2]
 	var smallerContent strings.Builder
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		fmt.Fprintf(&smallerContent, "○  %s description\n", operations[i].OpID)
 	}
 	panel.SetContent(smallerContent.String(), smallerOps)
@@ -255,14 +256,14 @@ func TestOpLogPanel_CursorAlwaysInBounds(t *testing.T) {
 		// Generate random number of operations
 		numOps := rapid.IntRange(0, 100).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
-		for i := 0; i < numOps; i++ {
+		for i := range numOps {
 			operations[i] = jj.Operation{OpID: rapid.StringMatching(`[0-9a-f]{12}`).Draw(t, "opID")}
 		}
 		panel.SetContent("test", operations)
 
 		// Perform random operations
 		numActions := rapid.IntRange(0, 50).Draw(t, "numActions")
-		for i := 0; i < numActions; i++ {
+		for range numActions {
 			action := rapid.IntRange(0, 3).Draw(t, "action")
 			switch action {
 			case 0:
@@ -299,14 +300,14 @@ func TestOpLogPanel_SelectedOperationMatchesCursor(t *testing.T) {
 
 		numOps := rapid.IntRange(1, 50).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
-		for i := 0; i < numOps; i++ {
+		for i := range numOps {
 			operations[i] = jj.Operation{OpID: rapid.StringMatching(`[0-9a-f]{12}`).Draw(t, "opID")}
 		}
 		panel.SetContent("test", operations)
 
 		// Random cursor position
 		targetPos := rapid.IntRange(0, numOps-1).Draw(t, "targetPos")
-		for i := 0; i < targetPos; i++ {
+		for range targetPos {
 			panel.CursorDown()
 		}
 
@@ -329,14 +330,14 @@ func TestOpLogPanel_GotoTopAlwaysZero(t *testing.T) {
 
 		numOps := rapid.IntRange(1, 100).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
-		for i := 0; i < numOps; i++ {
+		for i := range numOps {
 			operations[i] = jj.Operation{OpID: "test"}
 		}
 		panel.SetContent("test", operations)
 
 		// Move to random position
 		moves := rapid.IntRange(0, 50).Draw(t, "moves")
-		for i := 0; i < moves; i++ {
+		for range moves {
 			panel.CursorDown()
 		}
 
@@ -354,7 +355,7 @@ func TestOpLogPanel_GotoBottomAlwaysLast(t *testing.T) {
 
 		numOps := rapid.IntRange(1, 100).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
-		for i := 0; i < numOps; i++ {
+		for i := range numOps {
 			operations[i] = jj.Operation{OpID: "test"}
 		}
 		panel.SetContent("test", operations)
@@ -394,7 +395,7 @@ func TestOpLogPanel_SelectionConsistency(t *testing.T) {
 
 		numOps := rapid.IntRange(0, 50).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
-		for i := 0; i < numOps; i++ {
+		for i := range numOps {
 			operations[i] = jj.Operation{OpID: rapid.StringMatching(`[0-9a-f]{12}`).Draw(t, "opID")}
 		}
 		panel.SetContent("test", operations)
@@ -428,7 +429,7 @@ func TestOpLogPanel_Click_CursorInBounds(t *testing.T) {
 		// Generate operations
 		numOps := rapid.IntRange(1, 30).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
-		for i := 0; i < numOps; i++ {
+		for i := range numOps {
 			operations[i] = jj.Operation{
 				OpID: rapid.StringMatching(`[0-9a-f]{12}`).Draw(t, "opID"),
 			}

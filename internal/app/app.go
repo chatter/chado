@@ -686,12 +686,19 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	} else {
 		leftWidth = lipgloss.Width(m.filesPanel.View())
 	}
+
+	// Calculate panel heights for vertical split
+	contentHeight := m.height - 1
+	leftTopHeight := contentHeight / 2
+
 	// Panel content starts after border (1) and title line (1)
 	contentYOffset := 2
 
 	// Determine which panel was interacted with
 	inLeftPanel := msg.X < leftWidth
 	inRightPanel := msg.X >= leftWidth
+	inTopLeftPanel := inLeftPanel && msg.Y < leftTopHeight
+	inBottomLeftPanel := inLeftPanel && msg.Y >= leftTopHeight
 
 	// Handle scroll events (wheel)
 	if msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown {
@@ -703,11 +710,11 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 	// Handle click events
 	if msg.Button == tea.MouseButtonLeft {
-		// Y relative to content area
-		contentY := msg.Y - contentYOffset
+		if inTopLeftPanel {
+			// Y relative to top panel content area
+			contentY := msg.Y - contentYOffset
 
-		if inLeftPanel {
-			// Focus left panel
+			// Focus top-left panel
 			m.focusedPane = PaneLog
 			m.updatePanelFocus()
 
@@ -724,6 +731,19 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 						changeID := m.filesPanel.ChangeID()
 						return m.loadFileDiff(changeID, file.Path)
 					}
+				}
+			}
+		} else if inBottomLeftPanel {
+			// Y relative to bottom panel content area
+			contentY := msg.Y - leftTopHeight - contentYOffset
+
+			// Focus op log panel
+			m.focusedPane = PaneOpLog
+			m.updatePanelFocus()
+
+			if m.opLogPanel.HandleClick(contentY) {
+				if op := m.opLogPanel.SelectedOperation(); op != nil {
+					return m.loadOpShow(op.OpID)
 				}
 			}
 		} else if inRightPanel {
