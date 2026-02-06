@@ -24,8 +24,9 @@ const (
 type FocusedPane int
 
 const (
-	PaneDiff FocusedPane = iota // [0] Right pane
-	PaneLog                     // [1] Left pane
+	PaneDiff  FocusedPane = iota // [0] Right pane
+	PaneLog                      // [1] Left pane - log
+	PaneOpLog                    // [2] Left pane - op log
 )
 
 // Model is the main application model
@@ -47,6 +48,7 @@ type Model struct {
 
 	// Panels
 	logPanel   ui.LogPanel
+	opLogPanel ui.OpLogPanel
 	filesPanel ui.FilesPanel
 	diffPanel  ui.DiffPanel
 
@@ -71,6 +73,7 @@ func New(workDir string, version string, log *logger.Logger) Model {
 	runner := jj.NewRunner(workDir, log)
 
 	logPanel := ui.NewLogPanel()
+	opLogPanel := ui.NewOpLogPanel()
 	filesPanel := ui.NewFilesPanel()
 	diffPanel := ui.NewDiffPanel()
 	statusBar := help.NewStatusBar("chado " + version)
@@ -78,6 +81,7 @@ func New(workDir string, version string, log *logger.Logger) Model {
 
 	// Set initial focus - log panel starts focused
 	logPanel.SetFocused(true)
+	opLogPanel.SetFocused(false)
 	filesPanel.SetFocused(true)
 	diffPanel.SetFocused(false)
 
@@ -90,6 +94,7 @@ func New(workDir string, version string, log *logger.Logger) Model {
 		viewMode:     ViewLog,
 		focusedPane:  PaneLog,
 		logPanel:     logPanel,
+		opLogPanel:   opLogPanel,
 		filesPanel:   filesPanel,
 		diffPanel:    diffPanel,
 		statusBar:    statusBar,
@@ -102,6 +107,7 @@ func (m Model) Init() tea.Cmd {
 	m.log.Info("initializing app", "workdir", m.workDir, "version", m.version)
 	return tea.Batch(
 		m.loadLog(),
+		m.loadOpLog(),
 		m.startWatcher(),
 	)
 }
@@ -168,6 +174,29 @@ func (m Model) loadFiles(changeID string) tea.Cmd {
 	}
 }
 
+// loadOpLog fetches the jj operation log
+func (m Model) loadOpLog() tea.Cmd {
+	return func() tea.Msg {
+		output, err := m.runner.OpLog()
+		if err != nil {
+			return errMsg{err}
+		}
+		operations := m.runner.ParseOpLogLines(output)
+		return opLogLoadedMsg{raw: output, operations: operations}
+	}
+}
+
+// loadOpShow fetches details for a specific operation
+func (m Model) loadOpShow(opID string) tea.Cmd {
+	return func() tea.Msg {
+		output, err := m.runner.OpShow(opID)
+		if err != nil {
+			return errMsg{err}
+		}
+		return opShowLoadedMsg{opID: opID, output: output}
+	}
+}
+
 // startWatcher starts the file system watcher
 func (m Model) startWatcher() tea.Cmd {
 	return func() tea.Msg {
@@ -214,6 +243,16 @@ type filesLoadedMsg struct {
 	shortCode  string
 	files      []jj.File
 	diffOutput string
+}
+
+type opLogLoadedMsg struct {
+	raw        string
+	operations []jj.Operation
+}
+
+type opShowLoadedMsg struct {
+	opID   string
+	output string
 }
 
 type watcherStartedMsg struct {
@@ -298,6 +337,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diffPanel.SetTitle("Patch")
 		m.diffPanel.SetDiff(msg.diffOutput)
 
+	case opLogLoadedMsg:
+		m.opLogPanel.SetContent(msg.raw, msg.operations)
+		// If op log panel is focused, load op show for selected operation
+		if m.focusedPane == PaneOpLog {
+			if selected := m.opLogPanel.SelectedOperation(); selected != nil {
+				cmds = append(cmds, m.loadOpShow(selected.OpID))
+			}
+		}
+
+	case opShowLoadedMsg:
+		m.diffPanel.SetShowDetails(false)
+		m.diffPanel.SetTitle("Operation")
+		m.diffPanel.SetDiff(msg.output)
+
 	case watcherStartedMsg:
 		m.watcher = msg.watcher
 		if msg.err != nil {
@@ -309,7 +362,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case jj.WatcherMsg:
 		// Refresh on file system changes
-		cmds = append(cmds, m.loadLog(), m.waitForChange())
+		cmds = append(cmds, m.loadLog(), m.loadOpLog(), m.waitForChange())
 
 		// If drilled into files view, reload file list and current diff
 		if m.viewMode == ViewFiles {
@@ -384,6 +437,12 @@ func (m *Model) updateFocusedPanel(msg tea.Msg) tea.Cmd {
 				return tea.Batch(cmd, m.loadFileDiff(changeID, file.Path))
 			}
 		}
+	case PaneOpLog:
+		cmd = m.opLogPanel.Update(msg)
+		// Update diff pane with op show when selection changes
+		if op := m.opLogPanel.SelectedOperation(); op != nil {
+			return tea.Batch(cmd, m.loadOpShow(op.OpID))
+		}
 	case PaneDiff:
 		cmd = m.diffPanel.Update(msg)
 	}
@@ -395,10 +454,17 @@ func (m *Model) updatePanelFocus() {
 	switch m.focusedPane {
 	case PaneLog:
 		m.logPanel.SetFocused(true)
+		m.opLogPanel.SetFocused(false)
 		m.filesPanel.SetFocused(true)
+		m.diffPanel.SetFocused(false)
+	case PaneOpLog:
+		m.logPanel.SetFocused(false)
+		m.opLogPanel.SetFocused(true)
+		m.filesPanel.SetFocused(false)
 		m.diffPanel.SetFocused(false)
 	case PaneDiff:
 		m.logPanel.SetFocused(false)
+		m.opLogPanel.SetFocused(false)
 		m.filesPanel.SetFocused(false)
 		m.diffPanel.SetFocused(true)
 	}
@@ -414,27 +480,67 @@ func (m *Model) actionQuit() (Model, tea.Cmd) {
 }
 
 func (m *Model) actionFocusPane0() (Model, tea.Cmd) {
+	prevPane := m.focusedPane
 	m.focusedPane = PaneDiff
 	m.updatePanelFocus()
-	return *m, nil
+	return *m, m.handleFocusChange(prevPane, m.focusedPane)
 }
 
 func (m *Model) actionFocusPane1() (Model, tea.Cmd) {
+	prevPane := m.focusedPane
 	m.focusedPane = PaneLog
 	m.updatePanelFocus()
-	return *m, nil
+	return *m, m.handleFocusChange(prevPane, m.focusedPane)
+}
+
+func (m *Model) actionFocusPane2() (Model, tea.Cmd) {
+	prevPane := m.focusedPane
+	m.focusedPane = PaneOpLog
+	m.updatePanelFocus()
+	return *m, m.handleFocusChange(prevPane, m.focusedPane)
 }
 
 func (m *Model) actionNextPane() (Model, tea.Cmd) {
-	m.focusedPane = (m.focusedPane + 1) % 2
+	prevPane := m.focusedPane
+	m.focusedPane = (m.focusedPane + 1) % 3
 	m.updatePanelFocus()
-	return *m, nil
+	return *m, m.handleFocusChange(prevPane, m.focusedPane)
 }
 
 func (m *Model) actionPrevPane() (Model, tea.Cmd) {
-	m.focusedPane = (m.focusedPane + 1) % 2
+	prevPane := m.focusedPane
+	m.focusedPane = (m.focusedPane + 2) % 3 // +2 is same as -1 mod 3
 	m.updatePanelFocus()
-	return *m, nil
+	return *m, m.handleFocusChange(prevPane, m.focusedPane)
+}
+
+// handleFocusChange loads appropriate content when focus changes between panes
+func (m *Model) handleFocusChange(from, to FocusedPane) tea.Cmd {
+	if from == to {
+		return nil
+	}
+
+	// When focusing op log, show op details in diff pane
+	if to == PaneOpLog {
+		if op := m.opLogPanel.SelectedOperation(); op != nil {
+			return m.loadOpShow(op.OpID)
+		}
+	}
+
+	// When focusing log (from op log), show change diff in diff pane
+	if to == PaneLog && from == PaneOpLog {
+		if m.viewMode == ViewLog {
+			if change := m.logPanel.SelectedChange(); change != nil {
+				return m.loadDiff(change.ChangeID)
+			}
+		} else {
+			if file := m.filesPanel.SelectedFile(); file != nil {
+				return m.loadFileDiff(m.filesPanel.ChangeID(), file.Path)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (m *Model) actionEnter() (Model, tea.Cmd) {
@@ -478,6 +584,8 @@ func (m *Model) activeHelpBindings() []help.HelpBinding {
 		} else {
 			bindings = append(bindings, m.filesPanel.HelpBindings()...)
 		}
+	case PaneOpLog:
+		bindings = append(bindings, m.opLogPanel.HelpBindings()...)
 	case PaneDiff:
 		bindings = append(bindings, m.diffPanel.HelpBindings()...)
 	}
@@ -514,6 +622,14 @@ func (m *Model) globalBindings() []ActionBinding {
 				Order:    51,
 			},
 			Action: (*Model).actionFocusPane1,
+		},
+		{
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.FocusPane2,
+				Category: help.CategoryNavigation,
+				Order:    52,
+			},
+			Action: (*Model).actionFocusPane2,
 		},
 		// Next/prev pane - combined keys
 		{
@@ -628,8 +744,13 @@ func (m *Model) updatePanelSizes() {
 	leftWidth := m.width * 40 / 100
 	rightWidth := m.width - leftWidth
 
-	m.logPanel.SetSize(leftWidth, contentHeight)
-	m.filesPanel.SetSize(leftWidth, contentHeight)
+	// Left pane splits vertically: log 50%, op log 50%
+	leftTopHeight := contentHeight / 2
+	leftBottomHeight := contentHeight - leftTopHeight
+
+	m.logPanel.SetSize(leftWidth, leftTopHeight)
+	m.opLogPanel.SetSize(leftWidth, leftBottomHeight)
+	m.filesPanel.SetSize(leftWidth, leftTopHeight) // Files panel uses same size as log
 	m.diffPanel.SetSize(rightWidth, contentHeight)
 }
 
@@ -639,14 +760,16 @@ func (m Model) View() string {
 		return "Loading..."
 	}
 
-	// Render left panel (log or files)
-	var leftPanel string
+	// Render left panels (log/files + op log stacked)
+	var leftTop string
 	switch m.viewMode {
 	case ViewLog:
-		leftPanel = m.logPanel.View()
+		leftTop = m.logPanel.View()
 	case ViewFiles:
-		leftPanel = m.filesPanel.View()
+		leftTop = m.filesPanel.View()
 	}
+	leftBottom := m.opLogPanel.View()
+	leftPanel := lipgloss.JoinVertical(lipgloss.Left, leftTop, leftBottom)
 
 	// Render right panel (diff)
 	rightPanel := m.diffPanel.View()
