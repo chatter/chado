@@ -7,7 +7,7 @@ type Change struct {
 	Author        string   // Author email
 	Timestamp     string   // Formatted timestamp
 	Description   string   // Full commit message
-	IsWorkingCopy bool     // Is this the @ commit?
+	IsCurrent     bool     // Is this the @ commit?
 	IsImmutable   bool     // Is this an immutable commit?
 	Bookmarks     []string // Bookmarks pointing to this change
 	IsEmpty       bool     // Does this change have no diff?

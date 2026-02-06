@@ -123,7 +123,7 @@ func (r *Runner) ParseLogLines(output string) []Change {
 			currentChange = &Change{
 				ChangeID:      changeID,
 				Raw:           line,
-				IsWorkingCopy: strings.Contains(stripped, "@"),
+				IsCurrent: strings.Contains(stripped, "@"),
 				IsImmutable:   strings.Contains(stripped, "◆"),
 			}
 			descLines = nil
