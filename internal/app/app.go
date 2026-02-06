@@ -308,8 +308,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logLoadedMsg:
 		m.changes = msg.changes
 		m.logPanel.SetContent(msg.raw, msg.changes)
-		// Only load diff if we're in log view (not drilled into files)
-		if m.viewMode == ViewLog {
+		// Only load diff if we're in log view AND log panel is focused
+		if m.viewMode == ViewLog && m.focusedPane == PaneLog {
 			if selected := m.logPanel.SelectedChange(); selected != nil {
 				cmds = append(cmds, m.loadDiff(selected.ChangeID))
 			}
