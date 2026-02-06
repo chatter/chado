@@ -171,6 +171,8 @@ func (r *Runner) ParseOpLogLines(output string) []Operation {
 	// Format: "@ bbc9fee12c4d user@host 4 minutes ago, lasted 1 second"
 	// Operation IDs are hex (0-9a-f), 12 characters
 	opLineRe := regexp.MustCompile(`^[│├└\s]*[@○]\s+([0-9a-f]{12})\s`)
+	// Regex to detect current operation marker (@ at graph position, not in email)
+	currentOpRe := regexp.MustCompile(`^[│├└\s]*@\s+[0-9a-f]{12}\s`)
 
 	for _, line := range lines {
 		stripped := stripANSI(line)
@@ -187,7 +189,7 @@ func (r *Runner) ParseOpLogLines(output string) []Operation {
 			currentOp = &Operation{
 				OpID:      opID,
 				Raw:       line,
-				IsCurrent: strings.Contains(stripped, "@"),
+				IsCurrent: currentOpRe.MatchString(stripped),
 			}
 			descLines = nil
 		} else if currentOp != nil && strings.TrimSpace(line) != "" {
