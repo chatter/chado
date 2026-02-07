@@ -197,6 +197,23 @@ func (m Model) loadOpShow(opID string) tea.Cmd {
 	}
 }
 
+// loadEvoLog fetches the evolution log for a specific change
+func (m Model) loadEvoLog(changeID, shortCode string) tea.Cmd {
+	return func() tea.Msg {
+		output, err := m.runner.EvoLog(changeID)
+		if err != nil {
+			return errMsg{err}
+		}
+		operations := m.runner.ParseOpLogLines(output)
+		return evoLogLoadedMsg{
+			changeID:   changeID,
+			shortCode:  shortCode,
+			raw:        output,
+			operations: operations,
+		}
+	}
+}
+
 // startWatcher starts the file system watcher
 func (m Model) startWatcher() tea.Cmd {
 	return func() tea.Msg {
@@ -246,6 +263,13 @@ type filesLoadedMsg struct {
 }
 
 type opLogLoadedMsg struct {
+	raw        string
+	operations []jj.Operation
+}
+
+type evoLogLoadedMsg struct {
+	changeID   string
+	shortCode  string
 	raw        string
 	operations []jj.Operation
 }
@@ -327,6 +351,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case filesLoadedMsg:
 		m.filesPanel.SetFiles(msg.changeID, msg.shortCode, msg.files)
 		m.currentDiff = msg.diffOutput
+		// Load evolog for this change (shows operations that affected it)
+		cmds = append(cmds, m.loadEvoLog(msg.changeID, msg.shortCode))
 		// If there are files, show diff for the first one
 		if len(msg.files) > 0 {
 			cmds = append(cmds, m.loadFileDiff(msg.changeID, msg.files[0].Path))
@@ -338,7 +364,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diffPanel.SetDiff(msg.diffOutput)
 
 	case opLogLoadedMsg:
-		m.opLogPanel.SetContent(msg.raw, msg.operations)
+		m.opLogPanel.SetOpLogContent(msg.raw, msg.operations)
+		// If op log panel is focused, load op show for selected operation
+		if m.focusedPane == PaneOpLog {
+			if selected := m.opLogPanel.SelectedOperation(); selected != nil {
+				cmds = append(cmds, m.loadOpShow(selected.OpID))
+			}
+		}
+
+	case evoLogLoadedMsg:
+		m.opLogPanel.SetEvoLogContent(msg.changeID, msg.shortCode, msg.raw, msg.operations)
 		// If op log panel is focused, load op show for selected operation
 		if m.focusedPane == PaneOpLog {
 			if selected := m.opLogPanel.SelectedOperation(); selected != nil {
@@ -403,7 +438,7 @@ func (m *Model) handleEnter() tea.Cmd {
 	return nil
 }
 
-func (m *Model) handleBack() {
+func (m *Model) handleBack() tea.Cmd {
 	switch m.viewMode {
 	case ViewFiles:
 		// Go back to log view
@@ -414,7 +449,10 @@ func (m *Model) handleBack() {
 		if change := m.logPanel.SelectedChange(); change != nil {
 			m.diffPanel.SetDiff(m.currentDiff)
 		}
+		// Restore global op log (switch back from evolog mode)
+		return m.loadOpLog()
 	}
+	return nil
 }
 
 func (m *Model) updateFocusedPanel(msg tea.Msg) tea.Cmd {
@@ -551,7 +589,8 @@ func (m *Model) actionEnter() (Model, tea.Cmd) {
 func (m *Model) actionBack() (Model, tea.Cmd) {
 	// Only handle Esc when we're in a drilled-down view AND focused on left pane
 	if m.viewMode != ViewLog && m.focusedPane == PaneLog {
-		m.handleBack()
+		cmd := m.handleBack()
+		return *m, cmd
 	}
 	return *m, nil
 }

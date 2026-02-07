@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -14,7 +13,15 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// OpLogPanel displays the jj operation log
+// OpLogMode represents the current display mode of the OpLogPanel
+type OpLogMode int
+
+const (
+	ModeOpLog  OpLogMode = iota // Global operation log (jj op log)
+	ModeEvoLog                  // Evolution log for a specific change (jj evolog -r)
+)
+
+// OpLogPanel displays the jj operation log or evolution log
 type OpLogPanel struct {
 	viewport     viewport.Model
 	operations   []jj.Operation
@@ -25,6 +32,11 @@ type OpLogPanel struct {
 	rawLog       string // Keep raw log for display
 	opStartLines []int  // Line number where each operation starts (pre-computed)
 	totalLines   int    // Total number of lines in rawLog (for bounds checking)
+
+	// Mode fields for evolog support
+	mode      OpLogMode // Current display mode (op log or evolog)
+	changeID  string    // Change ID when in evolog mode
+	shortCode string    // Shortest unique prefix for highlighting
 }
 
 // NewOpLogPanel creates a new operation log panel
@@ -86,13 +98,26 @@ func (p *OpLogPanel) SetContent(rawLog string, operations []jj.Operation) {
 	p.updateViewport()
 }
 
-// opLineRe matches operation lines - requires @ or ○ symbol followed by operation ID
-var opLineRe = regexp.MustCompile(`^[│├└\s]*[@○]\s+([0-9a-f]{12})\s`)
+// SetOpLogContent switches to global op log mode and sets content
+func (p *OpLogPanel) SetOpLogContent(rawLog string, operations []jj.Operation) {
+	p.mode = ModeOpLog
+	p.changeID = ""
+	p.shortCode = ""
+	p.SetContent(rawLog, operations)
+}
 
-// isOpStart checks if a line starts a new operation entry
-func isOpStart(line string) bool {
+// SetEvoLogContent switches to evolog mode for a specific change and sets content
+func (p *OpLogPanel) SetEvoLogContent(changeID, shortCode, rawLog string, operations []jj.Operation) {
+	p.mode = ModeEvoLog
+	p.changeID = changeID
+	p.shortCode = shortCode
+	p.SetContent(rawLog, operations)
+}
+
+// isEntryStart checks if a line starts a new entry (operation or change)
+func isEntryStart(line string) bool {
 	stripped := ansiRegex.ReplaceAllString(line, "")
-	return opLineRe.MatchString(stripped)
+	return jj.EntryLineRe.MatchString(stripped)
 }
 
 // computeOpStartLines pre-computes the line number where each operation starts
@@ -107,7 +132,7 @@ func (p *OpLogPanel) computeOpStartLines() {
 	// Count actual lines (newlines), not split elements (which includes trailing empty)
 	p.totalLines = strings.Count(p.rawLog, "\n")
 	for i, line := range lines {
-		if isOpStart(line) {
+		if isEntryStart(line) {
 			p.opStartLines = append(p.opStartLines, i)
 		}
 	}
@@ -256,7 +281,26 @@ func (p *OpLogPanel) Update(msg tea.Msg) tea.Cmd {
 
 // View renders the panel
 func (p OpLogPanel) View() string {
-	title := PanelTitle(2, "Operations Log", p.focused)
+	var title string
+
+	switch p.mode {
+	case ModeEvoLog:
+		// Build change ID with shortcode highlighted (like FilesPanel)
+		coloredID := p.changeID
+		if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
+			rest := p.changeID[len(p.shortCode):]
+			var outerColor lipgloss.Color
+			if p.focused {
+				outerColor = accentColor
+			} else {
+				outerColor = primaryColor
+			}
+			coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColor) + rest
+		}
+		title = PanelTitle(2, "Evolution: "+coloredID, p.focused)
+	default:
+		title = PanelTitle(2, "Operations Log", p.focused)
+	}
 
 	// Get the appropriate border style
 	var style lipgloss.Style

@@ -1,5 +1,12 @@
 package jj
 
+import "regexp"
+
+// EntryLineRe matches entry lines in both op log and evolog output:
+//   - Operation IDs: 12 hex characters (0-9a-f) from jj op log
+//   - Change IDs: 8+ lowercase letters with optional /N version suffix from jj evolog
+var EntryLineRe = regexp.MustCompile(`^[│├└\s]*[@○]\s+(?:(?P<opID>[0-9a-f]{12})|(?P<changeID>[a-z]{8,}(?:/\d+)?))\s`)
+
 // Change represents a jj change/commit
 type Change struct {
 	ChangeID    string   // Short change ID (e.g., "xsssnyux")

@@ -14,12 +14,13 @@ import (
 // Unit Tests
 // =============================================================================
 
-func TestIsOpStart(t *testing.T) {
+func TestIsEntryStart(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
 		expected bool
 	}{
+		// Operation log entries (12 hex characters)
 		{
 			name:     "current operation marker",
 			input:    "@  bbc9fee12c4d user@host 4 minutes ago",
@@ -31,10 +32,48 @@ func TestIsOpStart(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "with ansi codes",
+			name:     "operation with ansi codes",
 			input:    "\x1b[1;35m@\x1b[0m  \x1b[1;34mbbc9fee12c4d\x1b[0m user@host",
 			expected: true,
 		},
+		// Evolog entries (8+ lowercase letters)
+		{
+			name:     "evolog current change",
+			input:    "@  mkvurkku user@host 2 hours ago",
+			expected: true,
+		},
+		{
+			name:     "evolog regular change",
+			input:    "○  xsssnyux user@host 1 day ago",
+			expected: true,
+		},
+		{
+			name:     "evolog with ansi codes",
+			input:    "\x1b[1;35m@\x1b[0m  \x1b[1;34mmkvurkku\x1b[0m user@host",
+			expected: true,
+		},
+		{
+			name:     "evolog longer change id",
+			input:    "@  mkvurkkulong user@host now",
+			expected: true,
+		},
+		// Evolog entries with version suffix (historical versions)
+		{
+			name:     "evolog version 1",
+			input:    "○  npwtzrzq/1 user@host 1 hour ago",
+			expected: true,
+		},
+		{
+			name:     "evolog version 10",
+			input:    "○  mkvurkku/10 user@host 2 hours ago",
+			expected: true,
+		},
+		{
+			name:     "evolog version with ansi",
+			input:    "\x1b[1;35m○\x1b[0m  \x1b[1;34mnpwtzrzq/5\x1b[0m user@host",
+			expected: true,
+		},
+		// Non-matching lines
 		{
 			name:     "description continuation",
 			input:    "│  snapshot working copy",
@@ -64,9 +103,9 @@ func TestIsOpStart(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isOpStart(tt.input)
+			result := isEntryStart(tt.input)
 			if result != tt.expected {
-				t.Errorf("isOpStart(%q) = %v, want %v", tt.input, result, tt.expected)
+				t.Errorf("isEntryStart(%q) = %v, want %v", tt.input, result, tt.expected)
 			}
 		})
 	}
@@ -367,10 +406,10 @@ func TestOpLogPanel_GotoBottomAlwaysLast(t *testing.T) {
 	})
 }
 
-// Property: isOpStart should be consistent with ANSI stripping
-func TestIsOpStart_ANSIInvariant(t *testing.T) {
+// Property: isEntryStart should be consistent with ANSI stripping for operation IDs
+func TestIsEntryStart_ANSIInvariant_OpID(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		// Generate an operation start line
+		// Generate an operation start line (12 hex chars)
 		symbol := rapid.SampledFrom([]string{"@", "○"}).Draw(t, "symbol")
 		opID := rapid.StringMatching(`[0-9a-f]{12}`).Draw(t, "opID")
 		plainLine := symbol + "  " + opID + " user@host now"
@@ -378,12 +417,33 @@ func TestIsOpStart_ANSIInvariant(t *testing.T) {
 		// Both plain and ANSI-decorated versions should give same result
 		ansiLine := "\x1b[1;35m" + symbol + "\x1b[0m  \x1b[1;34m" + opID + "\x1b[0m user@host now"
 
-		plainResult := isOpStart(plainLine)
-		ansiResult := isOpStart(ansiLine)
+		plainResult := isEntryStart(plainLine)
+		ansiResult := isEntryStart(ansiLine)
 
 		if plainResult != ansiResult {
 			t.Fatalf("ANSI invariant violated: plain=%v, ansi=%v for symbol=%s",
 				plainResult, ansiResult, symbol)
+		}
+	})
+}
+
+// Property: isEntryStart should be consistent with ANSI stripping for change IDs
+func TestIsEntryStart_ANSIInvariant_ChangeID(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		// Generate an evolog entry line (8+ lowercase letters)
+		symbol := rapid.SampledFrom([]string{"@", "○"}).Draw(t, "symbol")
+		changeID := rapid.StringMatching(`[a-z]{8,12}`).Draw(t, "changeID")
+		plainLine := symbol + "  " + changeID + " user@host now"
+
+		// Both plain and ANSI-decorated versions should give same result
+		ansiLine := "\x1b[1;35m" + symbol + "\x1b[0m  \x1b[1;34m" + changeID + "\x1b[0m user@host now"
+
+		plainResult := isEntryStart(plainLine)
+		ansiResult := isEntryStart(ansiLine)
+
+		if plainResult != ansiResult {
+			t.Fatalf("ANSI invariant violated: plain=%v, ansi=%v for symbol=%s changeID=%s",
+				plainResult, ansiResult, symbol, changeID)
 		}
 	})
 }
@@ -448,4 +508,118 @@ func TestOpLogPanel_Click_CursorInBounds(t *testing.T) {
 			t.Fatalf("cursor should be < %d, got %d", numOps, panel.cursor)
 		}
 	})
+}
+
+// =============================================================================
+// Mode Toggle Tests (Evolog Support)
+// =============================================================================
+
+func TestOpLogPanel_DefaultModeIsOpLog(t *testing.T) {
+	panel := NewOpLogPanel()
+
+	if panel.mode != ModeOpLog {
+		t.Errorf("default mode should be ModeOpLog, got %v", panel.mode)
+	}
+}
+
+func TestOpLogPanel_SetEvoLogContent_SwitchesMode(t *testing.T) {
+	panel := NewOpLogPanel()
+
+	operations := []jj.Operation{
+		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
+	}
+
+	panel.SetEvoLogContent("mkvurkku", "mkv", "@ aaaaaaaaaaaa", operations)
+
+	if panel.mode != ModeEvoLog {
+		t.Errorf("mode should be ModeEvoLog after SetEvoLogContent, got %v", panel.mode)
+	}
+	if panel.changeID != "mkvurkku" {
+		t.Errorf("changeID should be 'mkvurkku', got '%s'", panel.changeID)
+	}
+	if panel.shortCode != "mkv" {
+		t.Errorf("shortCode should be 'mkv', got '%s'", panel.shortCode)
+	}
+}
+
+func TestOpLogPanel_SetOpLogContent_SwitchesMode(t *testing.T) {
+	panel := NewOpLogPanel()
+
+	// First switch to evolog mode
+	operations := []jj.Operation{
+		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
+	}
+	panel.SetEvoLogContent("mkvurkku", "mkv", "@ aaaaaaaaaaaa", operations)
+
+	// Now switch back to oplog mode
+	panel.SetOpLogContent("@ bbbbbbbbbbbb", operations)
+
+	if panel.mode != ModeOpLog {
+		t.Errorf("mode should be ModeOpLog after SetOpLogContent, got %v", panel.mode)
+	}
+	if panel.changeID != "" {
+		t.Errorf("changeID should be empty, got '%s'", panel.changeID)
+	}
+	if panel.shortCode != "" {
+		t.Errorf("shortCode should be empty, got '%s'", panel.shortCode)
+	}
+}
+
+func TestOpLogPanel_TitleByMode_OpLog(t *testing.T) {
+	panel := NewOpLogPanel()
+	panel.SetSize(80, 24)
+
+	operations := []jj.Operation{
+		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
+	}
+	panel.SetOpLogContent("@ aaaaaaaaaaaa", operations)
+
+	view := panel.View()
+
+	// Title should contain "Operations Log"
+	if !strings.Contains(view, "Operations Log") {
+		t.Errorf("view should contain 'Operations Log' in oplog mode, got: %s", view)
+	}
+}
+
+func TestOpLogPanel_TitleByMode_EvoLog(t *testing.T) {
+	panel := NewOpLogPanel()
+	panel.SetSize(80, 24)
+
+	operations := []jj.Operation{
+		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
+	}
+	panel.SetEvoLogContent("mkvurkku", "mkv", "@ aaaaaaaaaaaa", operations)
+
+	view := panel.View()
+
+	// Title should contain "Evolution:" and NOT "Operations Log"
+	if strings.Contains(view, "Operations Log") {
+		t.Errorf("view should NOT contain 'Operations Log' in evolog mode")
+	}
+
+	// Should contain the change ID (stripped view check - ANSI codes complicate exact match)
+	stripped := stripTestANSI(view)
+	if !strings.Contains(stripped, "Evolution") {
+		t.Errorf("view should contain 'Evolution' in evolog mode, got: %s", stripped)
+	}
+}
+
+// stripTestANSI is a helper to strip ANSI codes for test assertions
+func stripTestANSI(s string) string {
+	// Simple ANSI stripper for tests
+	result := s
+	for strings.Contains(result, "\x1b[") {
+		start := strings.Index(result, "\x1b[")
+		end := start + 2
+		for end < len(result) && result[end] != 'm' {
+			end++
+		}
+		if end < len(result) {
+			result = result[:start] + result[end+1:]
+		} else {
+			break
+		}
+	}
+	return result
 }
