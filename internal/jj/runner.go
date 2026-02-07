@@ -87,8 +87,12 @@ func (r *Runner) OpLog() (string, error) {
 }
 
 // EvoLog returns the evolution log for a specific change (operations that affected it)
+// evoLogTemplate formats evolog output to show operation details instead of change IDs.
+// This makes entries look like op log output, with operation IDs that can be used with OpShow.
+const evoLogTemplate = `self.operation().id().short(12) ++ " " ++ self.operation().user() ++ " " ++ self.operation().time().start().ago() ++ ", lasted " ++ self.operation().time().duration() ++ "\n" ++ self.operation().description()`
+
 func (r *Runner) EvoLog(rev string) (string, error) {
-	return r.Run("evolog", "-r", rev, "--color=always")
+	return r.Run("evolog", "-r", rev, "--color=always", "-T", evoLogTemplate)
 }
 
 // OpShow returns details for a specific operation
