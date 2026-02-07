@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/chatter/chado/internal/jj"
 	"pgregory.net/rapid"
 )
@@ -393,8 +393,8 @@ func TestDiffPanel_SetDiffResetsHunk(t *testing.T) {
 		// Set new diff
 		panel.SetDiff("new diff content\n")
 
-		if panel.viewport.YOffset != 0 {
-			t.Fatalf("expected YOffset=0 after SetDiff, got %d", panel.viewport.YOffset)
+		if panel.viewport.YOffset() != 0 {
+			t.Fatalf("expected YOffset=0 after SetDiff, got %d", panel.viewport.YOffset())
 		}
 		if panel.currentHunk != noHunkSelected {
 			t.Fatalf("currentHunk should be noHunkSelected after SetDiff, got %d", panel.currentHunk)
@@ -423,8 +423,8 @@ func TestNextHunk_IncrementsAndPositions(t *testing.T) {
 		if panel.currentHunk != expectedHunk {
 			t.Fatalf("expected currentHunk=%d, got %d", expectedHunk, panel.currentHunk)
 		}
-		if panel.viewport.YOffset != expectedOffset {
-			t.Fatalf("expected YOffset=%d, got %d", expectedOffset, panel.viewport.YOffset)
+		if panel.viewport.YOffset() != expectedOffset {
+			t.Fatalf("expected YOffset=%d, got %d", expectedOffset, panel.viewport.YOffset())
 		}
 	})
 }
@@ -444,8 +444,8 @@ func TestNextHunk_FromNoSelection_GoesToFirstHunk(t *testing.T) {
 		if panel.currentHunk != 0 {
 			t.Fatalf("expected currentHunk=0, got %d", panel.currentHunk)
 		}
-		if panel.viewport.YOffset != expectedOffset {
-			t.Fatalf("expected YOffset=%d, got %d", expectedOffset, panel.viewport.YOffset)
+		if panel.viewport.YOffset() != expectedOffset {
+			t.Fatalf("expected YOffset=%d, got %d", expectedOffset, panel.viewport.YOffset())
 		}
 	})
 }
@@ -465,8 +465,8 @@ func TestNextHunk_AtLastHunk_StaysAtLastHunk(t *testing.T) {
 		if panel.currentHunk != lastHunk {
 			t.Fatalf("expected currentHunk=%d (unchanged), got %d", lastHunk, panel.currentHunk)
 		}
-		if panel.viewport.YOffset != expectedOffset {
-			t.Fatalf("expected YOffset=%d (unchanged), got %d", expectedOffset, panel.viewport.YOffset)
+		if panel.viewport.YOffset() != expectedOffset {
+			t.Fatalf("expected YOffset=%d (unchanged), got %d", expectedOffset, panel.viewport.YOffset())
 		}
 	})
 }
@@ -492,8 +492,8 @@ func TestPrevHunk_AtHunkStart_GoesToPreviousHunk(t *testing.T) {
 		if panel.currentHunk != expectedHunk {
 			t.Fatalf("expected currentHunk=%d, got %d", expectedHunk, panel.currentHunk)
 		}
-		if panel.viewport.YOffset != expectedOffset {
-			t.Fatalf("expected YOffset=%d, got %d", expectedOffset, panel.viewport.YOffset)
+		if panel.viewport.YOffset() != expectedOffset {
+			t.Fatalf("expected YOffset=%d, got %d", expectedOffset, panel.viewport.YOffset())
 		}
 	})
 }
@@ -530,8 +530,8 @@ func TestPrevHunk_InMiddleOfHunk_GoesToHunkStart(t *testing.T) {
 		if panel.currentHunk != hunkIdx {
 			t.Fatalf("expected currentHunk=%d (same), got %d", hunkIdx, panel.currentHunk)
 		}
-		if panel.viewport.YOffset != expectedOffset {
-			t.Fatalf("expected YOffset=%d (hunk start), got %d", expectedOffset, panel.viewport.YOffset)
+		if panel.viewport.YOffset() != expectedOffset {
+			t.Fatalf("expected YOffset=%d (hunk start), got %d", expectedOffset, panel.viewport.YOffset())
 		}
 	})
 }
@@ -549,8 +549,8 @@ func TestPrevHunk_AtFirstHunkStart_GoesToTop(t *testing.T) {
 		if panel.currentHunk != noHunkSelected {
 			t.Fatalf("expected currentHunk=noHunkSelected, got %d", panel.currentHunk)
 		}
-		if panel.viewport.YOffset != 0 {
-			t.Fatalf("expected YOffset=0, got %d", panel.viewport.YOffset)
+		if panel.viewport.YOffset() != 0 {
+			t.Fatalf("expected YOffset=0, got %d", panel.viewport.YOffset())
 		}
 	})
 }
@@ -568,8 +568,8 @@ func TestPrevHunk_NoHunkSelected_StaysAtTop(t *testing.T) {
 		if panel.currentHunk != noHunkSelected {
 			t.Fatalf("expected currentHunk=noHunkSelected, got %d", panel.currentHunk)
 		}
-		if panel.viewport.YOffset != 0 {
-			t.Fatalf("expected YOffset=0, got %d", panel.viewport.YOffset)
+		if panel.viewport.YOffset() != 0 {
+			t.Fatalf("expected YOffset=0, got %d", panel.viewport.YOffset())
 		}
 	})
 }
@@ -590,7 +590,7 @@ func TestSyncCurrentHunk_IdentifiesCorrectHunk(t *testing.T) {
 
 		if panel.currentHunk != hunkIdx {
 			t.Fatalf("expected currentHunk=%d, got %d (viewport at %d, hunk range %d-%d)",
-				hunkIdx, panel.currentHunk, panel.viewport.YOffset, hunk.StartLine, hunk.EndLine)
+				hunkIdx, panel.currentHunk, panel.viewport.YOffset(), hunk.StartLine, hunk.EndLine)
 		}
 	})
 }
@@ -634,9 +634,9 @@ func TestHunkNavigation_ViewportIncludesHeaderOffset(t *testing.T) {
 
 		expectedOffset := panel.hunks[targetHunk].StartLine + headerLines
 
-		if panel.viewport.YOffset != expectedOffset {
+		if panel.viewport.YOffset() != expectedOffset {
 			t.Fatalf("expected YOffset=%d (hunk %d start %d + header %d), got %d",
-				expectedOffset, targetHunk, panel.hunks[targetHunk].StartLine, headerLines, panel.viewport.YOffset)
+				expectedOffset, targetHunk, panel.hunks[targetHunk].StartLine, headerLines, panel.viewport.YOffset())
 		}
 	})
 }
@@ -677,9 +677,9 @@ func TestDiffPanel_MouseScroll_StaysInBounds(t *testing.T) {
 		for i := 0; i < numScrolls; i++ {
 			scrollUp := rapid.Bool().Draw(t, "scrollUp")
 			if scrollUp {
-				panel.HandleMouseScroll(tea.MouseButtonWheelUp)
+				panel.HandleMouseScroll(tea.MouseWheelUp)
 			} else {
-				panel.HandleMouseScroll(tea.MouseButtonWheelDown)
+				panel.HandleMouseScroll(tea.MouseWheelDown)
 			}
 		}
 
@@ -688,11 +688,11 @@ func TestDiffPanel_MouseScroll_StaysInBounds(t *testing.T) {
 		if maxScroll < 0 {
 			maxScroll = 0
 		}
-		if panel.viewport.YOffset < 0 {
-			t.Fatalf("YOffset should be >= 0, got %d", panel.viewport.YOffset)
+		if panel.viewport.YOffset() < 0 {
+			t.Fatalf("YOffset should be >= 0, got %d", panel.viewport.YOffset())
 		}
-		if panel.viewport.YOffset > maxScroll {
-			t.Fatalf("YOffset should be <= %d, got %d", maxScroll, panel.viewport.YOffset)
+		if panel.viewport.YOffset() > maxScroll {
+			t.Fatalf("YOffset should be <= %d, got %d", maxScroll, panel.viewport.YOffset())
 		}
 	})
 }
@@ -710,13 +710,13 @@ func TestDiffPanel_MouseWheelUp_ScrollsUp(t *testing.T) {
 		startOffset := rapid.IntRange(mouseScrollLines, maxScroll).Draw(t, "startOffset") // At least mouseScrollLines so scroll has room
 		panel.viewport.SetYOffset(startOffset)
 
-		beforeOffset := panel.viewport.YOffset
-		panel.HandleMouseScroll(tea.MouseButtonWheelUp)
+		beforeOffset := panel.viewport.YOffset()
+		panel.HandleMouseScroll(tea.MouseWheelUp)
 
 		// Invariant: offset must decrease (we had room to scroll)
-		if panel.viewport.YOffset >= beforeOffset {
+		if panel.viewport.YOffset() >= beforeOffset {
 			t.Fatalf("wheel up should decrease offset: before=%d, after=%d",
-				beforeOffset, panel.viewport.YOffset)
+				beforeOffset, panel.viewport.YOffset())
 		}
 	})
 }
@@ -734,13 +734,13 @@ func TestDiffPanel_MouseWheelDown_ScrollsDown(t *testing.T) {
 		startOffset := rapid.IntRange(0, maxScroll-mouseScrollLines).Draw(t, "startOffset")
 		panel.viewport.SetYOffset(startOffset)
 
-		beforeOffset := panel.viewport.YOffset
-		panel.HandleMouseScroll(tea.MouseButtonWheelDown)
+		beforeOffset := panel.viewport.YOffset()
+		panel.HandleMouseScroll(tea.MouseWheelDown)
 
 		// Invariant: offset must increase (we had room to scroll)
-		if panel.viewport.YOffset <= beforeOffset {
+		if panel.viewport.YOffset() <= beforeOffset {
 			t.Fatalf("wheel down should increase offset: before=%d, after=%d",
-				beforeOffset, panel.viewport.YOffset)
+				beforeOffset, panel.viewport.YOffset())
 		}
 	})
 }
@@ -755,14 +755,14 @@ func TestDiffPanel_MouseScroll_SyncsHunk(t *testing.T) {
 		for i := 0; i < numScrolls; i++ {
 			scrollUp := rapid.Bool().Draw(t, "scrollUp")
 			if scrollUp {
-				panel.HandleMouseScroll(tea.MouseButtonWheelUp)
+				panel.HandleMouseScroll(tea.MouseWheelUp)
 			} else {
-				panel.HandleMouseScroll(tea.MouseButtonWheelDown)
+				panel.HandleMouseScroll(tea.MouseWheelDown)
 			}
 		}
 
 		// Invariant: currentHunk matches viewport position
-		pos := panel.viewport.YOffset - headerLines
+		pos := panel.viewport.YOffset() - headerLines
 		expectedHunk := noHunkSelected
 		for i := numHunks - 1; i >= 0; i-- {
 			if pos >= panel.hunks[i].StartLine {
@@ -773,7 +773,7 @@ func TestDiffPanel_MouseScroll_SyncsHunk(t *testing.T) {
 
 		if panel.currentHunk != expectedHunk {
 			t.Fatalf("currentHunk=%d doesn't match viewport position (expected %d, offset=%d, headerLines=%d)",
-				panel.currentHunk, expectedHunk, panel.viewport.YOffset, headerLines)
+				panel.currentHunk, expectedHunk, panel.viewport.YOffset(), headerLines)
 		}
 	})
 }

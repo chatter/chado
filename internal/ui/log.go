@@ -5,10 +5,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/chatter/chado/internal/jj"
 	"github.com/chatter/chado/internal/ui/help"
@@ -32,7 +32,8 @@ type LogPanel struct {
 
 // NewLogPanel creates a new log panel
 func NewLogPanel() LogPanel {
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
+	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 	return LogPanel{
 		viewport: vp,
 		changes:  []jj.Change{},
@@ -45,8 +46,8 @@ func (p *LogPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
 	// Account for border (2) and title (1)
-	p.viewport.Width = width - 2
-	p.viewport.Height = height - 3
+	p.viewport.SetWidth(width - 2)
+	p.viewport.SetHeight(height - 3)
 }
 
 // SetFocused sets the focus state
@@ -191,13 +192,13 @@ func (p *LogPanel) ensureCursorVisible() {
 	}
 
 	cursorLine := p.changeStartLines[p.cursor]
-	viewTop := p.viewport.YOffset
-	viewBottom := viewTop + p.viewport.Height
+	viewTop := p.viewport.YOffset()
+	viewBottom := viewTop + p.viewport.Height()
 
 	if cursorLine < viewTop {
 		p.viewport.SetYOffset(cursorLine)
 	} else if cursorLine >= viewBottom {
-		p.viewport.SetYOffset(cursorLine - p.viewport.Height + 2)
+		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + 2)
 	}
 }
 
@@ -224,7 +225,7 @@ func (p *LogPanel) lineToChangeIndex(visualLine int) int {
 // Returns true if the selection changed
 func (p *LogPanel) HandleClick(y int) bool {
 	// Account for viewport scroll offset
-	visualLine := y + p.viewport.YOffset
+	visualLine := y + p.viewport.YOffset()
 
 	changeIdx := p.lineToChangeIndex(visualLine)
 	if changeIdx >= 0 && changeIdx < len(p.changes) && changeIdx != p.cursor {
@@ -271,8 +272,8 @@ func (p LogPanel) View() string {
 		style = PanelStyle
 	}
 
-	// Set dimensions
-	style = style.Width(p.width - 2).Height(p.height - 2)
+	// Set height only - Width causes text wrapping in lipgloss v2
+	style = style.Height(p.height - 2)
 
 	// Build content with title
 	content := title + "\n" + p.viewport.View()

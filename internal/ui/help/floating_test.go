@@ -1,13 +1,22 @@
 package help
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/lipgloss/v2"
 	"pgregory.net/rapid"
 )
+
+// ansiRegex matches ANSI escape sequences
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+// stripANSI removes all ANSI escape sequences from a string
+func stripANSI(s string) string {
+	return ansiRegex.ReplaceAllString(s, "")
+}
 
 func generateFloatingBindings(t *rapid.T) []HelpBinding {
 	numBindings := rapid.IntRange(0, 30).Draw(t, "numBindings")
@@ -57,10 +66,11 @@ func TestFloating_AllEnabledBindingsAppear_WhenEnoughSpace(t *testing.T) {
 		fh.SetBindings(bindings)
 
 		view := fh.View()
+		plainView := stripANSI(view)
 
 		for _, hb := range bindings {
 			desc := hb.Binding.Help().Desc
-			if !strings.Contains(view, desc) {
+			if !strings.Contains(plainView, desc) {
 				t.Errorf("enabled binding %q not found in view with sufficient space", desc)
 			}
 		}
@@ -91,10 +101,11 @@ func TestFloating_DisabledBindingsNeverAppear(t *testing.T) {
 		fh.SetBindings(bindings)
 
 		view := fh.View()
+		plainView := stripANSI(view)
 
 		for i := 0; i < numBindings; i++ {
 			desc := "disabled" + string(rune('0'+i))
-			if strings.Contains(view, desc) {
+			if strings.Contains(plainView, desc) {
 				t.Errorf("disabled binding %q should not appear in view", desc)
 			}
 		}
@@ -130,15 +141,16 @@ func TestFloating_CategoriesAppearAsHeaders(t *testing.T) {
 		fh.SetBindings(bindings)
 
 		view := fh.View()
+		plainView := stripANSI(view)
 
 		// Each category with bindings should appear as a header
-		if !strings.Contains(view, string(CategoryNavigation)) {
+		if !strings.Contains(plainView, string(CategoryNavigation)) {
 			t.Errorf("Navigation category header not found")
 		}
-		if !strings.Contains(view, string(CategoryActions)) {
+		if !strings.Contains(plainView, string(CategoryActions)) {
 			t.Errorf("Actions category header not found")
 		}
-		if !strings.Contains(view, string(CategoryDiff)) {
+		if !strings.Contains(plainView, string(CategoryDiff)) {
 			t.Errorf("Diff category header not found")
 		}
 	})

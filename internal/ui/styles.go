@@ -1,14 +1,21 @@
 package ui
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
-// Colors
+// Color codes (ANSI 256)
+const (
+	PrimaryColorCode   = "62"  // Purple
+	SecondaryColorCode = "241" // Gray
+	AccentColorCode    = "86"  // Cyan
+)
+
+// Colors (for lipgloss styles)
 var (
-	primaryColor   = lipgloss.Color("62")  // Purple
-	secondaryColor = lipgloss.Color("241") // Gray
-	accentColor    = lipgloss.Color("86")  // Cyan
+	primaryColor   = lipgloss.Color(PrimaryColorCode)
+	secondaryColor = lipgloss.Color(SecondaryColorCode)
+	accentColor    = lipgloss.Color(AccentColorCode)
 	borderColor    = lipgloss.Color("240") // Dark gray
 	focusBorder    = lipgloss.Color("62")  // Purple for focused
 )

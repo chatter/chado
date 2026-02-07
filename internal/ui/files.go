@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/chatter/chado/internal/jj"
 	"github.com/chatter/chado/internal/ui/help"
@@ -27,7 +27,8 @@ type FilesPanel struct {
 
 // NewFilesPanel creates a new files panel
 func NewFilesPanel() FilesPanel {
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
+	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 	return FilesPanel{
 		viewport: vp,
 		files:    []jj.File{},
@@ -40,8 +41,8 @@ func (p *FilesPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
 	// Account for border (2) and title (1)
-	p.viewport.Width = width - 2
-	p.viewport.Height = height - 3
+	p.viewport.SetWidth(width - 2)
+	p.viewport.SetHeight(height - 3)
 }
 
 // SetFocused sets the focus state
@@ -134,17 +135,17 @@ func (p *FilesPanel) updateViewport() {
 	p.viewport.SetContent(content.String())
 
 	// Ensure cursor is visible
-	if p.cursor < p.viewport.YOffset {
+	if p.cursor < p.viewport.YOffset() {
 		p.viewport.SetYOffset(p.cursor)
-	} else if p.cursor >= p.viewport.YOffset+p.viewport.Height {
-		p.viewport.SetYOffset(p.cursor - p.viewport.Height + 1)
+	} else if p.cursor >= p.viewport.YOffset()+p.viewport.Height() {
+		p.viewport.SetYOffset(p.cursor - p.viewport.Height() + 1)
 	}
 }
 
 // HandleClick selects the file at the given Y coordinate (relative to content area)
 func (p *FilesPanel) HandleClick(y int) bool {
 	// Account for viewport scroll offset
-	visualLine := y + p.viewport.YOffset
+	visualLine := y + p.viewport.YOffset()
 
 	if visualLine >= 0 && visualLine < len(p.files) && visualLine != p.cursor {
 		p.cursor = visualLine
@@ -184,13 +185,13 @@ func (p FilesPanel) View() string {
 	if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
 		rest := p.changeID[len(p.shortCode):]
 		// Replace the reset with the outer title color so styling continues
-		var outerColor lipgloss.Color
+		var outerColorCode string
 		if p.focused {
-			outerColor = accentColor
+			outerColorCode = AccentColorCode
 		} else {
-			outerColor = primaryColor
+			outerColorCode = PrimaryColorCode
 		}
-		coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColor) + rest
+		coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
 	}
 	title := PanelTitle(1, coloredID+" / files", p.focused)
 
@@ -202,8 +203,8 @@ func (p FilesPanel) View() string {
 		style = PanelStyle
 	}
 
-	// Set dimensions
-	style = style.Width(p.width - 2).Height(p.height - 2)
+	// Set height only - Width causes text wrapping in lipgloss v2
+	style = style.Height(p.height - 2)
 
 	// Build content with title
 	content := title + "\n" + p.viewport.View()
