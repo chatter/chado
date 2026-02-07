@@ -449,3 +449,117 @@ func TestOpLogPanel_Click_CursorInBounds(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// Mode Toggle Tests (Evolog Support)
+// =============================================================================
+
+func TestOpLogPanel_DefaultModeIsOpLog(t *testing.T) {
+	panel := NewOpLogPanel()
+
+	if panel.mode != ModeOpLog {
+		t.Errorf("default mode should be ModeOpLog, got %v", panel.mode)
+	}
+}
+
+func TestOpLogPanel_SetEvoLogContent_SwitchesMode(t *testing.T) {
+	panel := NewOpLogPanel()
+
+	operations := []jj.Operation{
+		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
+	}
+
+	panel.SetEvoLogContent("mkvurkku", "mkv", "@ aaaaaaaaaaaa", operations)
+
+	if panel.mode != ModeEvoLog {
+		t.Errorf("mode should be ModeEvoLog after SetEvoLogContent, got %v", panel.mode)
+	}
+	if panel.changeID != "mkvurkku" {
+		t.Errorf("changeID should be 'mkvurkku', got '%s'", panel.changeID)
+	}
+	if panel.shortCode != "mkv" {
+		t.Errorf("shortCode should be 'mkv', got '%s'", panel.shortCode)
+	}
+}
+
+func TestOpLogPanel_SetOpLogContent_SwitchesMode(t *testing.T) {
+	panel := NewOpLogPanel()
+
+	// First switch to evolog mode
+	operations := []jj.Operation{
+		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
+	}
+	panel.SetEvoLogContent("mkvurkku", "mkv", "@ aaaaaaaaaaaa", operations)
+
+	// Now switch back to oplog mode
+	panel.SetOpLogContent("@ bbbbbbbbbbbb", operations)
+
+	if panel.mode != ModeOpLog {
+		t.Errorf("mode should be ModeOpLog after SetOpLogContent, got %v", panel.mode)
+	}
+	if panel.changeID != "" {
+		t.Errorf("changeID should be empty, got '%s'", panel.changeID)
+	}
+	if panel.shortCode != "" {
+		t.Errorf("shortCode should be empty, got '%s'", panel.shortCode)
+	}
+}
+
+func TestOpLogPanel_TitleByMode_OpLog(t *testing.T) {
+	panel := NewOpLogPanel()
+	panel.SetSize(80, 24)
+
+	operations := []jj.Operation{
+		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
+	}
+	panel.SetOpLogContent("@ aaaaaaaaaaaa", operations)
+
+	view := panel.View()
+
+	// Title should contain "Operations Log"
+	if !strings.Contains(view, "Operations Log") {
+		t.Errorf("view should contain 'Operations Log' in oplog mode, got: %s", view)
+	}
+}
+
+func TestOpLogPanel_TitleByMode_EvoLog(t *testing.T) {
+	panel := NewOpLogPanel()
+	panel.SetSize(80, 24)
+
+	operations := []jj.Operation{
+		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
+	}
+	panel.SetEvoLogContent("mkvurkku", "mkv", "@ aaaaaaaaaaaa", operations)
+
+	view := panel.View()
+
+	// Title should contain "Evolution:" and NOT "Operations Log"
+	if strings.Contains(view, "Operations Log") {
+		t.Errorf("view should NOT contain 'Operations Log' in evolog mode")
+	}
+
+	// Should contain the change ID (stripped view check - ANSI codes complicate exact match)
+	stripped := stripTestANSI(view)
+	if !strings.Contains(stripped, "Evolution") {
+		t.Errorf("view should contain 'Evolution' in evolog mode, got: %s", stripped)
+	}
+}
+
+// stripTestANSI is a helper to strip ANSI codes for test assertions
+func stripTestANSI(s string) string {
+	// Simple ANSI stripper for tests
+	result := s
+	for strings.Contains(result, "\x1b[") {
+		start := strings.Index(result, "\x1b[")
+		end := start + 2
+		for end < len(result) && result[end] != 'm' {
+			end++
+		}
+		if end < len(result) {
+			result = result[:start] + result[end+1:]
+		} else {
+			break
+		}
+	}
+	return result
+}
