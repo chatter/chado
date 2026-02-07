@@ -557,3 +557,58 @@ func TestParseOpLogLines_ValidOpID(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// Evolution Log Tests
+// =============================================================================
+
+func TestEvoLog_MethodExists(t *testing.T) {
+	// This test verifies the EvoLog method exists and has the correct signature.
+	// It will fail to compile until EvoLog is implemented.
+	runner := NewRunner(".", testLogger(t))
+
+	// EvoLog should accept a revision and return (string, error)
+	_, err := runner.EvoLog("test-rev")
+	// We expect an error since we're not in a real jj repo, but the method should exist
+	if err == nil {
+		t.Log("EvoLog returned no error (unexpected in test environment)")
+	}
+}
+
+func TestEvoLog_ParsesAsOperations(t *testing.T) {
+	// Evolog output has the same format as op log - operations that affected a change.
+	// This test verifies ParseOpLogLines correctly parses evolog-style output.
+	runner := NewRunner(".", testLogger(t))
+
+	// Sample evolog output (same format as op log, scoped to a single change)
+	input := `@  abc123def456 user@host 2 hours ago, lasted 50ms
+│  describe commit
+│  args: jj describe -m 'update readme'
+○  111222333444 user@host 3 hours ago, lasted 100ms
+│  new empty commit
+│  args: jj new
+○  555666777888 user@host 1 day ago, lasted 200ms
+│  snapshot working copy
+│  args: jj status`
+
+	operations := runner.ParseOpLogLines(input)
+
+	if len(operations) != 3 {
+		t.Fatalf("expected 3 operations, got %d", len(operations))
+	}
+
+	// Verify first operation (current)
+	if operations[0].OpID != "abc123def456" {
+		t.Errorf("expected first OpID 'abc123def456', got '%s'", operations[0].OpID)
+	}
+	if operations[0].Args != "jj describe -m 'update readme'" {
+		t.Errorf("expected first Args to contain describe command, got '%s'", operations[0].Args)
+	}
+
+	// Verify all operations have valid OpIDs
+	for i, op := range operations {
+		if len(op.OpID) != 12 {
+			t.Errorf("operation[%d] OpID should be 12 chars, got %d: %s", i, len(op.OpID), op.OpID)
+		}
+	}
+}
