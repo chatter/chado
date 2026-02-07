@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // StatusBar renders keybinding hints in the status bar.
@@ -21,20 +21,11 @@ type StatusBar struct {
 
 // NewStatusBar creates a new status bar help component.
 func NewStatusBar(version string) *StatusBar {
-	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
-		Light: "#666666",
-		Dark:  "#999999",
-	})
+	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#999999"))
 
-	descStyle := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
-		Light: "#888888",
-		Dark:  "#777777",
-	})
+	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#777777"))
 
-	sepStyle := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
-		Light: "#AAAAAA",
-		Dark:  "#555555",
-	})
+	sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
 
 	return &StatusBar{
 		version:   version,

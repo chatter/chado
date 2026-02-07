@@ -187,11 +187,11 @@ func TestLogPanel_SetSize(t *testing.T) {
 		t.Errorf("height should be 50, got %d", panel.height)
 	}
 	// Viewport should account for borders
-	if panel.viewport.Width != 98 {
-		t.Errorf("viewport.Width should be 98, got %d", panel.viewport.Width)
+	if panel.viewport.Width() != 98 {
+		t.Errorf("viewport.Width should be 98, got %d", panel.viewport.Width())
 	}
-	if panel.viewport.Height != 47 {
-		t.Errorf("viewport.Height should be 47, got %d", panel.viewport.Height)
+	if panel.viewport.Height() != 47 {
+		t.Errorf("viewport.Height should be 47, got %d", panel.viewport.Height())
 	}
 }
 

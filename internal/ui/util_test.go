@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"pgregory.net/rapid"
 )
 
@@ -17,43 +16,43 @@ func TestReplaceResetWithColor(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		color    lipgloss.Color
+		color    string
 		expected string
 	}{
 		{
 			name:     "replaces single reset",
 			input:    "\x1b[38;5;205mtext\x1b[0m",
-			color:    lipgloss.Color("86"),
+			color:    "86",
 			expected: "\x1b[38;5;205mtext\x1b[38;5;86m",
 		},
 		{
 			name:     "replaces multiple resets",
 			input:    "\x1b[1mfoo\x1b[0mbar\x1b[0m",
-			color:    lipgloss.Color("62"),
+			color:    "62",
 			expected: "\x1b[1mfoo\x1b[38;5;62mbar\x1b[38;5;62m",
 		},
 		{
 			name:     "no reset present",
 			input:    "\x1b[38;5;205mtext",
-			color:    lipgloss.Color("86"),
+			color:    "86",
 			expected: "\x1b[38;5;205mtext",
 		},
 		{
 			name:     "empty string",
 			input:    "",
-			color:    lipgloss.Color("86"),
+			color:    "86",
 			expected: "",
 		},
 		{
 			name:     "plain text no ansi",
 			input:    "plain text",
-			color:    lipgloss.Color("86"),
+			color:    "86",
 			expected: "plain text",
 		},
 		{
 			name:     "reset only",
 			input:    "\x1b[0m",
-			color:    lipgloss.Color("241"),
+			color:    "241",
 			expected: "\x1b[38;5;241m",
 		},
 	}
@@ -72,7 +71,7 @@ func TestReplaceResetWithColor(t *testing.T) {
 func TestReplaceResetWithColor_PreservesOtherCodes(t *testing.T) {
 	// Verify that other ANSI codes (bold, underline, etc.) are preserved
 	input := "\x1b[1;38;5;205mtext\x1b[0m"
-	color := lipgloss.Color("86")
+	color := "86"
 
 	result := ReplaceResetWithColor(input, color)
 
@@ -108,11 +107,11 @@ func ansiStringWithResets() *rapid.Generator[string] {
 	})
 }
 
-// Generator for valid 256-color codes
-func colorGen() *rapid.Generator[lipgloss.Color] {
-	return rapid.Custom(func(t *rapid.T) lipgloss.Color {
+// Generator for valid 256-color codes as strings
+func colorGen() *rapid.Generator[string] {
+	return rapid.Custom(func(t *rapid.T) string {
 		code := rapid.IntRange(0, 255).Draw(t, "colorCode")
-		return lipgloss.Color(fmt.Sprintf("%d", code))
+		return fmt.Sprintf("%d", code)
 	})
 }
 
@@ -157,7 +156,7 @@ func TestReplaceResetWithColor_ReplacementCount(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		input := ansiStringWithResets().Draw(t, "input")
 		colorCode := rapid.IntRange(0, 255).Draw(t, "color")
-		color := lipgloss.Color(fmt.Sprintf("%d", colorCode))
+		color := fmt.Sprintf("%d", colorCode)
 
 		resetCount := strings.Count(input, "\x1b[0m")
 		result := ReplaceResetWithColor(input, color)

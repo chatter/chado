@@ -2,7 +2,7 @@
 package help
 
 import (
-	"github.com/charmbracelet/bubbles/key"
+	"charm.land/bubbles/v2/key"
 )
 
 // Category represents a logical grouping of keybindings for help display

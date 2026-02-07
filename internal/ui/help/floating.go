@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // FloatingHelp renders a modal with all keybindings organized by category.

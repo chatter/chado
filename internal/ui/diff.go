@@ -4,10 +4,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/chatter/chado/internal/jj"
 	"github.com/chatter/chado/internal/ui/help"
@@ -45,7 +45,8 @@ type DetailsHeader struct {
 
 // NewDiffPanel creates a new diff panel
 func NewDiffPanel() DiffPanel {
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
+	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 	return DiffPanel{
 		viewport:    vp,
 		title:       "Diff",
@@ -58,8 +59,8 @@ func (p *DiffPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
 	// Account for border (2) and title (1)
-	p.viewport.Width = width - 2
-	p.viewport.Height = height - 3
+	p.viewport.SetWidth(width - 2)
+	p.viewport.SetHeight(height - 3)
 }
 
 // SetFocused sets the focus state
@@ -128,7 +129,7 @@ func (p *DiffPanel) updateContent() {
 		p.headerLines++
 
 		// Separator
-		content.WriteString(strings.Repeat("─", p.viewport.Width))
+		content.WriteString(strings.Repeat("─", p.viewport.Width()))
 		content.WriteString("\n")
 		p.headerLines++
 	}
@@ -163,7 +164,7 @@ func (p *DiffPanel) PrevHunk() {
 	currentHunkStart := p.hunks[p.currentHunk].StartLine + p.headerLines
 
 	// If not at start of current hunk, go to start of current hunk
-	if p.viewport.YOffset > currentHunkStart {
+	if p.viewport.YOffset() > currentHunkStart {
 		p.viewport.SetYOffset(currentHunkStart)
 		return
 	}
@@ -183,7 +184,7 @@ func (p *DiffPanel) syncCurrentHunk() {
 		p.currentHunk = noHunkSelected
 		return
 	}
-	pos := p.viewport.YOffset - p.headerLines
+	pos := p.viewport.YOffset() - p.headerLines
 	for i := len(p.hunks) - 1; i >= 0; i-- {
 		if pos >= p.hunks[i].StartLine {
 			p.currentHunk = i
@@ -210,9 +211,9 @@ func (p *DiffPanel) GotoBottom() {
 // HandleMouseScroll handles mouse wheel events
 func (p *DiffPanel) HandleMouseScroll(button tea.MouseButton) {
 	switch button {
-	case tea.MouseButtonWheelUp:
+	case tea.MouseWheelUp:
 		p.viewport.ScrollUp(mouseScrollLines)
-	case tea.MouseButtonWheelDown:
+	case tea.MouseWheelDown:
 		p.viewport.ScrollDown(mouseScrollLines)
 	}
 	p.syncCurrentHunk()
@@ -259,8 +260,8 @@ func (p DiffPanel) View() string {
 		style = PanelStyle
 	}
 
-	// Set dimensions
-	style = style.Width(p.width - 2).Height(p.height - 2)
+	// Set height only - Width causes text wrapping in lipgloss v2
+	style = style.Height(p.height - 2)
 
 	// Build content with title
 	content := title + "\n" + p.viewport.View()

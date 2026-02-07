@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/chatter/chado/internal/jj"
 	"github.com/chatter/chado/internal/ui/help"
@@ -41,7 +41,8 @@ type OpLogPanel struct {
 
 // NewOpLogPanel creates a new operation log panel
 func NewOpLogPanel() OpLogPanel {
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
+	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 	return OpLogPanel{
 		viewport:   vp,
 		operations: []jj.Operation{},
@@ -54,8 +55,8 @@ func (p *OpLogPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
 	// Account for border (2) and title (1)
-	p.viewport.Width = width - 2
-	p.viewport.Height = height - 3
+	p.viewport.SetWidth(width - 2)
+	p.viewport.SetHeight(height - 3)
 }
 
 // SetFocused sets the focus state
@@ -212,13 +213,13 @@ func (p *OpLogPanel) ensureCursorVisible() {
 	}
 
 	cursorLine := p.opStartLines[p.cursor]
-	viewTop := p.viewport.YOffset
-	viewBottom := viewTop + p.viewport.Height
+	viewTop := p.viewport.YOffset()
+	viewBottom := viewTop + p.viewport.Height()
 
 	if cursorLine < viewTop {
 		p.viewport.SetYOffset(cursorLine)
 	} else if cursorLine >= viewBottom {
-		p.viewport.SetYOffset(cursorLine - p.viewport.Height + 2)
+		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + 2)
 	}
 }
 
@@ -245,7 +246,7 @@ func (p *OpLogPanel) lineToOpIndex(visualLine int) int {
 // Returns true if the selection changed
 func (p *OpLogPanel) HandleClick(y int) bool {
 	// Account for viewport scroll offset
-	visualLine := y + p.viewport.YOffset
+	visualLine := y + p.viewport.YOffset()
 
 	opIdx := p.lineToOpIndex(visualLine)
 	if opIdx >= 0 && opIdx < len(p.operations) && opIdx != p.cursor {
@@ -289,13 +290,13 @@ func (p OpLogPanel) View() string {
 		coloredID := p.changeID
 		if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
 			rest := p.changeID[len(p.shortCode):]
-			var outerColor lipgloss.Color
+			var outerColorCode string
 			if p.focused {
-				outerColor = accentColor
+				outerColorCode = AccentColorCode
 			} else {
-				outerColor = primaryColor
+				outerColorCode = PrimaryColorCode
 			}
-			coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColor) + rest
+			coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
 		}
 		title = PanelTitle(2, "Evolution: "+coloredID, p.focused)
 	default:
@@ -310,8 +311,8 @@ func (p OpLogPanel) View() string {
 		style = PanelStyle
 	}
 
-	// Set dimensions
-	style = style.Width(p.width - 2).Height(p.height - 2)
+	// Set height only - Width causes text wrapping in lipgloss v2
+	style = style.Height(p.height - 2)
 
 	// Build content with title
 	content := title + "\n" + p.viewport.View()

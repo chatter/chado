@@ -7,7 +7,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/chatter/chado/internal/app"
 	"github.com/chatter/chado/internal/logger"
 )
@@ -61,8 +61,6 @@ func run(ctx context.Context, args []string) error {
 
 	p := tea.NewProgram(
 		model,
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
 		tea.WithContext(ctx),
 	)
 

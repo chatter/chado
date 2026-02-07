@@ -3,8 +3,8 @@ package app
 import (
 	"testing"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/chatter/chado/internal/ui/help"
 )
@@ -39,7 +39,7 @@ func TestDispatch_MatchesAndExecutes(t *testing.T) {
 	}
 
 	m := &Model{}
-	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}}
+	keyMsg := tea.KeyPressMsg(tea.Key{Code: 'b'})
 
 	newModel, cmd := dispatchKey(m, keyMsg, bindings)
 	if newModel == nil {
@@ -68,7 +68,7 @@ func TestDispatch_NoMatchNoAction(t *testing.T) {
 	}
 
 	m := &Model{}
-	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}}
+	keyMsg := tea.KeyPressMsg(tea.Key{Code: 'z'})
 
 	newModel, cmd := dispatchKey(m, keyMsg, bindings)
 	if newModel != nil {
@@ -98,7 +98,7 @@ func TestDispatch_NilActionSkipped(t *testing.T) {
 	}
 
 	m := &Model{}
-	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	keyMsg := tea.KeyPressMsg(tea.Key{Code: 'a'})
 
 	newModel, cmd := dispatchKey(m, keyMsg, bindings)
 	if newModel == nil || cmd == nil {
@@ -130,7 +130,7 @@ func TestDispatch_FirstMatchWins(t *testing.T) {
 	}
 
 	m := &Model{}
-	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	keyMsg := tea.KeyPressMsg(tea.Key{Code: 'a'})
 
 	_, cmd := dispatchKey(m, keyMsg, bindings)
 	if cmd == nil {
@@ -165,7 +165,7 @@ func TestDispatch_DisabledBindingSkipped(t *testing.T) {
 	}
 
 	m := &Model{}
-	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	keyMsg := tea.KeyPressMsg(tea.Key{Code: 'a'})
 
 	_, cmd := dispatchKey(m, keyMsg, bindings)
 	if cmd == nil {

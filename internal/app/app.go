@@ -3,8 +3,8 @@ package app
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/chatter/chado/internal/jj"
 	"github.com/chatter/chado/internal/logger"
@@ -718,6 +718,9 @@ func (m *Model) globalBindings() []ActionBinding {
 }
 
 func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	// Get the underlying mouse event
+	mouse := msg.Mouse()
+
 	// Get left panel width from rendered content
 	var leftWidth int
 	if m.viewMode == ViewLog {
@@ -734,24 +737,24 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	contentYOffset := 2
 
 	// Determine which panel was interacted with
-	inLeftPanel := msg.X < leftWidth
-	inRightPanel := msg.X >= leftWidth
-	inTopLeftPanel := inLeftPanel && msg.Y < leftTopHeight
-	inBottomLeftPanel := inLeftPanel && msg.Y >= leftTopHeight
+	inLeftPanel := mouse.X < leftWidth
+	inRightPanel := mouse.X >= leftWidth
+	inTopLeftPanel := inLeftPanel && mouse.Y < leftTopHeight
+	inBottomLeftPanel := inLeftPanel && mouse.Y >= leftTopHeight
 
 	// Handle scroll events (wheel)
-	if msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown {
+	if mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelDown {
 		if inRightPanel {
-			m.diffPanel.HandleMouseScroll(msg.Button)
+			m.diffPanel.HandleMouseScroll(mouse.Button)
 		}
 		return nil
 	}
 
 	// Handle click events
-	if msg.Button == tea.MouseButtonLeft {
+	if mouse.Button == tea.MouseLeft {
 		if inTopLeftPanel {
 			// Y relative to top panel content area
-			contentY := msg.Y - contentYOffset
+			contentY := mouse.Y - contentYOffset
 
 			// Focus top-left panel
 			m.focusedPane = PaneLog
@@ -774,7 +777,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 			}
 		} else if inBottomLeftPanel {
 			// Y relative to bottom panel content area
-			contentY := msg.Y - leftTopHeight - contentYOffset
+			contentY := mouse.Y - leftTopHeight - contentYOffset
 
 			// Focus op log panel
 			m.focusedPane = PaneOpLog
@@ -814,9 +817,14 @@ func (m *Model) updatePanelSizes() {
 }
 
 // View renders the application
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	v := tea.NewView("")
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+
 	if m.width == 0 || m.height == 0 {
-		return "Loading..."
+		v.SetContent("Loading...")
+		return v
 	}
 
 	// Render left panels (log/files + op log stacked)
@@ -844,10 +852,12 @@ func (m Model) View() string {
 
 	// Show floating help modal if active
 	if m.showHelp {
-		return m.renderWithOverlay(base)
+		v.SetContent(m.renderWithOverlay(base))
+	} else {
+		v.SetContent(base)
 	}
 
-	return base
+	return v
 }
 
 func (m Model) renderWithOverlay(base string) string {
@@ -873,7 +883,7 @@ func (m Model) renderWithOverlay(base string) string {
 		lipgloss.Center, lipgloss.Center,
 		modal,
 		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("0"))),
 	)
 }
 
