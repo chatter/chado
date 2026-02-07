@@ -57,6 +57,22 @@ func TestIsEntryStart(t *testing.T) {
 			input:    "@  mkvurkkulong user@host now",
 			expected: true,
 		},
+		// Evolog entries with version suffix (historical versions)
+		{
+			name:     "evolog version 1",
+			input:    "○  npwtzrzq/1 user@host 1 hour ago",
+			expected: true,
+		},
+		{
+			name:     "evolog version 10",
+			input:    "○  mkvurkku/10 user@host 2 hours ago",
+			expected: true,
+		},
+		{
+			name:     "evolog version with ansi",
+			input:    "\x1b[1;35m○\x1b[0m  \x1b[1;34mnpwtzrzq/5\x1b[0m user@host",
+			expected: true,
+		},
 		// Non-matching lines
 		{
 			name:     "description continuation",
