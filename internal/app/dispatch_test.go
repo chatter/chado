@@ -177,3 +177,36 @@ func TestDispatch_DisabledBindingSkipped(t *testing.T) {
 		t.Errorf("expected enabled action, got %v", msg)
 	}
 }
+
+// =============================================================================
+// Evolog Integration Tests
+// =============================================================================
+
+func TestEvoLogLoadedMsg_TypeExists(t *testing.T) {
+	// This test verifies the evoLogLoadedMsg type exists.
+	// It will fail to compile until evoLogLoadedMsg is implemented.
+	msg := evoLogLoadedMsg{
+		changeID:  "testchange",
+		shortCode: "tes",
+		raw:       "@ aaaaaaaaaaaa",
+	}
+
+	if msg.changeID != "testchange" {
+		t.Errorf("expected changeID 'testchange', got '%s'", msg.changeID)
+	}
+	if msg.shortCode != "tes" {
+		t.Errorf("expected shortCode 'tes', got '%s'", msg.shortCode)
+	}
+}
+
+func TestModel_LoadEvoLog_MethodExists(t *testing.T) {
+	// This test verifies the loadEvoLog method exists on Model.
+	// It will fail to compile until loadEvoLog is implemented.
+	m := &Model{}
+
+	// loadEvoLog should accept changeID and shortCode, return tea.Cmd
+	cmd := m.loadEvoLog("testchange", "tes")
+
+	// We can't really test the cmd without a proper setup, but method should exist
+	_ = cmd
+}
