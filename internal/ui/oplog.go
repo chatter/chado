@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -115,15 +114,10 @@ func (p *OpLogPanel) SetEvoLogContent(changeID, shortCode, rawLog string, operat
 	p.SetContent(rawLog, operations)
 }
 
-// entryLineRe matches entry lines in both op log and evolog output:
-// - Operation IDs: 12 hex characters (0-9a-f) from jj op log
-// - Change IDs: 8+ lowercase letters (a-z) from jj evolog
-var entryLineRe = regexp.MustCompile(`^[│├└\s]*[@○]\s+(?:(?P<opID>[0-9a-f]{12})|(?P<changeID>[a-z]{8,}))\s`)
-
 // isEntryStart checks if a line starts a new entry (operation or change)
 func isEntryStart(line string) bool {
 	stripped := ansiRegex.ReplaceAllString(line, "")
-	return entryLineRe.MatchString(stripped)
+	return jj.EntryLineRe.MatchString(stripped)
 }
 
 // computeOpStartLines pre-computes the line number where each operation starts

@@ -163,29 +163,29 @@ func (r *Runner) ParseLogLines(output string) []Change {
 	return changes
 }
 
-// ParseOpLogLines parses the raw op log output into Operation structs
+// ParseOpLogLines parses the raw op log or evolog output into Operation structs.
+// Works with both operation IDs (12 hex chars) and change IDs (8+ letters).
 func (r *Runner) ParseOpLogLines(output string) []Operation {
 	lines := strings.Split(output, "\n")
 	var operations []Operation
 	var currentOp *Operation
 	var descLines []string
 
-	// Regex to detect operation lines - requires @ or ○ symbol followed by operation ID
-	// Format: "@ bbc9fee12c4d user@host 4 minutes ago, lasted 1 second"
-	// Operation IDs are hex (0-9a-f), 12 characters
-	opLineRe := regexp.MustCompile(`^[│├└\s]*[@○]\s+([0-9a-f]{12})\s`)
-
 	for _, line := range lines {
 		stripped := stripANSI(line)
-		if match := opLineRe.FindStringSubmatch(stripped); match != nil {
+		if match := EntryLineRe.FindStringSubmatch(stripped); match != nil {
 			// Save previous operation if exists
 			if currentOp != nil {
 				currentOp.Description = strings.TrimSpace(strings.Join(descLines, " "))
 				operations = append(operations, *currentOp)
 			}
 
-			// Start new operation
+			// Extract ID from named groups - one of opID or changeID will match
+			// match[1] is opID (if hex), match[2] is changeID (if letters)
 			opID := match[1]
+			if opID == "" {
+				opID = match[2]
+			}
 
 			currentOp = &Operation{
 				OpID: opID,
