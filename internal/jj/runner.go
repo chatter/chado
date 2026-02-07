@@ -86,6 +86,11 @@ func (r *Runner) OpLog() (string, error) {
 	return r.Run("op", "log", "--color=always")
 }
 
+// EvoLog returns the evolution log for a specific change (operations that affected it)
+func (r *Runner) EvoLog(rev string) (string, error) {
+	return r.Run("evolog", "-r", rev, "--color=always")
+}
+
 // OpShow returns details for a specific operation
 func (r *Runner) OpShow(opID string) (string, error) {
 	return r.Run("op", "show", opID, "--color=always", "--patch")
