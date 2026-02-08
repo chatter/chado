@@ -40,6 +40,16 @@ func CommitID(opts ...ChangeIDOption) *rapid.Generator[string] {
 	return gen
 }
 
+// OperationID generates a jj operation ID (128-character hex).
+// Accepts the same options as ChangeID (e.g., WithShort).
+func OperationID(opts ...ChangeIDOption) *rapid.Generator[string] {
+	gen := rapid.StringMatching(`[0-9a-f]{128}`)
+	for _, opt := range opts {
+		gen = opt(gen)
+	}
+	return gen
+}
+
 // WithNormal converts the change ID from reverse-hex [k-z] to normal hex [0-9a-f].
 // Preserves any /N version suffix if present, so order of transformers doesn't matter.
 func WithNormal(gen *rapid.Generator[string]) *rapid.Generator[string] {
@@ -52,18 +62,25 @@ func WithNormal(gen *rapid.Generator[string]) *rapid.Generator[string] {
 // WithShort truncates the ID to a short form.
 // For ChangeID (32 chars): 8-12 characters.
 // For CommitID (40 chars): 7-12 characters.
+// For OperationID (128 chars): exactly 12 characters.
 // Preserves any /N version suffix if present, so order of transformers doesn't matter.
 func WithShort(gen *rapid.Generator[string]) *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
 		id, suffix := preserveVersion(gen.Draw(t, "id"))
 
-		// CommitID is 40 chars, ChangeID is 32 chars
-		minLen := 8
-		if len(id) == 40 {
-			minLen = 7
+		var length int
+		switch len(id) {
+		case 128: // OperationID - always 12
+			length = 12
+		case 40: // CommitID - 7-12
+			length = rapid.IntRange(7, 12).Draw(t, "length")
+		default: // ChangeID (32) - 8-12
+			length = rapid.IntRange(8, 12).Draw(t, "length")
 		}
 
-		length := min(rapid.IntRange(minLen, 12).Draw(t, "length"), len(id))
+		if length > len(id) {
+			length = len(id)
+		}
 		return id[:length] + suffix
 	})
 }

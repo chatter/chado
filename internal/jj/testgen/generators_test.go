@@ -125,6 +125,38 @@ func TestCommitID_WithShort(t *testing.T) {
 	})
 }
 
+func TestOperationID_DefaultFull(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		id := OperationID().Draw(t, "id")
+
+		// Should be 128 chars
+		if len(id) != 128 {
+			t.Fatalf("expected 128 chars, got %d: %q", len(id), id)
+		}
+
+		// Should only contain [0-9a-f]
+		if !regexp.MustCompile(`^[0-9a-f]{128}$`).MatchString(id) {
+			t.Fatalf("expected [0-9a-f]{128}, got %q", id)
+		}
+	})
+}
+
+func TestOperationID_WithShort(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		id := OperationID(WithShort).Draw(t, "id")
+
+		// Should be exactly 12 chars
+		if len(id) != 12 {
+			t.Fatalf("expected 12 chars, got %d: %q", len(id), id)
+		}
+
+		// Should only contain [0-9a-f]
+		if !regexp.MustCompile(`^[0-9a-f]+$`).MatchString(id) {
+			t.Fatalf("expected [0-9a-f]+, got %q", id)
+		}
+	})
+}
+
 // =============================================================================
 // Property Tests
 // =============================================================================

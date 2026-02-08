@@ -452,6 +452,10 @@ func TestParseFiles_ValidStatus(t *testing.T) {
 func TestParseOpLogLines(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
+	// Generate operation IDs
+	opID1 := testgen.OperationID(testgen.WithShort).Example()
+	opID2 := testgen.OperationID(testgen.WithShort).Example()
+
 	tests := []struct {
 		name          string
 		input         string
@@ -464,26 +468,19 @@ func TestParseOpLogLines(t *testing.T) {
 			expectedCount: 0,
 		},
 		{
-			name: "single operation",
-			input: `@  bbc9fee12c4d user@host 4 minutes ago, lasted 1 second
-│  snapshot working copy
-│  args: jj log`,
+			name:          "single operation",
+			input:         fmt.Sprintf("@  %s user@host 4 minutes ago, lasted 1 second\n│  snapshot working copy\n│  args: jj log", opID1),
 			expectedCount: 1,
 			checkFirst: func(op Operation) bool {
-				return op.OpID == "bbc9fee12c4d" && op.Args == "jj log"
+				return op.OpID == opID1 && op.Args == "jj log"
 			},
 		},
 		{
-			name: "multiple operations",
-			input: `@  bbc9fee12c4d user@host 4 minutes ago
-│  snapshot working copy
-│  args: jj log
-○  86d0094c958f user@host 4 days ago
-│  push bookmark main
-│  args: jj git push`,
+			name:          "multiple operations",
+			input:         fmt.Sprintf("@  %s user@host 4 minutes ago\n│  snapshot working copy\n│  args: jj log\n○  %s user@host 4 days ago\n│  push bookmark main\n│  args: jj git push", opID1, opID2),
 			expectedCount: 2,
 			checkFirst: func(op Operation) bool {
-				return op.OpID == "bbc9fee12c4d"
+				return op.OpID == opID1
 			},
 		},
 	}
@@ -507,9 +504,8 @@ func TestParseOpLogLines(t *testing.T) {
 func TestParseOpLogLines_ArgsExtraction(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
-	input := `@  aaaaaaaaaaaa user@host now
-│  snapshot working copy
-│  args: jj log --color=always`
+	opID := testgen.OperationID(testgen.WithShort).Example()
+	input := fmt.Sprintf("@  %s user@host now\n│  snapshot working copy\n│  args: jj log --color=always", opID)
 
 	operations := runner.ParseOpLogLines(input)
 	if len(operations) != 1 {
@@ -534,7 +530,7 @@ func TestParseOpLogLines_ValidOpID(t *testing.T) {
 			if i > 0 {
 				symbol = "○"
 			}
-			opID := rapid.StringMatching(`[0-9a-f]{12}`).Draw(t, "opID")
+			opID := testgen.OperationID(testgen.WithShort).Draw(t, "opID")
 			lines = append(lines, symbol+"  "+opID+" user@host now")
 			lines = append(lines, "│  description")
 		}
@@ -574,16 +570,13 @@ func TestEvoLog_ParsesAsOperations(t *testing.T) {
 	// This test verifies ParseOpLogLines correctly parses evolog-style output.
 	runner := NewRunner(".", testLogger(t))
 
+	// Generate operation IDs
+	opID1 := testgen.OperationID(testgen.WithShort).Example()
+	opID2 := testgen.OperationID(testgen.WithShort).Example()
+	opID3 := testgen.OperationID(testgen.WithShort).Example()
+
 	// Sample evolog output (same format as op log, scoped to a single change)
-	input := `@  abc123def456 user@host 2 hours ago, lasted 50ms
-│  describe commit
-│  args: jj describe -m 'update readme'
-○  111222333444 user@host 3 hours ago, lasted 100ms
-│  new empty commit
-│  args: jj new
-○  555666777888 user@host 1 day ago, lasted 200ms
-│  snapshot working copy
-│  args: jj status`
+	input := fmt.Sprintf("@  %s user@host 2 hours ago, lasted 50ms\n│  describe commit\n│  args: jj describe -m 'update readme'\n○  %s user@host 3 hours ago, lasted 100ms\n│  new empty commit\n│  args: jj new\n○  %s user@host 1 day ago, lasted 200ms\n│  snapshot working copy\n│  args: jj status", opID1, opID2, opID3)
 
 	operations := runner.ParseOpLogLines(input)
 
@@ -592,8 +585,8 @@ func TestEvoLog_ParsesAsOperations(t *testing.T) {
 	}
 
 	// Verify first operation (current)
-	if operations[0].OpID != "abc123def456" {
-		t.Errorf("expected first OpID 'abc123def456', got '%s'", operations[0].OpID)
+	if operations[0].OpID != opID1 {
+		t.Errorf("expected first OpID %q, got %q", opID1, operations[0].OpID)
 	}
 	if operations[0].Args != "jj describe -m 'update readme'" {
 		t.Errorf("expected first Args to contain describe command, got '%s'", operations[0].Args)
