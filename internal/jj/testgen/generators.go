@@ -166,6 +166,12 @@ func Timestamp() *rapid.Generator[string] {
 	})
 }
 
+// GraphSymbol generates a jj log graph symbol.
+// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
+func GraphSymbol() *rapid.Generator[string] {
+	return rapid.SampledFrom([]string{"@", "○", "◆", "◇", "●", "×"})
+}
+
 // RelativeTimestamp generates a relative timestamp like "4 minutes ago".
 func RelativeTimestamp() *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {

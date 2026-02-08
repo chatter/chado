@@ -187,6 +187,17 @@ func TestEmail(t *testing.T) {
 	})
 }
 
+func TestGraphSymbol(t *testing.T) {
+	validSymbols := map[string]bool{"@": true, "○": true, "◆": true, "◇": true, "●": true, "×": true}
+
+	rapid.Check(t, func(t *rapid.T) {
+		symbol := GraphSymbol().Draw(t, "symbol")
+		if !validSymbols[symbol] {
+			t.Fatalf("invalid graph symbol: %q", symbol)
+		}
+	})
+}
+
 func TestTimestamp(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		ts := Timestamp().Draw(t, "ts")

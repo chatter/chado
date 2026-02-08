@@ -258,10 +258,12 @@ Modified regular file app.go:
 func TestParseLogLines(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
-	// Generate valid change IDs, emails, and timestamps using testgen
+	// Generate valid change IDs, commit IDs, emails, and timestamps using testgen
 	changeID1 := testgen.ChangeID().Example()
 	changeID2 := testgen.ChangeID(testgen.WithShort).Example()
 	changeID3 := testgen.ChangeID(testgen.WithShort, testgen.WithVersion).Example()
+	commitID1 := testgen.CommitID(testgen.WithShort).Example()
+	commitID2 := testgen.CommitID(testgen.WithShort).Example()
 	email1 := testgen.Email().Example()
 	email2 := testgen.Email().Example()
 	ts1 := testgen.Timestamp().Example()
@@ -279,12 +281,12 @@ func TestParseLogLines(t *testing.T) {
 		},
 		{
 			name:          "single change",
-			input:         fmt.Sprintf("@  %s %s %s abc123\n│  test description", changeID1, email1, ts1),
+			input:         fmt.Sprintf("@  %s %s %s %s\n│  test description", changeID1, email1, ts1, commitID1),
 			expectedCount: 1,
 		},
 		{
 			name:          "multiple changes",
-			input:         fmt.Sprintf("@  %s %s %s abc123\n│  first description\n○  %s %s %s def456\n│  second description\n◆  %s root() 00000000", changeID1, email1, ts1, changeID2, email2, ts2, changeID3),
+			input:         fmt.Sprintf("@  %s %s %s %s\n│  first description\n○  %s %s %s %s\n│  second description\n◆  %s root() 00000000", changeID1, email1, ts1, commitID1, changeID2, email2, ts2, commitID2, changeID3),
 			expectedCount: 3,
 		},
 	}
