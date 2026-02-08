@@ -123,9 +123,10 @@ func (r *Runner) ParseLogLines(output string) []Change {
 	var descLines []string
 
 	// Regex to detect change lines - requires a graph symbol (@○◆◇●), not just whitespace
-	// Matches lines like: "@ xsssnyux ..." or "○ nlkzwoyt ..." or "◆ kyztkmnt ..."
+	// Matches lines like: "@ xsssnyux ..." or "○ nlkzwoyt/2 ..." or "◆ kyztkmnt ..."
 	// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
-	changeLineRe := regexp.MustCompile(`^[│├└\s]*[@○◆◇●×]\s*([a-z]{8,})\s`)
+	// Change IDs use reverse-hex [k-z] and may have version suffix /N
+	changeLineRe := regexp.MustCompile(`^[│├└\s]*[@○◆◇●×]\s*([k-z]{8,}(?:/\d+)?)\s`)
 
 	for _, line := range lines {
 		stripped := stripANSI(line)

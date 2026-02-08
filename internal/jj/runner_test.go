@@ -1,9 +1,11 @@
 package jj
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/chatter/chado/internal/jj/testgen"
 	"github.com/chatter/chado/internal/logger"
 	"pgregory.net/rapid"
 )
@@ -20,6 +22,9 @@ func testLogger(t *testing.T) *logger.Logger {
 // =============================================================================
 
 func TestStripANSI(t *testing.T) {
+	// Generate a valid change ID for the jj log line test
+	changeID := testgen.ChangeID(testgen.WithShort).Example()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -52,8 +57,8 @@ func TestStripANSI(t *testing.T) {
 		},
 		{
 			name:     "jj log line with graph",
-			input:    "\x1b[1;35m@\x1b[0m  \x1b[1;34mxsssnyux\x1b[0m test",
-			expected: "@  xsssnyux test",
+			input:    fmt.Sprintf("\x1b[1;35m@\x1b[0m  \x1b[1;34m%s\x1b[0m test", changeID),
+			expected: fmt.Sprintf("@  %s test", changeID),
 		},
 		{
 			name:     "empty string",
@@ -264,6 +269,11 @@ Modified regular file app.go:
 func TestParseLogLines(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
+	// Generate valid change IDs using testgen
+	changeID1 := testgen.ChangeID().Example()
+	changeID2 := testgen.ChangeID(testgen.WithShort).Example()
+	changeID3 := testgen.ChangeID(testgen.WithShort, testgen.WithVersion).Example()
+
 	tests := []struct {
 		name          string
 		input         string
@@ -275,18 +285,13 @@ func TestParseLogLines(t *testing.T) {
 			expectedCount: 0,
 		},
 		{
-			name: "single change",
-			input: `@  xsssnyux test@example.com 2026-01-29 12:00:00 abc123
-│  test description`,
+			name:          "single change",
+			input:         fmt.Sprintf("@  %s test@example.com 2026-01-29 12:00:00 abc123\n│  test description", changeID1),
 			expectedCount: 1,
 		},
 		{
-			name: "multiple changes",
-			input: `@  xsssnyux test@example.com 2026-01-29 12:00:00 abc123
-│  first description
-○  nlkzwoyt test@example.com 2026-01-28 12:00:00 def456
-│  second description
-◆  zzzzzzzz root() 00000000`,
+			name:          "multiple changes",
+			input:         fmt.Sprintf("@  %s test@example.com 2026-01-29 12:00:00 abc123\n│  first description\n○  %s test@example.com 2026-01-28 12:00:00 def456\n│  second description\n◆  %s root() 00000000", changeID1, changeID2, changeID3),
 			expectedCount: 3,
 		},
 	}
