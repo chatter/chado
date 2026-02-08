@@ -93,6 +93,38 @@ func TestChangeID_WithShortAndVersion(t *testing.T) {
 	})
 }
 
+func TestCommitID_DefaultFull(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		id := CommitID().Draw(t, "id")
+
+		// Should be 40 chars
+		if len(id) != 40 {
+			t.Fatalf("expected 40 chars, got %d: %q", len(id), id)
+		}
+
+		// Should only contain [0-9a-f]
+		if !regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(id) {
+			t.Fatalf("expected [0-9a-f]{40}, got %q", id)
+		}
+	})
+}
+
+func TestCommitID_WithShort(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		id := CommitID(WithShort).Draw(t, "id")
+
+		// Should be 7-12 chars
+		if len(id) < 7 || len(id) > 12 {
+			t.Fatalf("expected 7-12 chars, got %d: %q", len(id), id)
+		}
+
+		// Should only contain [0-9a-f]
+		if !regexp.MustCompile(`^[0-9a-f]+$`).MatchString(id) {
+			t.Fatalf("expected [0-9a-f]+, got %q", id)
+		}
+	})
+}
+
 // =============================================================================
 // Property Tests
 // =============================================================================

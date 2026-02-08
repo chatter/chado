@@ -30,6 +30,16 @@ func ChangeID(opts ...ChangeIDOption) *rapid.Generator[string] {
 	return gen
 }
 
+// CommitID generates a Git commit hash (40-character hex).
+// Accepts the same options as ChangeID (e.g., WithShort).
+func CommitID(opts ...ChangeIDOption) *rapid.Generator[string] {
+	gen := rapid.StringMatching(`[0-9a-f]{40}`)
+	for _, opt := range opts {
+		gen = opt(gen)
+	}
+	return gen
+}
+
 // WithNormal converts the change ID from reverse-hex [k-z] to normal hex [0-9a-f].
 // Preserves any /N version suffix if present, so order of transformers doesn't matter.
 func WithNormal(gen *rapid.Generator[string]) *rapid.Generator[string] {
@@ -39,15 +49,21 @@ func WithNormal(gen *rapid.Generator[string]) *rapid.Generator[string] {
 	})
 }
 
-// WithShort truncates the change ID to 8-12 characters.
+// WithShort truncates the ID to a short form.
+// For ChangeID (32 chars): 8-12 characters.
+// For CommitID (40 chars): 7-12 characters.
 // Preserves any /N version suffix if present, so order of transformers doesn't matter.
 func WithShort(gen *rapid.Generator[string]) *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
 		id, suffix := preserveVersion(gen.Draw(t, "id"))
 
-		// Truncate the base ID
-		length := min(rapid.IntRange(8, 12).Draw(t, "length"), len(id))
+		// CommitID is 40 chars, ChangeID is 32 chars
+		minLen := 8
+		if len(id) == 40 {
+			minLen = 7
+		}
 
+		length := min(rapid.IntRange(minLen, 12).Draw(t, "length"), len(id))
 		return id[:length] + suffix
 	})
 }
@@ -87,4 +103,23 @@ func reverseHexToHex(revHex string) string {
 		}
 	}
 	return string(result)
+}
+
+// PathComponent generates a valid path component (filename or directory name).
+// Uses ASCII alphanumeric plus common safe characters: _ - .
+func PathComponent() *rapid.Generator[string] {
+	return rapid.StringMatching(`[a-zA-Z][a-zA-Z0-9_.-]{0,254}`)
+}
+
+// FilePath generates a relative POSIX file path.
+// Depth 1-16 components, joined by '/'. Max path length ~4096 bytes.
+func FilePath() *rapid.Generator[string] {
+	return rapid.Custom(func(t *rapid.T) string {
+		depth := rapid.IntRange(1, 16).Draw(t, "depth")
+		components := make([]string, depth)
+		for i := range components {
+			components[i] = PathComponent().Draw(t, "component")
+		}
+		return strings.Join(components, "/")
+	})
 }

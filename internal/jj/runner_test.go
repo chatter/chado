@@ -85,6 +85,17 @@ func TestStripANSI(t *testing.T) {
 func TestParseFiles(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
+	// Generate file paths for test cases
+	addedPath := testgen.FilePath().Example()
+	modifiedPath := testgen.FilePath().Example()
+	removedPath := testgen.FilePath().Example()
+	multiPath1 := testgen.FilePath().Example()
+	multiPath2 := testgen.FilePath().Example()
+	multiPath3 := testgen.FilePath().Example()
+	gitAddedPath := testgen.FilePath().Example()
+	gitDeletedPath := testgen.FilePath().Example()
+	gitModifiedPath := testgen.FilePath().Example()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -96,76 +107,54 @@ func TestParseFiles(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "jj format - added file",
-			input: `Added regular file main.go:
-        1: package main
-        2: 
-        3: func main() {}`,
+			name:  "jj format - added file",
+			input: fmt.Sprintf("Added regular file %s:\n        1: package main\n        2: \n        3: func main() {}", addedPath),
 			expected: []File{
-				{Path: "main.go", Status: FileAdded},
+				{Path: addedPath, Status: FileAdded},
 			},
 		},
 		{
-			name: "jj format - modified file",
-			input: `Modified regular file internal/app/app.go:
-   1    1: package app
-        2: import "fmt"`,
+			name:  "jj format - modified file",
+			input: fmt.Sprintf("Modified regular file %s:\n   1    1: package app\n        2: import \"fmt\"", modifiedPath),
 			expected: []File{
-				{Path: "internal/app/app.go", Status: FileModified},
+				{Path: modifiedPath, Status: FileModified},
 			},
 		},
 		{
-			name: "jj format - removed file",
-			input: `Removed regular file old.txt:
-        1: old content`,
+			name:  "jj format - removed file",
+			input: fmt.Sprintf("Removed regular file %s:\n        1: old content", removedPath),
 			expected: []File{
-				{Path: "old.txt", Status: FileDeleted},
+				{Path: removedPath, Status: FileDeleted},
 			},
 		},
 		{
-			name: "jj format - multiple files",
-			input: `Added regular file new.go:
-        1: package new
-Modified regular file existing.go:
-   1    1: package existing
-Removed regular file deprecated.go:
-        1: package deprecated`,
+			name:  "jj format - multiple files",
+			input: fmt.Sprintf("Added regular file %s:\n        1: package new\nModified regular file %s:\n   1    1: package existing\nRemoved regular file %s:\n        1: package deprecated", multiPath1, multiPath2, multiPath3),
 			expected: []File{
-				{Path: "new.go", Status: FileAdded},
-				{Path: "existing.go", Status: FileModified},
-				{Path: "deprecated.go", Status: FileDeleted},
+				{Path: multiPath1, Status: FileAdded},
+				{Path: multiPath2, Status: FileModified},
+				{Path: multiPath3, Status: FileDeleted},
 			},
 		},
 		{
-			name: "git format - added file",
-			input: `diff --git a/main.go b/main.go
-new file mode 100644
-index 0000000..1234567
---- /dev/null
-+++ b/main.go`,
+			name:  "git format - added file",
+			input: fmt.Sprintf("diff --git a/%s b/%s\nnew file mode 100644\nindex 0000000..1234567\n--- /dev/null\n+++ b/%s", gitAddedPath, gitAddedPath, gitAddedPath),
 			expected: []File{
-				{Path: "main.go", Status: FileAdded},
+				{Path: gitAddedPath, Status: FileAdded},
 			},
 		},
 		{
-			name: "git format - deleted file",
-			input: `diff --git a/old.txt b/old.txt
-deleted file mode 100644
-index 1234567..0000000
---- a/old.txt
-+++ /dev/null`,
+			name:  "git format - deleted file",
+			input: fmt.Sprintf("diff --git a/%s b/%s\ndeleted file mode 100644\nindex 1234567..0000000\n--- a/%s\n+++ /dev/null", gitDeletedPath, gitDeletedPath, gitDeletedPath),
 			expected: []File{
-				{Path: "old.txt", Status: FileDeleted},
+				{Path: gitDeletedPath, Status: FileDeleted},
 			},
 		},
 		{
-			name: "git format - modified file",
-			input: `diff --git a/main.go b/main.go
-index 1234567..abcdefg 100644
---- a/main.go
-+++ b/main.go`,
+			name:  "git format - modified file",
+			input: fmt.Sprintf("diff --git a/%s b/%s\nindex 1234567..abcdefg 100644\n--- a/%s\n+++ b/%s", gitModifiedPath, gitModifiedPath, gitModifiedPath, gitModifiedPath),
 			expected: []File{
-				{Path: "main.go", Status: FileModified},
+				{Path: gitModifiedPath, Status: FileModified},
 			},
 		},
 	}
