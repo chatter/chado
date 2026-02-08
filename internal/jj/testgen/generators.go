@@ -140,3 +140,40 @@ func FilePath() *rapid.Generator[string] {
 		return strings.Join(components, "/")
 	})
 }
+
+// Email generates an email-like string as jj represents them.
+// Per jj docs: may be empty, may not contain @, or may contain multiple @s.
+func Email() *rapid.Generator[string] {
+	return rapid.OneOf(
+		rapid.Just(""),                                              // empty
+		rapid.StringMatching(`[a-z]{3,10}`),                         // no @
+		rapid.StringMatching(`[a-z]{3,10}@[a-z]{3,10}\.[a-z]{2,4}`), // typical: user@host.com
+		rapid.StringMatching(`[a-z]+@[a-z]+@[a-z]+`),                // multiple @
+	)
+}
+
+// Timestamp generates an absolute timestamp "YYYY-MM-DD HH:MM:SS".
+// Year range 1970-2037 (Unix 32-bit timestamp safe range).
+func Timestamp() *rapid.Generator[string] {
+	return rapid.Custom(func(t *rapid.T) string {
+		year := rapid.IntRange(1970, 2037).Draw(t, "year")
+		month := rapid.IntRange(1, 12).Draw(t, "month")
+		day := rapid.IntRange(1, 28).Draw(t, "day")
+		hour := rapid.IntRange(0, 23).Draw(t, "hour")
+		min := rapid.IntRange(0, 59).Draw(t, "min")
+		sec := rapid.IntRange(0, 59).Draw(t, "sec")
+		return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, min, sec)
+	})
+}
+
+// RelativeTimestamp generates a relative timestamp like "4 minutes ago".
+func RelativeTimestamp() *rapid.Generator[string] {
+	return rapid.Custom(func(t *rapid.T) string {
+		n := rapid.IntRange(1, 59).Draw(t, "n")
+		unit := rapid.SampledFrom([]string{"second", "minute", "hour", "day", "week", "month", "year"}).Draw(t, "unit")
+		if n > 1 {
+			unit += "s"
+		}
+		return fmt.Sprintf("%d %s ago", n, unit)
+	})
+}

@@ -157,6 +157,58 @@ func TestOperationID_WithShort(t *testing.T) {
 	})
 }
 
+func TestEmail(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		email := Email().Draw(t, "email")
+
+		// Email can be empty, have no @, one @, or multiple @
+		// Just verify it doesn't panic and produces a string
+		atCount := strings.Count(email, "@")
+
+		// Should be one of: empty, no @, one @, or multiple @
+		if len(email) == 0 {
+			// empty is valid
+		} else if atCount == 0 {
+			// no @ is valid - should be just letters
+			if !regexp.MustCompile(`^[a-z]+$`).MatchString(email) {
+				t.Fatalf("no-@ email should be letters only, got %q", email)
+			}
+		} else if atCount == 1 {
+			// typical email format
+			if !regexp.MustCompile(`^[a-z]+@[a-z]+\.[a-z]+$`).MatchString(email) {
+				t.Fatalf("single-@ email should match typical format, got %q", email)
+			}
+		} else {
+			// multiple @ - just verify it has multiple
+			if atCount < 2 {
+				t.Fatalf("expected multiple @, got %d in %q", atCount, email)
+			}
+		}
+	})
+}
+
+func TestTimestamp(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		ts := Timestamp().Draw(t, "ts")
+
+		// Should match YYYY-MM-DD HH:MM:SS
+		if !regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$`).MatchString(ts) {
+			t.Fatalf("expected YYYY-MM-DD HH:MM:SS, got %q", ts)
+		}
+	})
+}
+
+func TestRelativeTimestamp(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		ts := RelativeTimestamp().Draw(t, "ts")
+
+		// Should match "N unit(s) ago"
+		if !regexp.MustCompile(`^\d+ \w+ ago$`).MatchString(ts) {
+			t.Fatalf("expected 'N unit ago' format, got %q", ts)
+		}
+	})
+}
+
 // =============================================================================
 // Property Tests
 // =============================================================================

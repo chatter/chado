@@ -258,10 +258,14 @@ Modified regular file app.go:
 func TestParseLogLines(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
-	// Generate valid change IDs using testgen
+	// Generate valid change IDs, emails, and timestamps using testgen
 	changeID1 := testgen.ChangeID().Example()
 	changeID2 := testgen.ChangeID(testgen.WithShort).Example()
 	changeID3 := testgen.ChangeID(testgen.WithShort, testgen.WithVersion).Example()
+	email1 := testgen.Email().Example()
+	email2 := testgen.Email().Example()
+	ts1 := testgen.Timestamp().Example()
+	ts2 := testgen.Timestamp().Example()
 
 	tests := []struct {
 		name          string
@@ -275,12 +279,12 @@ func TestParseLogLines(t *testing.T) {
 		},
 		{
 			name:          "single change",
-			input:         fmt.Sprintf("@  %s test@example.com 2026-01-29 12:00:00 abc123\n│  test description", changeID1),
+			input:         fmt.Sprintf("@  %s %s %s abc123\n│  test description", changeID1, email1, ts1),
 			expectedCount: 1,
 		},
 		{
 			name:          "multiple changes",
-			input:         fmt.Sprintf("@  %s test@example.com 2026-01-29 12:00:00 abc123\n│  first description\n○  %s test@example.com 2026-01-28 12:00:00 def456\n│  second description\n◆  %s root() 00000000", changeID1, changeID2, changeID3),
+			input:         fmt.Sprintf("@  %s %s %s abc123\n│  first description\n○  %s %s %s def456\n│  second description\n◆  %s root() 00000000", changeID1, email1, ts1, changeID2, email2, ts2, changeID3),
 			expectedCount: 3,
 		},
 	}
@@ -452,9 +456,12 @@ func TestParseFiles_ValidStatus(t *testing.T) {
 func TestParseOpLogLines(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
-	// Generate operation IDs
+	// Generate operation IDs, email, and timestamps
 	opID1 := testgen.OperationID(testgen.WithShort).Example()
 	opID2 := testgen.OperationID(testgen.WithShort).Example()
+	email := testgen.Email().Example()
+	relTs1 := testgen.RelativeTimestamp().Example()
+	relTs2 := testgen.RelativeTimestamp().Example()
 
 	tests := []struct {
 		name          string
@@ -469,7 +476,7 @@ func TestParseOpLogLines(t *testing.T) {
 		},
 		{
 			name:          "single operation",
-			input:         fmt.Sprintf("@  %s user@host 4 minutes ago, lasted 1 second\n│  snapshot working copy\n│  args: jj log", opID1),
+			input:         fmt.Sprintf("@  %s %s %s, lasted 1 second\n│  snapshot working copy\n│  args: jj log", opID1, email, relTs1),
 			expectedCount: 1,
 			checkFirst: func(op Operation) bool {
 				return op.OpID == opID1 && op.Args == "jj log"
@@ -477,7 +484,7 @@ func TestParseOpLogLines(t *testing.T) {
 		},
 		{
 			name:          "multiple operations",
-			input:         fmt.Sprintf("@  %s user@host 4 minutes ago\n│  snapshot working copy\n│  args: jj log\n○  %s user@host 4 days ago\n│  push bookmark main\n│  args: jj git push", opID1, opID2),
+			input:         fmt.Sprintf("@  %s %s %s\n│  snapshot working copy\n│  args: jj log\n○  %s %s %s\n│  push bookmark main\n│  args: jj git push", opID1, email, relTs1, opID2, email, relTs2),
 			expectedCount: 2,
 			checkFirst: func(op Operation) bool {
 				return op.OpID == opID1
@@ -505,7 +512,9 @@ func TestParseOpLogLines_ArgsExtraction(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
 	opID := testgen.OperationID(testgen.WithShort).Example()
-	input := fmt.Sprintf("@  %s user@host now\n│  snapshot working copy\n│  args: jj log --color=always", opID)
+	email := testgen.Email().Example()
+	relTs := testgen.RelativeTimestamp().Example()
+	input := fmt.Sprintf("@  %s %s %s\n│  snapshot working copy\n│  args: jj log --color=always", opID, email, relTs)
 
 	operations := runner.ParseOpLogLines(input)
 	if len(operations) != 1 {
@@ -531,7 +540,9 @@ func TestParseOpLogLines_ValidOpID(t *testing.T) {
 				symbol = "○"
 			}
 			opID := testgen.OperationID(testgen.WithShort).Draw(t, "opID")
-			lines = append(lines, symbol+"  "+opID+" user@host now")
+			email := testgen.Email().Draw(t, "email")
+			relTs := testgen.RelativeTimestamp().Draw(t, "relTs")
+			lines = append(lines, symbol+"  "+opID+" "+email+" "+relTs)
 			lines = append(lines, "│  description")
 		}
 		input := strings.Join(lines, "\n")
@@ -570,13 +581,17 @@ func TestEvoLog_ParsesAsOperations(t *testing.T) {
 	// This test verifies ParseOpLogLines correctly parses evolog-style output.
 	runner := NewRunner(".", testLogger(t))
 
-	// Generate operation IDs
+	// Generate operation IDs, email, and timestamps
 	opID1 := testgen.OperationID(testgen.WithShort).Example()
 	opID2 := testgen.OperationID(testgen.WithShort).Example()
 	opID3 := testgen.OperationID(testgen.WithShort).Example()
+	email := testgen.Email().Example()
+	relTs1 := testgen.RelativeTimestamp().Example()
+	relTs2 := testgen.RelativeTimestamp().Example()
+	relTs3 := testgen.RelativeTimestamp().Example()
 
 	// Sample evolog output (same format as op log, scoped to a single change)
-	input := fmt.Sprintf("@  %s user@host 2 hours ago, lasted 50ms\n│  describe commit\n│  args: jj describe -m 'update readme'\n○  %s user@host 3 hours ago, lasted 100ms\n│  new empty commit\n│  args: jj new\n○  %s user@host 1 day ago, lasted 200ms\n│  snapshot working copy\n│  args: jj status", opID1, opID2, opID3)
+	input := fmt.Sprintf("@  %s %s %s, lasted 50ms\n│  describe commit\n│  args: jj describe -m 'update readme'\n○  %s %s %s, lasted 100ms\n│  new empty commit\n│  args: jj new\n○  %s %s %s, lasted 200ms\n│  snapshot working copy\n│  args: jj status", opID1, email, relTs1, opID2, email, relTs2, opID3, email, relTs3)
 
 	operations := runner.ParseOpLogLines(input)
 
