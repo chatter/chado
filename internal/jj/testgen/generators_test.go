@@ -198,6 +198,28 @@ func TestGraphSymbol(t *testing.T) {
 	})
 }
 
+func TestFileStatus(t *testing.T) {
+	valid := map[string]bool{"Added": true, "Modified": true, "Removed": true, "Copied": true, "Renamed": true}
+
+	rapid.Check(t, func(t *rapid.T) {
+		status := FileStatus().Draw(t, "status")
+		if !valid[status] {
+			t.Fatalf("invalid file status: %q", status)
+		}
+	})
+}
+
+func TestFileStatusChar(t *testing.T) {
+	valid := map[string]bool{"M": true, "A": true, "D": true, "C": true, "R": true}
+
+	rapid.Check(t, func(t *rapid.T) {
+		char := FileStatusChar().Draw(t, "char")
+		if !valid[char] {
+			t.Fatalf("invalid file status char: %q", char)
+		}
+	})
+}
+
 func TestTimestamp(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		ts := Timestamp().Draw(t, "ts")

@@ -141,12 +141,24 @@ func FilePath() *rapid.Generator[string] {
 	})
 }
 
+// FileStatus generates a file status string as it appears in jj diff output.
+// One of "Added", "Modified", "Removed", "Copied", or "Renamed".
+func FileStatus() *rapid.Generator[string] {
+	return rapid.SampledFrom([]string{"Added", "Modified", "Removed", "Copied", "Renamed"})
+}
+
+// FileStatusChar generates a file status character.
+// One of "M" (modified), "A" (added), "D" (removed), "C" (copied), or "R" (renamed).
+func FileStatusChar() *rapid.Generator[string] {
+	return rapid.SampledFrom([]string{"M", "A", "D", "C", "R"})
+}
+
 // Email generates an email-like string as jj represents them.
 // Per jj docs: may be empty, may not contain @, or may contain multiple @s.
 func Email() *rapid.Generator[string] {
 	return rapid.OneOf(
-		rapid.Just(""),                                              // empty
-		rapid.StringMatching(`[a-z]{3,10}`),                         // no @
+		rapid.Just(""),                      // empty
+		rapid.StringMatching(`[a-z]{3,10}`), // no @
 		rapid.StringMatching(`[a-z]{3,10}@[a-z]{3,10}\.[a-z]{2,4}`), // typical: user@host.com
 		rapid.StringMatching(`[a-z]+@[a-z]+@[a-z]+`),                // multiple @
 	)
@@ -166,12 +178,6 @@ func Timestamp() *rapid.Generator[string] {
 	})
 }
 
-// GraphSymbol generates a jj log graph symbol.
-// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
-func GraphSymbol() *rapid.Generator[string] {
-	return rapid.SampledFrom([]string{"@", "○", "◆", "◇", "●", "×"})
-}
-
 // RelativeTimestamp generates a relative timestamp like "4 minutes ago".
 func RelativeTimestamp() *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
@@ -182,4 +188,10 @@ func RelativeTimestamp() *rapid.Generator[string] {
 		}
 		return fmt.Sprintf("%d %s ago", n, unit)
 	})
+}
+
+// GraphSymbol generates a jj log graph symbol.
+// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
+func GraphSymbol() *rapid.Generator[string] {
+	return rapid.SampledFrom([]string{"@", "○", "◆", "◇", "●", "×"})
 }

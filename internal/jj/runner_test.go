@@ -374,7 +374,7 @@ func TestFindHunks_NonOverlapping(t *testing.T) {
 		for range numSections {
 			// Randomly choose jj or git style header
 			if rapid.Bool().Draw(t, "isJJStyle") {
-				status := rapid.SampledFrom([]string{"Added", "Modified", "Removed"}).Draw(t, "status")
+				status := testgen.FileStatus().Draw(t, "status")
 				filename := rapid.StringMatching(`[a-z]{1,10}\.go`).Draw(t, "filename")
 				lines = append(lines, status+" regular file "+filename+":")
 			} else {
@@ -409,7 +409,7 @@ func TestParseFiles_NoDuplicatePaths(t *testing.T) {
 		numFiles := rapid.IntRange(0, 10).Draw(t, "numFiles")
 		var lines []string
 		for i := range numFiles {
-			status := rapid.SampledFrom([]string{"Added", "Modified", "Removed"}).Draw(t, "status")
+			status := testgen.FileStatus().Draw(t, "status")
 			// Use index to ensure uniqueness
 			filename := rapid.StringMatching(`[a-z]{3,8}`).Draw(t, "basename")
 			lines = append(lines, status+" regular file "+filename+"_"+string(rune('a'+i))+".go:")
@@ -435,7 +435,7 @@ func TestParseFiles_ValidStatus(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
 	rapid.Check(t, func(t *rapid.T) {
-		status := rapid.SampledFrom([]string{"Added", "Modified", "Removed"}).Draw(t, "status")
+		status := testgen.FileStatus().Draw(t, "status")
 		filename := rapid.StringMatching(`[a-z]{3,10}\.go`).Draw(t, "filename")
 		input := status + " regular file " + filename + ":\n        1: content"
 
