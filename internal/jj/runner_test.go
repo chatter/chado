@@ -1,9 +1,11 @@
 package jj
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/chatter/chado/internal/jj/testgen"
 	"github.com/chatter/chado/internal/logger"
 	"pgregory.net/rapid"
 )
@@ -20,6 +22,9 @@ func testLogger(t *testing.T) *logger.Logger {
 // =============================================================================
 
 func TestStripANSI(t *testing.T) {
+	// Generate a valid change ID for the jj log line test
+	changeID := testgen.ChangeID(testgen.WithShort).Example()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -52,8 +57,8 @@ func TestStripANSI(t *testing.T) {
 		},
 		{
 			name:     "jj log line with graph",
-			input:    "\x1b[1;35m@\x1b[0m  \x1b[1;34mxsssnyux\x1b[0m test",
-			expected: "@  xsssnyux test",
+			input:    fmt.Sprintf("\x1b[1;35m@\x1b[0m  \x1b[1;34m%s\x1b[0m test", changeID),
+			expected: fmt.Sprintf("@  %s test", changeID),
 		},
 		{
 			name:     "empty string",
@@ -80,6 +85,17 @@ func TestStripANSI(t *testing.T) {
 func TestParseFiles(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
+	// Generate file paths for test cases
+	addedPath := testgen.FilePath().Example()
+	modifiedPath := testgen.FilePath().Example()
+	removedPath := testgen.FilePath().Example()
+	multiPath1 := testgen.FilePath().Example()
+	multiPath2 := testgen.FilePath().Example()
+	multiPath3 := testgen.FilePath().Example()
+	gitAddedPath := testgen.FilePath().Example()
+	gitDeletedPath := testgen.FilePath().Example()
+	gitModifiedPath := testgen.FilePath().Example()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -91,76 +107,54 @@ func TestParseFiles(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "jj format - added file",
-			input: `Added regular file main.go:
-        1: package main
-        2: 
-        3: func main() {}`,
+			name:  "jj format - added file",
+			input: fmt.Sprintf("Added regular file %s:\n        1: package main\n        2: \n        3: func main() {}", addedPath),
 			expected: []File{
-				{Path: "main.go", Status: FileAdded},
+				{Path: addedPath, Status: FileAdded},
 			},
 		},
 		{
-			name: "jj format - modified file",
-			input: `Modified regular file internal/app/app.go:
-   1    1: package app
-        2: import "fmt"`,
+			name:  "jj format - modified file",
+			input: fmt.Sprintf("Modified regular file %s:\n   1    1: package app\n        2: import \"fmt\"", modifiedPath),
 			expected: []File{
-				{Path: "internal/app/app.go", Status: FileModified},
+				{Path: modifiedPath, Status: FileModified},
 			},
 		},
 		{
-			name: "jj format - removed file",
-			input: `Removed regular file old.txt:
-        1: old content`,
+			name:  "jj format - removed file",
+			input: fmt.Sprintf("Removed regular file %s:\n        1: old content", removedPath),
 			expected: []File{
-				{Path: "old.txt", Status: FileDeleted},
+				{Path: removedPath, Status: FileDeleted},
 			},
 		},
 		{
-			name: "jj format - multiple files",
-			input: `Added regular file new.go:
-        1: package new
-Modified regular file existing.go:
-   1    1: package existing
-Removed regular file deprecated.go:
-        1: package deprecated`,
+			name:  "jj format - multiple files",
+			input: fmt.Sprintf("Added regular file %s:\n        1: package new\nModified regular file %s:\n   1    1: package existing\nRemoved regular file %s:\n        1: package deprecated", multiPath1, multiPath2, multiPath3),
 			expected: []File{
-				{Path: "new.go", Status: FileAdded},
-				{Path: "existing.go", Status: FileModified},
-				{Path: "deprecated.go", Status: FileDeleted},
+				{Path: multiPath1, Status: FileAdded},
+				{Path: multiPath2, Status: FileModified},
+				{Path: multiPath3, Status: FileDeleted},
 			},
 		},
 		{
-			name: "git format - added file",
-			input: `diff --git a/main.go b/main.go
-new file mode 100644
-index 0000000..1234567
---- /dev/null
-+++ b/main.go`,
+			name:  "git format - added file",
+			input: fmt.Sprintf("diff --git a/%s b/%s\nnew file mode 100644\nindex 0000000..1234567\n--- /dev/null\n+++ b/%s", gitAddedPath, gitAddedPath, gitAddedPath),
 			expected: []File{
-				{Path: "main.go", Status: FileAdded},
+				{Path: gitAddedPath, Status: FileAdded},
 			},
 		},
 		{
-			name: "git format - deleted file",
-			input: `diff --git a/old.txt b/old.txt
-deleted file mode 100644
-index 1234567..0000000
---- a/old.txt
-+++ /dev/null`,
+			name:  "git format - deleted file",
+			input: fmt.Sprintf("diff --git a/%s b/%s\ndeleted file mode 100644\nindex 1234567..0000000\n--- a/%s\n+++ /dev/null", gitDeletedPath, gitDeletedPath, gitDeletedPath),
 			expected: []File{
-				{Path: "old.txt", Status: FileDeleted},
+				{Path: gitDeletedPath, Status: FileDeleted},
 			},
 		},
 		{
-			name: "git format - modified file",
-			input: `diff --git a/main.go b/main.go
-index 1234567..abcdefg 100644
---- a/main.go
-+++ b/main.go`,
+			name:  "git format - modified file",
+			input: fmt.Sprintf("diff --git a/%s b/%s\nindex 1234567..abcdefg 100644\n--- a/%s\n+++ b/%s", gitModifiedPath, gitModifiedPath, gitModifiedPath, gitModifiedPath),
 			expected: []File{
-				{Path: "main.go", Status: FileModified},
+				{Path: gitModifiedPath, Status: FileModified},
 			},
 		},
 	}
@@ -264,6 +258,17 @@ Modified regular file app.go:
 func TestParseLogLines(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
+	// Generate valid change IDs, commit IDs, emails, and timestamps using testgen
+	changeID1 := testgen.ChangeID().Example()
+	changeID2 := testgen.ChangeID(testgen.WithShort).Example()
+	changeID3 := testgen.ChangeID(testgen.WithShort, testgen.WithVersion).Example()
+	commitID1 := testgen.CommitID(testgen.WithShort).Example()
+	commitID2 := testgen.CommitID(testgen.WithShort).Example()
+	email1 := testgen.Email().Example()
+	email2 := testgen.Email().Example()
+	ts1 := testgen.Timestamp().Example()
+	ts2 := testgen.Timestamp().Example()
+
 	tests := []struct {
 		name          string
 		input         string
@@ -275,18 +280,13 @@ func TestParseLogLines(t *testing.T) {
 			expectedCount: 0,
 		},
 		{
-			name: "single change",
-			input: `@  xsssnyux test@example.com 2026-01-29 12:00:00 abc123
-│  test description`,
+			name:          "single change",
+			input:         fmt.Sprintf("@  %s %s %s %s\n│  test description", changeID1, email1, ts1, commitID1),
 			expectedCount: 1,
 		},
 		{
-			name: "multiple changes",
-			input: `@  xsssnyux test@example.com 2026-01-29 12:00:00 abc123
-│  first description
-○  nlkzwoyt test@example.com 2026-01-28 12:00:00 def456
-│  second description
-◆  zzzzzzzz root() 00000000`,
+			name:          "multiple changes",
+			input:         fmt.Sprintf("@  %s %s %s %s\n│  first description\n○  %s %s %s %s\n│  second description\n◆  %s root() 00000000", changeID1, email1, ts1, commitID1, changeID2, email2, ts2, commitID2, changeID3),
 			expectedCount: 3,
 		},
 	}
@@ -374,7 +374,7 @@ func TestFindHunks_NonOverlapping(t *testing.T) {
 		for range numSections {
 			// Randomly choose jj or git style header
 			if rapid.Bool().Draw(t, "isJJStyle") {
-				status := rapid.SampledFrom([]string{"Added", "Modified", "Removed"}).Draw(t, "status")
+				status := testgen.FileStatus().Draw(t, "status")
 				filename := rapid.StringMatching(`[a-z]{1,10}\.go`).Draw(t, "filename")
 				lines = append(lines, status+" regular file "+filename+":")
 			} else {
@@ -409,7 +409,7 @@ func TestParseFiles_NoDuplicatePaths(t *testing.T) {
 		numFiles := rapid.IntRange(0, 10).Draw(t, "numFiles")
 		var lines []string
 		for i := range numFiles {
-			status := rapid.SampledFrom([]string{"Added", "Modified", "Removed"}).Draw(t, "status")
+			status := testgen.FileStatus().Draw(t, "status")
 			// Use index to ensure uniqueness
 			filename := rapid.StringMatching(`[a-z]{3,8}`).Draw(t, "basename")
 			lines = append(lines, status+" regular file "+filename+"_"+string(rune('a'+i))+".go:")
@@ -435,7 +435,7 @@ func TestParseFiles_ValidStatus(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
 	rapid.Check(t, func(t *rapid.T) {
-		status := rapid.SampledFrom([]string{"Added", "Modified", "Removed"}).Draw(t, "status")
+		status := testgen.FileStatus().Draw(t, "status")
 		filename := rapid.StringMatching(`[a-z]{3,10}\.go`).Draw(t, "filename")
 		input := status + " regular file " + filename + ":\n        1: content"
 
@@ -458,6 +458,13 @@ func TestParseFiles_ValidStatus(t *testing.T) {
 func TestParseOpLogLines(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
+	// Generate operation IDs, email, and timestamps
+	opID1 := testgen.OperationID(testgen.WithShort).Example()
+	opID2 := testgen.OperationID(testgen.WithShort).Example()
+	email := testgen.Email().Example()
+	relTs1 := testgen.RelativeTimestamp().Example()
+	relTs2 := testgen.RelativeTimestamp().Example()
+
 	tests := []struct {
 		name          string
 		input         string
@@ -470,26 +477,19 @@ func TestParseOpLogLines(t *testing.T) {
 			expectedCount: 0,
 		},
 		{
-			name: "single operation",
-			input: `@  bbc9fee12c4d user@host 4 minutes ago, lasted 1 second
-│  snapshot working copy
-│  args: jj log`,
+			name:          "single operation",
+			input:         fmt.Sprintf("@  %s %s %s, lasted 1 second\n│  snapshot working copy\n│  args: jj log", opID1, email, relTs1),
 			expectedCount: 1,
 			checkFirst: func(op Operation) bool {
-				return op.OpID == "bbc9fee12c4d" && op.Args == "jj log"
+				return op.OpID == opID1 && op.Args == "jj log"
 			},
 		},
 		{
-			name: "multiple operations",
-			input: `@  bbc9fee12c4d user@host 4 minutes ago
-│  snapshot working copy
-│  args: jj log
-○  86d0094c958f user@host 4 days ago
-│  push bookmark main
-│  args: jj git push`,
+			name:          "multiple operations",
+			input:         fmt.Sprintf("@  %s %s %s\n│  snapshot working copy\n│  args: jj log\n○  %s %s %s\n│  push bookmark main\n│  args: jj git push", opID1, email, relTs1, opID2, email, relTs2),
 			expectedCount: 2,
 			checkFirst: func(op Operation) bool {
-				return op.OpID == "bbc9fee12c4d"
+				return op.OpID == opID1
 			},
 		},
 	}
@@ -513,9 +513,10 @@ func TestParseOpLogLines(t *testing.T) {
 func TestParseOpLogLines_ArgsExtraction(t *testing.T) {
 	runner := NewRunner(".", testLogger(t))
 
-	input := `@  aaaaaaaaaaaa user@host now
-│  snapshot working copy
-│  args: jj log --color=always`
+	opID := testgen.OperationID(testgen.WithShort).Example()
+	email := testgen.Email().Example()
+	relTs := testgen.RelativeTimestamp().Example()
+	input := fmt.Sprintf("@  %s %s %s\n│  snapshot working copy\n│  args: jj log --color=always", opID, email, relTs)
 
 	operations := runner.ParseOpLogLines(input)
 	if len(operations) != 1 {
@@ -540,8 +541,10 @@ func TestParseOpLogLines_ValidOpID(t *testing.T) {
 			if i > 0 {
 				symbol = "○"
 			}
-			opID := rapid.StringMatching(`[0-9a-f]{12}`).Draw(t, "opID")
-			lines = append(lines, symbol+"  "+opID+" user@host now")
+			opID := testgen.OperationID(testgen.WithShort).Draw(t, "opID")
+			email := testgen.Email().Draw(t, "email")
+			relTs := testgen.RelativeTimestamp().Draw(t, "relTs")
+			lines = append(lines, symbol+"  "+opID+" "+email+" "+relTs)
 			lines = append(lines, "│  description")
 		}
 		input := strings.Join(lines, "\n")
@@ -580,16 +583,17 @@ func TestEvoLog_ParsesAsOperations(t *testing.T) {
 	// This test verifies ParseOpLogLines correctly parses evolog-style output.
 	runner := NewRunner(".", testLogger(t))
 
+	// Generate operation IDs, email, and timestamps
+	opID1 := testgen.OperationID(testgen.WithShort).Example()
+	opID2 := testgen.OperationID(testgen.WithShort).Example()
+	opID3 := testgen.OperationID(testgen.WithShort).Example()
+	email := testgen.Email().Example()
+	relTs1 := testgen.RelativeTimestamp().Example()
+	relTs2 := testgen.RelativeTimestamp().Example()
+	relTs3 := testgen.RelativeTimestamp().Example()
+
 	// Sample evolog output (same format as op log, scoped to a single change)
-	input := `@  abc123def456 user@host 2 hours ago, lasted 50ms
-│  describe commit
-│  args: jj describe -m 'update readme'
-○  111222333444 user@host 3 hours ago, lasted 100ms
-│  new empty commit
-│  args: jj new
-○  555666777888 user@host 1 day ago, lasted 200ms
-│  snapshot working copy
-│  args: jj status`
+	input := fmt.Sprintf("@  %s %s %s, lasted 50ms\n│  describe commit\n│  args: jj describe -m 'update readme'\n○  %s %s %s, lasted 100ms\n│  new empty commit\n│  args: jj new\n○  %s %s %s, lasted 200ms\n│  snapshot working copy\n│  args: jj status", opID1, email, relTs1, opID2, email, relTs2, opID3, email, relTs3)
 
 	operations := runner.ParseOpLogLines(input)
 
@@ -598,8 +602,8 @@ func TestEvoLog_ParsesAsOperations(t *testing.T) {
 	}
 
 	// Verify first operation (current)
-	if operations[0].OpID != "abc123def456" {
-		t.Errorf("expected first OpID 'abc123def456', got '%s'", operations[0].OpID)
+	if operations[0].OpID != opID1 {
+		t.Errorf("expected first OpID %q, got %q", opID1, operations[0].OpID)
 	}
 	if operations[0].Args != "jj describe -m 'update readme'" {
 		t.Errorf("expected first Args to contain describe command, got '%s'", operations[0].Args)
