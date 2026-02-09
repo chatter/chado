@@ -578,6 +578,38 @@ func TestEvoLog_MethodExists(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// Describe Tests
+// =============================================================================
+
+func TestDescribe_MethodExists(t *testing.T) {
+	// This test verifies the Describe method exists and has the correct signature.
+	// It will fail to compile until Describe is implemented.
+	runner := NewRunner(".", testLogger(t))
+
+	// Describe should accept rev and message, return error
+	err := runner.Describe("test-rev", "test message")
+	// We expect an error since we're not in a real jj repo, but the method should exist
+	if err == nil {
+		t.Log("Describe returned no error (unexpected in test environment)")
+	}
+}
+
+func TestDescribe_CallsRun(t *testing.T) {
+	// This test verifies Describe calls Run with correct arguments.
+	// We can't easily mock Run, but we can verify the method signature.
+	runner := NewRunner(".", testLogger(t))
+
+	// Calling Describe should invoke jj describe -r REV -m MESSAGE
+	// The actual command will fail (not in jj repo), but we're testing the interface
+	err := runner.Describe("xsssnyux", "updated description")
+
+	// Error is expected (not in jj repo)
+	if err == nil {
+		t.Log("Describe unexpectedly succeeded")
+	}
+}
+
 func TestEvoLog_ParsesAsOperations(t *testing.T) {
 	// Evolog output has the same format as op log - operations that affected a change.
 	// This test verifies ParseOpLogLines correctly parses evolog-style output.

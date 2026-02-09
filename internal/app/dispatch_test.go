@@ -210,3 +210,83 @@ func TestModel_LoadEvoLog_MethodExists(t *testing.T) {
 	// We can't really test the cmd without a proper setup, but method should exist
 	_ = cmd
 }
+
+// =============================================================================
+// Describe Tests
+// =============================================================================
+
+func TestDescribeCompleteMsg_TypeExists(t *testing.T) {
+	// This test verifies the describeCompleteMsg type exists.
+	msg := describeCompleteMsg{
+		changeID: "testchange",
+	}
+
+	if msg.changeID != "testchange" {
+		t.Errorf("expected changeID 'testchange', got '%s'", msg.changeID)
+	}
+}
+
+func TestModel_RunDescribe_MethodExists(t *testing.T) {
+	// This test verifies the runDescribe method exists on Model.
+	m := &Model{}
+
+	// runDescribe should accept changeID and message, return tea.Cmd
+	cmd := m.runDescribe("testchange", "new description")
+
+	// We can't really test the cmd without a proper setup, but method should exist
+	_ = cmd
+}
+
+func TestModel_ActionDescribe_MethodExists(t *testing.T) {
+	// This test verifies the actionDescribe method exists on Model.
+	m := &Model{
+		keys: DefaultKeyMap(),
+	}
+
+	// actionDescribe should return Model and tea.Cmd
+	newModel, cmd := m.actionDescribe()
+
+	// Without proper setup, should return unchanged model and nil cmd
+	// (no selected change)
+	_ = newModel
+	_ = cmd
+}
+
+func TestDispatch_DescribeBinding(t *testing.T) {
+	// Test that 'd' key is bound to describe action
+	m := &Model{
+		keys: DefaultKeyMap(),
+	}
+
+	bindings := m.globalBindings()
+
+	// Find the describe binding
+	found := false
+	for _, ab := range bindings {
+		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'd'}), ab.Binding) {
+			found = true
+			if ab.Action == nil {
+				t.Error("describe binding should have an action")
+			}
+			break
+		}
+	}
+
+	if !found {
+		t.Error("'d' key should be bound to describe action")
+	}
+}
+
+func TestModel_EditModeState(t *testing.T) {
+	// Test that editMode field exists and works
+	m := &Model{}
+
+	if m.editMode {
+		t.Error("editMode should be false by default")
+	}
+
+	m.editMode = true
+	if !m.editMode {
+		t.Error("editMode should be true after setting")
+	}
+}
