@@ -42,9 +42,11 @@ type Model struct {
 	watcher *jj.Watcher
 
 	// View state
-	viewMode    ViewMode
-	focusedPane FocusedPane
-	showHelp    bool
+	viewMode      ViewMode
+	focusedPane   FocusedPane
+	showHelp      bool
+	editMode      bool
+	describeInput *ui.DescribeInput
 
 	// Panels
 	logPanel   ui.LogPanel
@@ -78,6 +80,7 @@ func New(workDir string, version string, log *logger.Logger) Model {
 	diffPanel := ui.NewDiffPanel()
 	statusBar := help.NewStatusBar("chado " + version)
 	floatingHelp := help.NewFloatingHelp()
+	describeInput := ui.NewDescribeInput()
 
 	// Set initial focus - log panel starts focused
 	logPanel.SetFocused(true)
@@ -86,19 +89,20 @@ func New(workDir string, version string, log *logger.Logger) Model {
 	diffPanel.SetFocused(false)
 
 	return Model{
-		workDir:      workDir,
-		version:      version,
-		keys:         DefaultKeyMap(),
-		log:          log,
-		runner:       runner,
-		viewMode:     ViewLog,
-		focusedPane:  PaneLog,
-		logPanel:     logPanel,
-		opLogPanel:   opLogPanel,
-		filesPanel:   filesPanel,
-		diffPanel:    diffPanel,
-		statusBar:    statusBar,
-		floatingHelp: floatingHelp,
+		workDir:       workDir,
+		version:       version,
+		keys:          DefaultKeyMap(),
+		log:           log,
+		runner:        runner,
+		viewMode:      ViewLog,
+		focusedPane:   PaneLog,
+		logPanel:      logPanel,
+		opLogPanel:    opLogPanel,
+		filesPanel:    filesPanel,
+		diffPanel:     diffPanel,
+		statusBar:     statusBar,
+		floatingHelp:  floatingHelp,
+		describeInput: describeInput,
 	}
 }
 
@@ -288,12 +292,32 @@ type errMsg struct {
 	err error
 }
 
+type describeCompleteMsg struct {
+	changeID string
+}
+
+type editCompleteMsg struct {
+	changeID string
+}
+
+type newCompleteMsg struct{}
+
+type abandonCompleteMsg struct {
+	changeID string
+}
+
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// When edit mode is active, forward to describe input
+		if m.editMode {
+			cmd := m.describeInput.Update(msg)
+			return m, cmd
+		}
+
 		// When help modal is open, only handle ?, esc, and q
 		if m.showHelp {
 			if msg.String() == "?" || msg.String() == "esc" {
@@ -412,6 +436,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.log.Error("app error", "err", msg.err)
 		m.lastError = msg.err.Error()
+
+	case ui.DescribeSubmitMsg:
+		// Run jj describe and reload
+		m.editMode = false
+		cmds = append(cmds, m.runDescribe(msg.ChangeID, msg.Description))
+
+	case ui.DescribeCancelMsg:
+		// Just close the edit mode
+		m.editMode = false
+
+	case describeCompleteMsg:
+		// Description updated, reload the log
+		cmds = append(cmds, m.loadLog(), m.loadOpLog())
+
+	case editCompleteMsg:
+		// Edit complete, reload the log
+		cmds = append(cmds, m.loadLog(), m.loadOpLog())
+
+	case newCompleteMsg:
+		// New change created, reload the log
+		cmds = append(cmds, m.loadLog(), m.loadOpLog())
+
+	case abandonCompleteMsg:
+		// Change abandoned, reload the log
+		cmds = append(cmds, m.loadLog(), m.loadOpLog())
 	}
 
 	return m, tea.Batch(cmds...)
@@ -600,6 +649,109 @@ func (m *Model) actionToggleHelp() (Model, tea.Cmd) {
 	return *m, nil
 }
 
+func (m *Model) actionDescribe() (Model, tea.Cmd) {
+	// Only allow describe when log panel is focused and in log view
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	// Initialize describe input with current description
+	m.describeInput.SetChangeID(selected.ChangeID)
+	// If no real description, leave empty so placeholder shows and typing replaces
+	desc := selected.Description
+	if desc == "" || desc == "(no description set)" {
+		desc = ""
+	}
+	m.describeInput.SetValue(desc)
+	m.describeInput.SetSize(60, 10) // Fixed size for the overlay
+	m.editMode = true
+
+	return *m, m.describeInput.Focus()
+}
+
+// runDescribe executes jj describe and returns a completion message
+func (m *Model) runDescribe(changeID, message string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.runner.Describe(changeID, message)
+		if err != nil {
+			return errMsg{err}
+		}
+		return describeCompleteMsg{changeID: changeID}
+	}
+}
+
+func (m *Model) actionEdit() (Model, tea.Cmd) {
+	// Only allow edit when log panel is focused and in log view
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	return *m, m.runEdit(selected.ChangeID)
+}
+
+// runEdit executes jj edit and returns a completion message
+func (m *Model) runEdit(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.runner.Edit(changeID)
+		if err != nil {
+			return errMsg{err}
+		}
+		return editCompleteMsg{changeID: changeID}
+	}
+}
+
+func (m *Model) actionNew() (Model, tea.Cmd) {
+	// New creates an empty change on top of current working copy
+	// Works from any context
+	return *m, m.runNew()
+}
+
+// runNew executes jj new and returns a completion message
+func (m *Model) runNew() tea.Cmd {
+	return func() tea.Msg {
+		err := m.runner.New()
+		if err != nil {
+			return errMsg{err}
+		}
+		return newCompleteMsg{}
+	}
+}
+
+func (m *Model) actionAbandon() (Model, tea.Cmd) {
+	// Only allow abandon when log panel is focused and in log view
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	return *m, m.runAbandon(selected.ChangeID)
+}
+
+// runAbandon executes jj abandon and returns a completion message
+func (m *Model) runAbandon(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.runner.Abandon(changeID)
+		if err != nil {
+			return errMsg{err}
+		}
+		return abandonCompleteMsg{changeID: changeID}
+	}
+}
+
 // activeBindings returns all currently active keybindings for dispatch.
 // Merges global bindings with context-specific panel bindings.
 func (m *Model) activeBindings() []ActionBinding {
@@ -703,6 +855,38 @@ func (m *Model) globalBindings() []ActionBinding {
 				Order:    11,
 			},
 			Action: (*Model).actionBack,
+		},
+		{
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Describe,
+				Category: help.CategoryActions,
+				Order:    12,
+			},
+			Action: (*Model).actionDescribe,
+		},
+		{
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Edit,
+				Category: help.CategoryActions,
+				Order:    13,
+			},
+			Action: (*Model).actionEdit,
+		},
+		{
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.New,
+				Category: help.CategoryActions,
+				Order:    14,
+			},
+			Action: (*Model).actionNew,
+		},
+		{
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Abandon,
+				Category: help.CategoryActions,
+				Order:    15,
+			},
+			Action: (*Model).actionAbandon,
 		},
 		// Help toggle - pinned, always visible
 		{
@@ -853,6 +1037,8 @@ func (m Model) View() tea.View {
 	// Show floating help modal if active
 	if m.showHelp {
 		v.SetContent(m.renderWithOverlay(base))
+	} else if m.editMode {
+		v.SetContent(m.renderWithDescribeOverlay(base))
 	} else {
 		v.SetContent(base)
 	}
@@ -860,6 +1046,8 @@ func (m Model) View() tea.View {
 	return v
 }
 
+// renderWithOverlay composites the help modal on top of the base view
+// using lipgloss v2 Canvas/Layer for true transparency.
 func (m Model) renderWithOverlay(base string) string {
 	// Calculate modal size (centered, ~80% of screen)
 	modalWidth := m.width * 80 / 100
@@ -877,18 +1065,56 @@ func (m Model) renderWithOverlay(base string) string {
 	m.floatingHelp.SetBindings(m.activeHelpBindings())
 	modal := m.floatingHelp.View()
 
-	// Center the modal on the base content
-	return lipgloss.Place(
-		m.width, m.height,
-		lipgloss.Center, lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("0"))),
-	)
+	// Calculate center position
+	overlayWidth := lipgloss.Width(modal)
+	overlayHeight := lipgloss.Height(modal)
+	overlayX := (m.width - overlayWidth) / 2
+	overlayY := (m.height - overlayHeight) / 2
+
+	// Create base layer (full screen)
+	baseLayer := lipgloss.NewLayer(base).
+		Width(m.width).
+		Height(m.height).
+		X(0).Y(0).Z(0)
+
+	// Create overlay layer (centered, on top)
+	overlayLayer := lipgloss.NewLayer(modal).
+		X(overlayX).Y(overlayY).Z(1)
+
+	// Composite and render
+	canvas := lipgloss.NewCanvas(baseLayer, overlayLayer)
+	return canvas.Render()
 }
 
 func (m Model) renderStatusBar() string {
 	m.statusBar.SetWidth(m.width)
 	m.statusBar.SetBindings(m.activeHelpBindings())
 	return ui.StatusBarStyle.Render(m.statusBar.View())
+}
+
+// renderWithDescribeOverlay composites the describe input on top of the base view
+// using lipgloss v2 Canvas/Layer for true transparency.
+func (m Model) renderWithDescribeOverlay(base string) string {
+	// Render the describe input
+	describeView := m.describeInput.View()
+	overlayWidth := m.describeInput.Width()
+	overlayHeight := m.describeInput.Height()
+
+	// Calculate center position
+	overlayX := (m.width - overlayWidth) / 2
+	overlayY := (m.height - overlayHeight) / 2
+
+	// Create base layer (full screen)
+	baseLayer := lipgloss.NewLayer(base).
+		Width(m.width).
+		Height(m.height).
+		X(0).Y(0).Z(0)
+
+	// Create overlay layer (centered, on top)
+	overlayLayer := lipgloss.NewLayer(describeView).
+		X(overlayX).Y(overlayY).Z(1)
+
+	// Composite and render
+	canvas := lipgloss.NewCanvas(baseLayer, overlayLayer)
+	return canvas.Render()
 }

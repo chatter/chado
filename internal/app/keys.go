@@ -55,10 +55,14 @@ type KeyMap struct {
 	Bottom key.Binding
 
 	// Actions
-	Enter key.Binding
-	Back  key.Binding
-	Quit  key.Binding
-	Help  key.Binding
+	Enter    key.Binding
+	Back     key.Binding
+	Abandon  key.Binding
+	Describe key.Binding
+	Edit     key.Binding
+	New      key.Binding
+	Quit     key.Binding
+	Help     key.Binding
 }
 
 // DefaultKeyMap returns the default key bindings
@@ -115,6 +119,22 @@ func DefaultKeyMap() KeyMap {
 		Back: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("⎋", "back"),
+		),
+		Abandon: key.NewBinding(
+			key.WithKeys("a"),
+			key.WithHelp("a", "abandon"),
+		),
+		Describe: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "describe"),
+		),
+		Edit: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "edit"),
+		),
+		New: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "new"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),

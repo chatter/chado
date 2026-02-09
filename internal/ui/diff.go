@@ -46,7 +46,6 @@ type DetailsHeader struct {
 // NewDiffPanel creates a new diff panel
 func NewDiffPanel() DiffPanel {
 	vp := viewport.New()
-	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 	return DiffPanel{
 		viewport:    vp,
 		title:       "Diff",
@@ -58,9 +57,8 @@ func NewDiffPanel() DiffPanel {
 func (p *DiffPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
-	// Account for border (2) and title (1)
-	p.viewport.SetWidth(width - 2)
-	p.viewport.SetHeight(height - 3)
+	p.viewport.SetWidth(width - 2)   // -border
+	p.viewport.SetHeight(height - 3) // -title
 }
 
 // SetFocused sets the focus state
@@ -134,8 +132,14 @@ func (p *DiffPanel) updateContent() {
 		p.headerLines++
 	}
 
-	// Add diff content
-	content.WriteString(p.diffContent)
+	// Add diff content - apply word wrap to fit viewport width
+	viewportWidth := p.viewport.Width()
+	if viewportWidth > 0 {
+		wrapped := lipgloss.NewStyle().Width(viewportWidth).Render(p.diffContent)
+		content.WriteString(wrapped)
+	} else {
+		content.WriteString(p.diffContent)
+	}
 
 	p.viewport.SetContent(content.String())
 }
