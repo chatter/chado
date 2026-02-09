@@ -296,6 +296,12 @@ type describeCompleteMsg struct {
 	changeID string
 }
 
+type editCompleteMsg struct {
+	changeID string
+}
+
+type newCompleteMsg struct{}
+
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
@@ -438,6 +444,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case describeCompleteMsg:
 		// Description updated, reload the log
+		cmds = append(cmds, m.loadLog(), m.loadOpLog())
+
+	case editCompleteMsg:
+		// Edit complete, reload the log
+		cmds = append(cmds, m.loadLog(), m.loadOpLog())
+
+	case newCompleteMsg:
+		// New change created, reload the log
 		cmds = append(cmds, m.loadLog(), m.loadOpLog())
 	}
 
@@ -640,7 +654,12 @@ func (m *Model) actionDescribe() (Model, tea.Cmd) {
 
 	// Initialize describe input with current description
 	m.describeInput.SetChangeID(selected.ChangeID)
-	m.describeInput.SetValue(selected.Description)
+	// If no real description, leave empty so placeholder shows and typing replaces
+	desc := selected.Description
+	if desc == "" || desc == "(no description set)" {
+		desc = ""
+	}
+	m.describeInput.SetValue(desc)
 	m.describeInput.SetSize(60, 10) // Fixed size for the overlay
 	m.editMode = true
 
@@ -655,6 +674,48 @@ func (m *Model) runDescribe(changeID, message string) tea.Cmd {
 			return errMsg{err}
 		}
 		return describeCompleteMsg{changeID: changeID}
+	}
+}
+
+func (m *Model) actionEdit() (Model, tea.Cmd) {
+	// Only allow edit when log panel is focused and in log view
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	return *m, m.runEdit(selected.ChangeID)
+}
+
+// runEdit executes jj edit and returns a completion message
+func (m *Model) runEdit(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.runner.Edit(changeID)
+		if err != nil {
+			return errMsg{err}
+		}
+		return editCompleteMsg{changeID: changeID}
+	}
+}
+
+func (m *Model) actionNew() (Model, tea.Cmd) {
+	// New creates an empty change on top of current working copy
+	// Works from any context
+	return *m, m.runNew()
+}
+
+// runNew executes jj new and returns a completion message
+func (m *Model) runNew() tea.Cmd {
+	return func() tea.Msg {
+		err := m.runner.New()
+		if err != nil {
+			return errMsg{err}
+		}
+		return newCompleteMsg{}
 	}
 }
 
@@ -769,6 +830,22 @@ func (m *Model) globalBindings() []ActionBinding {
 				Order:    12,
 			},
 			Action: (*Model).actionDescribe,
+		},
+		{
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Edit,
+				Category: help.CategoryActions,
+				Order:    13,
+			},
+			Action: (*Model).actionEdit,
+		},
+		{
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.New,
+				Category: help.CategoryActions,
+				Order:    14,
+			},
+			Action: (*Model).actionNew,
 		},
 		// Help toggle - pinned, always visible
 		{

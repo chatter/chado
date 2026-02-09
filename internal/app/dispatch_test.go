@@ -290,3 +290,128 @@ func TestModel_EditModeState(t *testing.T) {
 		t.Error("editMode should be true after setting")
 	}
 }
+
+// =============================================================================
+// Edit (jj edit) Tests
+// =============================================================================
+
+func TestEditCompleteMsg_TypeExists(t *testing.T) {
+	// This test verifies the editCompleteMsg type exists.
+	msg := editCompleteMsg{
+		changeID: "testchange",
+	}
+
+	if msg.changeID != "testchange" {
+		t.Errorf("expected changeID 'testchange', got '%s'", msg.changeID)
+	}
+}
+
+func TestModel_RunEdit_MethodExists(t *testing.T) {
+	// This test verifies the runEdit method exists on Model.
+	m := &Model{}
+
+	// runEdit should accept changeID, return tea.Cmd
+	cmd := m.runEdit("testchange")
+
+	// We can't really test the cmd without a proper setup, but method should exist
+	_ = cmd
+}
+
+func TestModel_ActionEdit_MethodExists(t *testing.T) {
+	// This test verifies the actionEdit method exists on Model.
+	m := &Model{
+		keys: DefaultKeyMap(),
+	}
+
+	// actionEdit should return Model and tea.Cmd
+	newModel, cmd := m.actionEdit()
+
+	// Without proper setup, should return unchanged model and nil cmd
+	// (no selected change)
+	_ = newModel
+	_ = cmd
+}
+
+func TestDispatch_EditBinding(t *testing.T) {
+	// Test that 'e' key is bound to edit action
+	m := &Model{
+		keys: DefaultKeyMap(),
+	}
+
+	bindings := m.globalBindings()
+
+	// Find the edit binding
+	found := false
+	for _, ab := range bindings {
+		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'e'}), ab.Binding) {
+			found = true
+			if ab.Action == nil {
+				t.Error("edit binding should have an action")
+			}
+			break
+		}
+	}
+
+	if !found {
+		t.Error("'e' key should be bound to edit action")
+	}
+}
+
+// =============================================================================
+// New (jj new) Tests
+// =============================================================================
+
+func TestNewCompleteMsg_TypeExists(t *testing.T) {
+	// This test verifies the newCompleteMsg type exists.
+	msg := newCompleteMsg{}
+	_ = msg
+}
+
+func TestModel_RunNew_MethodExists(t *testing.T) {
+	// This test verifies the runNew method exists on Model.
+	m := &Model{}
+
+	// runNew should return tea.Cmd
+	cmd := m.runNew()
+
+	// Method should exist
+	_ = cmd
+}
+
+func TestModel_ActionNew_MethodExists(t *testing.T) {
+	// This test verifies the actionNew method exists on Model.
+	m := &Model{
+		keys: DefaultKeyMap(),
+	}
+
+	// actionNew should return Model and tea.Cmd
+	newModel, cmd := m.actionNew()
+
+	_ = newModel
+	_ = cmd
+}
+
+func TestDispatch_NewBinding(t *testing.T) {
+	// Test that 'n' key is bound to new action
+	m := &Model{
+		keys: DefaultKeyMap(),
+	}
+
+	bindings := m.globalBindings()
+
+	// Find the new binding
+	found := false
+	for _, ab := range bindings {
+		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'n'}), ab.Binding) {
+			found = true
+			if ab.Action == nil {
+				t.Error("new binding should have an action")
+			}
+			break
+		}
+	}
+
+	if !found {
+		t.Error("'n' key should be bound to new action")
+	}
+}

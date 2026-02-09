@@ -106,6 +106,18 @@ func (r *Runner) Describe(rev, message string) error {
 	return err
 }
 
+// Edit makes a revision the working copy, allowing it to be edited
+func (r *Runner) Edit(rev string) error {
+	_, err := r.Run("edit", rev)
+	return err
+}
+
+// New creates a new empty change on top of the current working copy
+func (r *Runner) New() error {
+	_, err := r.Run("new")
+	return err
+}
+
 // ShortestChangeID returns the shortest unique prefix for a change ID
 func (r *Runner) ShortestChangeID(rev string) (string, error) {
 	output, err := r.Run("log", "-r", rev, "-T", "change_id.shortest()", "--no-graph")

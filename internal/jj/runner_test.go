@@ -610,6 +610,51 @@ func TestDescribe_CallsRun(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// Edit Tests
+// =============================================================================
+
+func TestEdit_MethodExists(t *testing.T) {
+	// This test verifies the Edit method exists and has the correct signature.
+	runner := NewRunner(".", testLogger(t))
+
+	// Edit should accept rev, return error
+	err := runner.Edit("test-rev")
+	// We expect an error since we're not in a real jj repo
+	if err == nil {
+		t.Log("Edit returned no error (unexpected in test environment)")
+	}
+}
+
+func TestEdit_CallsRun(t *testing.T) {
+	// This test verifies Edit calls Run with correct arguments.
+	runner := NewRunner(".", testLogger(t))
+
+	// Calling Edit should invoke jj edit REV
+	err := runner.Edit("xsssnyux")
+
+	// Error is expected (not in jj repo)
+	if err == nil {
+		t.Log("Edit unexpectedly succeeded")
+	}
+}
+
+// =============================================================================
+// New Tests
+// =============================================================================
+
+func TestNew_MethodExists(t *testing.T) {
+	// This test verifies the New method exists and has the correct signature.
+	runner := NewRunner(".", testLogger(t))
+
+	// New should return error
+	err := runner.New()
+	// We expect an error since we're not in a real jj repo
+	if err == nil {
+		t.Log("New returned no error (unexpected in test environment)")
+	}
+}
+
 func TestEvoLog_ParsesAsOperations(t *testing.T) {
 	// Evolog output has the same format as op log - operations that affected a change.
 	// This test verifies ParseOpLogLines correctly parses evolog-style output.

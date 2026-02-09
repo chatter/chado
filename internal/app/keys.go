@@ -58,6 +58,8 @@ type KeyMap struct {
 	Enter    key.Binding
 	Back     key.Binding
 	Describe key.Binding
+	Edit     key.Binding
+	New      key.Binding
 	Quit     key.Binding
 	Help     key.Binding
 }
@@ -120,6 +122,14 @@ func DefaultKeyMap() KeyMap {
 		Describe: key.NewBinding(
 			key.WithKeys("d"),
 			key.WithHelp("d", "describe"),
+		),
+		Edit: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "edit"),
+		),
+		New: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "new"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
