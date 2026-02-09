@@ -118,6 +118,12 @@ func (r *Runner) New() error {
 	return err
 }
 
+// Abandon removes a revision from the repository
+func (r *Runner) Abandon(rev string) error {
+	_, err := r.Run("abandon", rev)
+	return err
+}
+
 // ShortestChangeID returns the shortest unique prefix for a change ID
 func (r *Runner) ShortestChangeID(rev string) (string, error) {
 	output, err := r.Run("log", "-r", rev, "-T", "change_id.shortest()", "--no-graph")

@@ -302,6 +302,10 @@ type editCompleteMsg struct {
 
 type newCompleteMsg struct{}
 
+type abandonCompleteMsg struct {
+	changeID string
+}
+
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
@@ -452,6 +456,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case newCompleteMsg:
 		// New change created, reload the log
+		cmds = append(cmds, m.loadLog(), m.loadOpLog())
+
+	case abandonCompleteMsg:
+		// Change abandoned, reload the log
 		cmds = append(cmds, m.loadLog(), m.loadOpLog())
 	}
 
@@ -719,6 +727,31 @@ func (m *Model) runNew() tea.Cmd {
 	}
 }
 
+func (m *Model) actionAbandon() (Model, tea.Cmd) {
+	// Only allow abandon when log panel is focused and in log view
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	return *m, m.runAbandon(selected.ChangeID)
+}
+
+// runAbandon executes jj abandon and returns a completion message
+func (m *Model) runAbandon(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.runner.Abandon(changeID)
+		if err != nil {
+			return errMsg{err}
+		}
+		return abandonCompleteMsg{changeID: changeID}
+	}
+}
+
 // activeBindings returns all currently active keybindings for dispatch.
 // Merges global bindings with context-specific panel bindings.
 func (m *Model) activeBindings() []ActionBinding {
@@ -846,6 +879,14 @@ func (m *Model) globalBindings() []ActionBinding {
 				Order:    14,
 			},
 			Action: (*Model).actionNew,
+		},
+		{
+			HelpBinding: help.HelpBinding{
+				Binding:  m.keys.Abandon,
+				Category: help.CategoryActions,
+				Order:    15,
+			},
+			Action: (*Model).actionAbandon,
 		},
 		// Help toggle - pinned, always visible
 		{

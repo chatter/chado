@@ -415,3 +415,62 @@ func TestDispatch_NewBinding(t *testing.T) {
 		t.Error("'n' key should be bound to new action")
 	}
 }
+
+func TestAbandonCompleteMsg_TypeExists(t *testing.T) {
+	// This test verifies the abandonCompleteMsg type exists
+	msg := abandonCompleteMsg{changeID: "abc123"}
+
+	// Should be able to access changeID field
+	if msg.changeID != "abc123" {
+		t.Errorf("expected changeID abc123, got %s", msg.changeID)
+	}
+}
+
+func TestModel_RunAbandon_MethodExists(t *testing.T) {
+	// This test verifies the runAbandon method exists on Model.
+	m := &Model{}
+
+	// runAbandon should return tea.Cmd
+	cmd := m.runAbandon("abc123")
+
+	// Method should exist
+	_ = cmd
+}
+
+func TestModel_ActionAbandon_MethodExists(t *testing.T) {
+	// This test verifies the actionAbandon method exists on Model.
+	m := &Model{
+		keys: DefaultKeyMap(),
+	}
+
+	// actionAbandon should return Model and tea.Cmd
+	newModel, cmd := m.actionAbandon()
+
+	_ = newModel
+	_ = cmd
+}
+
+func TestDispatch_AbandonBinding(t *testing.T) {
+	// Test that 'a' key is bound to abandon action
+	m := &Model{
+		keys: DefaultKeyMap(),
+	}
+
+	bindings := m.globalBindings()
+
+	// Find the abandon binding
+	found := false
+	for _, ab := range bindings {
+		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'a'}), ab.Binding) {
+			found = true
+			if ab.Action == nil {
+				t.Error("abandon binding should have an action")
+			}
+			break
+		}
+	}
+
+	if !found {
+		t.Error("'a' key should be bound to abandon action")
+	}
+}

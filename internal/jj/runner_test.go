@@ -655,6 +655,18 @@ func TestNew_MethodExists(t *testing.T) {
 	}
 }
 
+func TestAbandon_MethodExists(t *testing.T) {
+	// This test verifies the Abandon method exists and has the correct signature.
+	runner := NewRunner(".", testLogger(t))
+
+	// Abandon should return error
+	err := runner.Abandon("abc123")
+	// We expect an error since we're not in a real jj repo
+	if err == nil {
+		t.Log("Abandon returned no error (unexpected in test environment)")
+	}
+}
+
 func TestEvoLog_ParsesAsOperations(t *testing.T) {
 	// Evolog output has the same format as op log - operations that affected a change.
 	// This test verifies ParseOpLogLines correctly parses evolog-style output.
