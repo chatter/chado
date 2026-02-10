@@ -311,9 +311,6 @@ func (p OpLogPanel) View() string {
 		style = PanelStyle
 	}
 
-	// Set height only - Width causes text wrapping in lipgloss v2
-	style = style.Height(p.height - 2)
-
 	// Build content with title
 	content := title + "\n" + p.viewport.View()
 

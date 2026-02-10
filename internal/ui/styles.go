@@ -1,35 +1,62 @@
 package ui
 
 import (
+	"image/color"
+	"os"
+
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 )
+
+// colorProfile is detected once for terminal color capability (ANSI/256/truecolor).
+var colorProfile = colorprofile.Detect(os.Stdout, os.Environ())
+
+// completeColor converts a hex color to a terminal-appropriate color (profile-aware, lipgloss v2 Complete).
+func completeColor(hex string) color.Color {
+	return colorProfile.Convert(lipgloss.Color(hex))
+}
 
 // Color codes (ANSI 256)
 const (
-	PrimaryColorCode   = "62"  // Purple
-	SecondaryColorCode = "241" // Gray
-	AccentColorCode    = "86"  // Cyan
+	PrimaryColorCode   = "#808080" // Gray
+	SecondaryColorCode = "241"     // Gray
+	AccentColorCode    = "#30c9b0" // Cyan
 )
 
 // Colors (for lipgloss styles)
 var (
-	primaryColor   = lipgloss.Color(PrimaryColorCode)
+	primaryColor   = completeColor(PrimaryColorCode)
 	secondaryColor = lipgloss.Color(SecondaryColorCode)
-	accentColor    = lipgloss.Color(AccentColorCode)
-	borderColor    = lipgloss.Color("240") // Dark gray
-	focusBorder    = lipgloss.Color("62")  // Purple for focused
+	accentColor    = completeColor(AccentColorCode)
+
+	unfocusedBorderBlend = []color.Color{
+		primaryColor,
+		completeColor("#454545"),
+		primaryColor,
+		completeColor("#3d3d3d"),
+		primaryColor,
+	}
+
+	focusedBorderBlend = []color.Color{
+		accentColor,
+		completeColor("#0d4d44"),
+		accentColor,
+		completeColor("#1e1e1e"),
+		accentColor,
+	}
 )
 
 // Styles for the application
 var (
-	// Panel styles
-	PanelStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(borderColor)
+	PanelStyle = lipgloss.
+			NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForegroundBlend(unfocusedBorderBlend...)
 
-	FocusedPanelStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(focusBorder)
+	FocusedPanelStyle = lipgloss.
+				NewStyle().
+				BorderForegroundBlend(focusedBorderBlend...).
+				Inherit(PanelStyle)
 
 	// Title styles
 	TitleStyle = lipgloss.NewStyle().
@@ -68,9 +95,9 @@ var (
 // PanelTitle returns a formatted panel title with optional focus indicator
 func PanelTitle(num int, title string, focused bool) string {
 	prefix := ""
-	if focused {
-		prefix = "● "
-	}
+	// if focused {
+	// 	prefix = "●"
+	// }
 	titleText := prefix + "[" + string(rune('0'+num)) + "] " + title
 
 	if focused {
