@@ -23,15 +23,17 @@ const (
 
 // OpLogPanel displays the jj operation log or evolution log
 type OpLogPanel struct {
-	viewport     viewport.Model
-	operations   []jj.Operation
-	cursor       int
-	focused      bool
-	width        int
-	height       int
-	rawLog       string // Keep raw log for display
-	opStartLines []int  // Line number where each operation starts (pre-computed)
-	totalLines   int    // Total number of lines in rawLog (for bounds checking)
+	viewport        viewport.Model
+	operations      []jj.Operation
+	cursor          int
+	focused         bool
+	width           int
+	height          int
+	rawLog          string  // Keep raw log for display
+	opStartLines    []int   // Line number where each operation starts (pre-computed)
+	totalLines      int     // Total number of lines in rawLog (for bounds checking)
+	borderAnimPhase float64 // 0..1 for focus border animation
+	borderAnimating bool    // true only while the one-shot wrap is running
 
 	// Mode fields for evolog support
 	mode      OpLogMode // Current display mode (op log or evolog)
@@ -62,6 +64,16 @@ func (p *OpLogPanel) SetSize(width, height int) {
 // SetFocused sets the focus state
 func (p *OpLogPanel) SetFocused(focused bool) {
 	p.focused = focused
+}
+
+// SetBorderAnimPhase sets the border animation phase (0..1) for the focus wrap effect.
+func (p *OpLogPanel) SetBorderAnimPhase(phase float64) {
+	p.borderAnimPhase = phase
+}
+
+// SetBorderAnimating sets whether the focus border animation is running.
+func (p *OpLogPanel) SetBorderAnimating(animating bool) {
+	p.borderAnimating = animating
 }
 
 // findOpIndex returns the index of the operation with the given ID, or -1 if not found
@@ -305,7 +317,9 @@ func (p OpLogPanel) View() string {
 
 	// Get the appropriate border style
 	var style lipgloss.Style
-	if p.focused {
+	if p.focused && p.borderAnimating {
+		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+	} else if p.focused {
 		style = FocusedPanelStyle
 	} else {
 		style = PanelStyle

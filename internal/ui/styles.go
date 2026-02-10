@@ -8,6 +8,34 @@ import (
 	"github.com/charmbracelet/colorprofile"
 )
 
+// AnimatedFocusBorderStyle returns the panel style with the focus border animation at the given phase.
+// Use when a panel is focused and the border wrap animation is running.
+func AnimatedFocusBorderStyle(phase float64, width, height int) lipgloss.Style {
+	perimeter := 2*width + 2*height
+	offset := int(phase * float64(perimeter))
+	return lipgloss.NewStyle().
+		Inherit(PanelStyle).
+		BorderForegroundBlend(RotatedFocusedBorderBlend(0)...).
+		BorderForegroundBlendOffset(offset)
+}
+
+// RotatedFocusedBorderBlend returns focusedBorderBlend rotated by phase (0..1 = one full wrap).
+func RotatedFocusedBorderBlend(phase float64) []color.Color {
+	const n = 5
+	if n == 0 {
+		return focusedBorderBlend
+	}
+	offset := int(phase*float64(n)) % n
+	if offset < 0 {
+		offset += n
+	}
+	out := make([]color.Color, n)
+	for i := 0; i < n; i++ {
+		out[i] = focusedBorderBlend[(offset+i)%n]
+	}
+	return out
+}
+
 // colorProfile is detected once for terminal color capability (ANSI/256/truecolor).
 var colorProfile = colorprofile.Detect(os.Stdout, os.Environ())
 

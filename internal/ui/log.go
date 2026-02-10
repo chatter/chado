@@ -25,9 +25,11 @@ type LogPanel struct {
 	focused          bool
 	width            int
 	height           int
-	rawLog           string // Keep raw log for display
-	changeStartLines []int  // Line number where each change starts (pre-computed)
-	totalLines       int    // Total number of lines in rawLog (for bounds checking)
+	rawLog           string  // Keep raw log for display
+	changeStartLines []int   // Line number where each change starts (pre-computed)
+	totalLines       int     // Total number of lines in rawLog (for bounds checking)
+	borderAnimPhase  float64 // 0..1 for focus border wrap animation
+	borderAnimating  bool    // true only while the one-shot wrap is running (explicit focus)
 }
 
 // NewLogPanel creates a new log panel
@@ -53,6 +55,21 @@ func (p *LogPanel) SetSize(width, height int) {
 // SetFocused sets the focus state
 func (p *LogPanel) SetFocused(focused bool) {
 	p.focused = focused
+}
+
+// SetBorderAnimPhase sets the border animation phase (0..1) for the focus wrap effect.
+func (p *LogPanel) SetBorderAnimPhase(phase float64) {
+	p.borderAnimPhase = phase
+}
+
+// SetBorderAnimating sets whether the focus border animation is running (explicit focus vs drill/back).
+func (p *LogPanel) SetBorderAnimating(animating bool) {
+	p.borderAnimating = animating
+}
+
+// BorderAnimPhase returns the current border animation phase.
+func (p LogPanel) BorderAnimPhase() float64 {
+	return p.borderAnimPhase
 }
 
 // findChangeIndex returns the index of the change with the given ID, or -1 if not found
@@ -264,16 +281,16 @@ func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
 func (p LogPanel) View() string {
 	title := PanelTitle(1, "Change Log", p.focused)
 
-	// Get the appropriate border style
 	var style lipgloss.Style
-	if p.focused {
+	if p.focused && p.borderAnimating {
+		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+	} else if p.focused {
 		style = FocusedPanelStyle
 	} else {
 		style = PanelStyle
 	}
 
 	content := title + "\n" + p.viewport.View()
-
 	return style.Render(content)
 }
 
