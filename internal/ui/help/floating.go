@@ -94,6 +94,7 @@ func (f *FloatingHelp) View() string {
 	if len(contentLines) > availableContentHeight {
 		contentLines = contentLines[:availableContentHeight]
 	}
+
 	content = strings.Join(contentLines, "\n")
 
 	// Combine vertically with spacing
@@ -131,8 +132,8 @@ func (f *FloatingHelp) groupByCategory() map[Category][]HelpBinding {
 		if seen[hb.Category][desc] {
 			continue
 		}
-		seen[hb.Category][desc] = true
 
+		seen[hb.Category][desc] = true
 		groups[hb.Category] = append(groups[hb.Category], hb)
 	}
 
@@ -172,7 +173,9 @@ func (f *FloatingHelp) renderColumns(groups map[Category][]HelpBinding, maxWidth
 
 	// Arrange columns into rows based on available width
 	var rows [][]column
+
 	var currentRow []column
+
 	currentRowWidth := 0
 
 	for _, col := range allColumns {
@@ -192,12 +195,14 @@ func (f *FloatingHelp) renderColumns(groups map[Category][]HelpBinding, maxWidth
 			currentRowWidth += needed
 		}
 	}
+
 	if len(currentRow) > 0 {
 		rows = append(rows, currentRow)
 	}
 
 	// Render each row
 	var renderedRows []string
+
 	totalHeight := 0
 	maxRowWidth := 0
 
@@ -205,6 +210,7 @@ func (f *FloatingHelp) renderColumns(groups map[Category][]HelpBinding, maxWidth
 		rowStr, rowWidth, rowHeight := f.renderRow(row, columnGap)
 		renderedRows = append(renderedRows, rowStr)
 		totalHeight += rowHeight
+
 		if rowWidth > maxRowWidth {
 			maxRowWidth = rowWidth
 		}
@@ -233,6 +239,7 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]HelpBinding) []column 
 
 		// Calculate max key width for this category
 		maxKeyWidth := 0
+
 		for _, hb := range bindings {
 			w := lipgloss.Width(hb.Binding.Help().Key)
 			if w > maxKeyWidth {
@@ -242,6 +249,7 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]HelpBinding) []column 
 
 		// Build column lines
 		var lines []string
+
 		lines = append(lines, headerStyle.Render(string(cat)))
 		colWidth := lipgloss.Width(string(cat))
 
@@ -285,6 +293,7 @@ func (f *FloatingHelp) renderRow(row []column, gap string) (string, int, int) {
 
 	// Pad each column to same height and its own width
 	var paddedColumns []string
+
 	for _, col := range row {
 		lines := make([]string, len(col.lines))
 		copy(lines, col.lines)

@@ -56,6 +56,7 @@ func New(level string) (*Logger, error) {
 	}
 
 	l.Info("chado started", "pid", os.Getpid(), "level", level, "log_path", logFile.Name())
+
 	return l, nil
 }
 
@@ -93,12 +94,15 @@ func createLogDir() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("could not determine home directory: %w", err)
 		}
+
 		stateDir = filepath.Join(home, ".local", "state")
 	}
+
 	logDir := filepath.Join(stateDir, "chado")
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return "", fmt.Errorf("could not create log directory: %w", err)
 	}
+
 	return logDir, nil
 }
 
@@ -108,6 +112,7 @@ func openLogFile(logDir string) (*os.File, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not open log file: %w", err)
 	}
+
 	return logFile, nil
 }
 

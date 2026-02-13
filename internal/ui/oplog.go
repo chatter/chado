@@ -45,6 +45,7 @@ type OpLogPanel struct {
 func NewOpLogPanel() OpLogPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
+
 	return OpLogPanel{
 		viewport:   vp,
 		operations: []jj.Operation{},
@@ -83,6 +84,7 @@ func findOpIndex(operations []jj.Operation, opID string) int {
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -137,13 +139,15 @@ func isEntryStart(line string) bool {
 func (p *OpLogPanel) computeOpStartLines() {
 	p.opStartLines = nil
 	p.totalLines = 0
+
 	if p.rawLog == "" {
 		return
 	}
 
-	lines := strings.Split(p.rawLog, "\n")
 	// Count actual lines (newlines), not split elements (which includes trailing empty)
 	p.totalLines = strings.Count(p.rawLog, "\n")
+
+	lines := strings.Split(p.rawLog, "\n")
 	for i, line := range lines {
 		if isEntryStart(line) {
 			p.opStartLines = append(p.opStartLines, i)
@@ -156,6 +160,7 @@ func (p *OpLogPanel) SelectedOperation() *jj.Operation {
 	if p.cursor >= 0 && p.cursor < len(p.operations) {
 		return &p.operations[p.cursor]
 	}
+
 	return nil
 }
 
@@ -195,10 +200,11 @@ func (p *OpLogPanel) updateViewport() {
 		return
 	}
 
-	lines := strings.Split(p.rawLog, "\n")
 	var result strings.Builder
+
 	nextOpIdx := 0
 
+	lines := strings.Split(p.rawLog, "\n")
 	for i, line := range lines {
 		// Check if this line starts an operation (using pre-computed array)
 		isStart := nextOpIdx < len(p.opStartLines) && i == p.opStartLines[nextOpIdx]
@@ -244,6 +250,7 @@ func (p *OpLogPanel) lineToOpIndex(visualLine int) int {
 
 	// Find the largest operation index where opStartLines[i] <= visualLine
 	opIdx := -1
+
 	for i, startLine := range p.opStartLines {
 		if startLine <= visualLine {
 			opIdx = i
@@ -251,6 +258,7 @@ func (p *OpLogPanel) lineToOpIndex(visualLine int) int {
 			break
 		}
 	}
+
 	return opIdx
 }
 
@@ -264,8 +272,10 @@ func (p *OpLogPanel) HandleClick(y int) bool {
 	if opIdx >= 0 && opIdx < len(p.operations) && opIdx != p.cursor {
 		p.cursor = opIdx
 		p.updateViewport()
+
 		return true
 	}
+
 	return false
 }
 
@@ -302,14 +312,18 @@ func (p OpLogPanel) View() string {
 		coloredID := p.changeID
 		if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
 			rest := p.changeID[len(p.shortCode):]
+
 			var outerColorCode string
+
 			if p.focused {
 				outerColorCode = AccentColorCode
 			} else {
 				outerColorCode = PrimaryColorCode
 			}
+
 			coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
 		}
+
 		title = PanelTitle(2, "Evolution: "+coloredID, p.focused)
 	default:
 		title = PanelTitle(2, "Operations Log", p.focused)

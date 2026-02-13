@@ -62,6 +62,7 @@ func (d *DescribeInput) SetSize(width, height int) {
 	if inputWidth < 20 {
 		inputWidth = 20
 	}
+
 	d.input.SetWidth(inputWidth)
 }
 
@@ -113,6 +114,7 @@ func (d *DescribeInput) Update(msg tea.Msg) tea.Cmd {
 				}
 			}
 		}
+
 		if key.Matches(msg, d.cancel) {
 			return func() tea.Msg {
 				return DescribeCancelMsg{}
@@ -122,7 +124,9 @@ func (d *DescribeInput) Update(msg tea.Msg) tea.Cmd {
 
 	// Forward to text input
 	var cmd tea.Cmd
+
 	d.input, cmd = d.input.Update(msg)
+
 	return cmd
 }
 

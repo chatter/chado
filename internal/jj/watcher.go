@@ -51,9 +51,11 @@ func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 			if strings.Contains(path, ".jj") || strings.Contains(path, ".git") {
 				return filepath.SkipDir
 			}
+
 			if err := watcher.Add(path); err == nil {
 				watchCount++
 			}
+
 			return nil
 		}
 

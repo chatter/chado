@@ -36,6 +36,7 @@ type LogPanel struct {
 func NewLogPanel() LogPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
+
 	return LogPanel{
 		viewport: vp,
 		changes:  []jj.Change{},
@@ -79,6 +80,7 @@ func findChangeIndex(changes []jj.Change, changeID string) int {
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -111,13 +113,15 @@ func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
 func (p *LogPanel) computeChangeStartLines() {
 	p.changeStartLines = nil
 	p.totalLines = 0
+
 	if p.rawLog == "" {
 		return
 	}
 
-	lines := strings.Split(p.rawLog, "\n")
 	// Count actual lines (newlines), not split elements (which includes trailing empty)
 	p.totalLines = strings.Count(p.rawLog, "\n")
+
+	lines := strings.Split(p.rawLog, "\n")
 	for i, line := range lines {
 		if isChangeStart(line) {
 			p.changeStartLines = append(p.changeStartLines, i)
@@ -130,6 +134,7 @@ func (p *LogPanel) SelectedChange() *jj.Change {
 	if p.cursor >= 0 && p.cursor < len(p.changes) {
 		return &p.changes[p.cursor]
 	}
+
 	return nil
 }
 
@@ -179,10 +184,11 @@ func (p *LogPanel) updateViewport() {
 		return
 	}
 
-	lines := strings.Split(p.rawLog, "\n")
 	var result strings.Builder
+
 	nextChangeIdx := 0
 
+	lines := strings.Split(p.rawLog, "\n")
 	for i, line := range lines {
 		// Check if this line starts a change (using pre-computed array)
 		isStart := nextChangeIdx < len(p.changeStartLines) && i == p.changeStartLines[nextChangeIdx]
@@ -228,6 +234,7 @@ func (p *LogPanel) lineToChangeIndex(visualLine int) int {
 
 	// Find the largest change index where changeStartLines[i] <= visualLine
 	changeIdx := -1
+
 	for i, startLine := range p.changeStartLines {
 		if startLine <= visualLine {
 			changeIdx = i
@@ -235,6 +242,7 @@ func (p *LogPanel) lineToChangeIndex(visualLine int) int {
 			break
 		}
 	}
+
 	return changeIdx
 }
 
@@ -248,8 +256,10 @@ func (p *LogPanel) HandleClick(y int) bool {
 	if changeIdx >= 0 && changeIdx < len(p.changes) && changeIdx != p.cursor {
 		p.cursor = changeIdx
 		p.updateViewport()
+
 		return true
 	}
+
 	return false
 }
 
@@ -291,6 +301,7 @@ func (p LogPanel) View() string {
 	}
 
 	content := title + "\n" + p.viewport.View()
+
 	return style.Render(content)
 }
 

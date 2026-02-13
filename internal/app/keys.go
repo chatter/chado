@@ -25,6 +25,7 @@ func dispatchKey(m *Model, msg tea.KeyMsg, bindings []ActionBinding) (*Model, te
 			return &newModel, cmd
 		}
 	}
+
 	return nil, nil
 }
 
@@ -34,6 +35,7 @@ func ToHelpBindings(abs []ActionBinding) []help.HelpBinding {
 	for i, ab := range abs {
 		result[i] = ab.HelpBinding
 	}
+
 	return result
 }
 

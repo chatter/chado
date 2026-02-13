@@ -13,6 +13,7 @@ import (
 func AnimatedFocusBorderStyle(phase float64, width, height int) lipgloss.Style {
 	perimeter := 2*width + 2*height
 	offset := int(phase * float64(perimeter))
+
 	return lipgloss.NewStyle().
 		Inherit(PanelStyle).
 		BorderForegroundBlend(RotatedFocusedBorderBlend(0)...).
@@ -25,14 +26,17 @@ func RotatedFocusedBorderBlend(phase float64) []color.Color {
 	if n == 0 {
 		return focusedBorderBlend
 	}
+
 	offset := int(phase*float64(n)) % n
 	if offset < 0 {
 		offset += n
 	}
+
 	out := make([]color.Color, n)
 	for i := 0; i < n; i++ {
 		out[i] = focusedBorderBlend[(offset+i)%n]
 	}
+
 	return out
 }
 
@@ -131,5 +135,6 @@ func PanelTitle(num int, title string, focused bool) string {
 	if focused {
 		return FocusedTitleStyle.Render(titleText)
 	}
+
 	return TitleStyle.Render(titleText)
 }
