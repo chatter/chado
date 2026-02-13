@@ -2,6 +2,7 @@ package jj
 
 import (
 	"bytes"
+	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -36,7 +37,7 @@ func (r *Runner) Run(args ...string) (string, error) {
 	if err != nil {
 		// Return stderr content for debugging
 		if stderr.Len() > 0 {
-			jjErr := &JJError{
+			jjErr := &Error{
 				Command: strings.Join(args, " "),
 				Stderr:  stderr.String(),
 				Err:     err,
@@ -48,7 +49,7 @@ func (r *Runner) Run(args ...string) (string, error) {
 
 		r.log.Error("jj command failed", "args", args, "err", err)
 
-		return "", err
+		return "", fmt.Errorf("jj command failed: %w", err)
 	}
 
 	r.log.Debug("jj command completed", "args", args, "output_len", len(stdout.String()))
@@ -278,7 +279,7 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 	newFileRe := regexp.MustCompile(`^new file mode`)
 	deletedFileRe := regexp.MustCompile(`^deleted file mode`)
 
-	for i, line := range lines {
+	for lineIdx, line := range lines {
 		stripped := stripANSI(line)
 
 		// Check jj native format first
@@ -305,7 +306,7 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 			}
 
 			// Check next few lines for status
-			for j := i + 1; j < len(lines) && j < i+5; j++ {
+			for j := lineIdx + 1; j < len(lines) && j < lineIdx+5; j++ {
 				nextLine := stripANSI(lines[j])
 				if newFileRe.MatchString(nextLine) {
 					file.Status = FileAdded
@@ -338,7 +339,8 @@ func FindHunks(diffOutput string) []Hunk {
 	jjFileRe := regexp.MustCompile(`^(Added|Modified|Removed) regular file .+:$`)
 
 	var currentHunk *Hunk
-	for i, line := range lines {
+
+	for lineIdx, line := range lines {
 		stripped := stripANSI(line)
 
 		isSection := gitHunkRe.MatchString(stripped) || jjFileRe.MatchString(stripped)
@@ -346,13 +348,13 @@ func FindHunks(diffOutput string) []Hunk {
 		if isSection {
 			// Close previous hunk
 			if currentHunk != nil {
-				currentHunk.EndLine = i - 1
+				currentHunk.EndLine = lineIdx - 1
 				hunks = append(hunks, *currentHunk)
 			}
 			// Start new hunk/section
 			currentHunk = &Hunk{
 				Header:    stripped,
-				StartLine: i,
+				StartLine: lineIdx,
 			}
 		}
 	}
@@ -372,13 +374,13 @@ func stripANSI(s string) string {
 	return ansiRe.ReplaceAllString(s, "")
 }
 
-// JJError represents an error from running a jj command
-type JJError struct {
+// Error represents an error from running a jj command
+type Error struct {
 	Command string
 	Stderr  string
 	Err     error
 }
 
-func (e *JJError) Error() string {
+func (e *Error) Error() string {
 	return "jj " + e.Command + ": " + e.Stderr
 }

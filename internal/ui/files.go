@@ -123,7 +123,8 @@ func (p *FilesPanel) updateViewport() {
 	}
 
 	var content strings.Builder
-	for i, file := range p.files {
+
+	for idx, file := range p.files {
 		// Status indicator with color
 		var status string
 
@@ -140,7 +141,7 @@ func (p *FilesPanel) updateViewport() {
 
 		// Selection indicator
 		cursor := "  "
-		if i == p.cursor {
+		if idx == p.cursor {
 			cursor = "→ "
 		}
 
@@ -233,15 +234,15 @@ func (p FilesPanel) View() string {
 }
 
 // HelpBindings returns the keybindings for this panel (display-only, for status bar)
-func (p FilesPanel) HelpBindings() []help.HelpBinding {
-	return []help.HelpBinding{
+func (p FilesPanel) HelpBindings() []help.Binding {
+	return []help.Binding{
 		{
-			Binding:  key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
 			Category: help.CategoryNavigation,
 			Order:    1,
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
 			Category: help.CategoryNavigation,
 			Order:    2,
 		},

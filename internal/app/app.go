@@ -716,7 +716,7 @@ func (m *Model) setFocusBorderAnimating(animating bool) {
 
 // startLogPanelBorderAnimWithPhase schedules the next tick with phase and generation.
 func (m *Model) startLogPanelBorderAnimWithPhase(phase float64, generation int) tea.Cmd {
-	return tea.Tick(15*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(15*time.Millisecond, func(_ time.Time) tea.Msg {
 		return borderAnimTickMsg{Phase: phase, Generation: generation}
 	})
 }
@@ -886,7 +886,7 @@ func (m *Model) activeBindings() []ActionBinding {
 
 // activeHelpBindings returns all display bindings for the current context.
 // Used by the status bar to show context-sensitive help.
-func (m *Model) activeHelpBindings() []help.HelpBinding {
+func (m *Model) activeHelpBindings() []help.Binding {
 	// Start with global bindings
 	bindings := ToHelpBindings(m.globalBindings())
 
@@ -912,8 +912,8 @@ func (m *Model) globalBindings() []ActionBinding {
 	return []ActionBinding{
 		// Quit - pinned, always visible
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Quit,
+			Binding: help.Binding{
+				Key:      m.keys.Quit,
 				Category: help.CategoryActions,
 				Order:    100,
 				Pinned:   true,
@@ -922,24 +922,24 @@ func (m *Model) globalBindings() []ActionBinding {
 		},
 		// Pane focus - "#" represents 0/1 (deduped by description)
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.FocusPane0,
+			Binding: help.Binding{
+				Key:      m.keys.FocusPane0,
 				Category: help.CategoryNavigation,
 				Order:    50,
 			},
 			Action: (*Model).actionFocusPane0,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.FocusPane1,
+			Binding: help.Binding{
+				Key:      m.keys.FocusPane1,
 				Category: help.CategoryNavigation,
 				Order:    51,
 			},
 			Action: (*Model).actionFocusPane1,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.FocusPane2,
+			Binding: help.Binding{
+				Key:      m.keys.FocusPane2,
 				Category: help.CategoryNavigation,
 				Order:    52,
 			},
@@ -947,16 +947,16 @@ func (m *Model) globalBindings() []ActionBinding {
 		},
 		// Next/prev pane - combined keys
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.NextPane,
+			Binding: help.Binding{
+				Key:      m.keys.NextPane,
 				Category: help.CategoryNavigation,
 				Order:    20,
 			},
 			Action: (*Model).actionNextPane,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.PrevPane,
+			Binding: help.Binding{
+				Key:      m.keys.PrevPane,
 				Category: help.CategoryNavigation,
 				Order:    21,
 			},
@@ -964,48 +964,48 @@ func (m *Model) globalBindings() []ActionBinding {
 		},
 		// Actions
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Enter,
+			Binding: help.Binding{
+				Key:      m.keys.Enter,
 				Category: help.CategoryActions,
 				Order:    10,
 			},
 			Action: (*Model).actionEnter,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Back,
+			Binding: help.Binding{
+				Key:      m.keys.Back,
 				Category: help.CategoryActions,
 				Order:    11,
 			},
 			Action: (*Model).actionBack,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Describe,
+			Binding: help.Binding{
+				Key:      m.keys.Describe,
 				Category: help.CategoryActions,
 				Order:    12,
 			},
 			Action: (*Model).actionDescribe,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Edit,
+			Binding: help.Binding{
+				Key:      m.keys.Edit,
 				Category: help.CategoryActions,
 				Order:    13,
 			},
 			Action: (*Model).actionEdit,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.New,
+			Binding: help.Binding{
+				Key:      m.keys.New,
 				Category: help.CategoryActions,
 				Order:    14,
 			},
 			Action: (*Model).actionNew,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Abandon,
+			Binding: help.Binding{
+				Key:      m.keys.Abandon,
 				Category: help.CategoryActions,
 				Order:    15,
 			},
@@ -1013,8 +1013,8 @@ func (m *Model) globalBindings() []ActionBinding {
 		},
 		// Help toggle - pinned, always visible
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Help,
+			Binding: help.Binding{
+				Key:      m.keys.Help,
 				Category: help.CategoryActions,
 				Order:    99,
 				Pinned:   true,
@@ -1136,13 +1136,13 @@ func (m *Model) updatePanelSizes() {
 
 // View renders the application
 func (m Model) View() tea.View {
-	v := tea.NewView("")
-	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
+	view := tea.NewView("")
+	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
 
 	if m.width == 0 || m.height == 0 {
-		v.SetContent("Loading...")
-		return v
+		view.SetContent("Loading...")
+		return view
 	}
 
 	// Render left panels (log/files + op log stacked)
@@ -1172,14 +1172,14 @@ func (m Model) View() tea.View {
 
 	// Show floating help modal if active
 	if m.showHelp {
-		v.SetContent(m.renderWithOverlay(base))
+		view.SetContent(m.renderWithOverlay(base))
 	} else if m.editMode {
-		v.SetContent(m.renderWithDescribeOverlay(base))
+		view.SetContent(m.renderWithDescribeOverlay(base))
 	} else {
-		v.SetContent(base)
+		view.SetContent(base)
 	}
 
-	return v
+	return view
 }
 
 // renderWithOverlay composites the help modal on top of the base view

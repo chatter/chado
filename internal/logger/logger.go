@@ -50,14 +50,14 @@ func New(level string) (*Logger, error) {
 		Level: slogLevel,
 	})
 
-	l := &Logger{
+	logger := &Logger{
 		log:     slog.New(handler),
 		logFile: logFile,
 	}
 
-	l.Info("chado started", "pid", os.Getpid(), "level", level, "log_path", logFile.Name())
+	logger.Info("chado started", "pid", os.Getpid(), "level", level, "log_path", logFile.Name())
 
-	return l, nil
+	return logger, nil
 }
 
 // Close closes the log file if open.

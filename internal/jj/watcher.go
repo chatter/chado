@@ -1,6 +1,7 @@
 package jj
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -29,7 +30,8 @@ func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Error("failed to create fsnotify watcher", "err", err)
-		return nil, err
+
+		return nil, fmt.Errorf("creating fsnotify watcher: %w", err)
 	}
 
 	// Watch the .jj/repo/op_heads/heads directory for changes
@@ -37,7 +39,8 @@ func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 	if err := watcher.Add(jjPath); err != nil {
 		log.Error("failed to watch .jj directory", "path", jjPath, "err", err)
 		watcher.Close()
-		return nil, err
+
+		return nil, fmt.Errorf("watching .jj directory: %w", err)
 	}
 
 	// Walk the repo directory and add all subdirectories to the watcher
@@ -134,8 +137,13 @@ func (w *Watcher) Errors() <-chan error {
 	return w.watcher.Errors
 }
 
-// Close stops the watcher
+// Close stops the watcher.
 func (w *Watcher) Close() error {
 	close(w.done)
-	return w.watcher.Close()
+
+	if err := w.watcher.Close(); err != nil {
+		return fmt.Errorf("closing fsnotify watcher: %w", err)
+	}
+
+	return nil
 }

@@ -22,19 +22,19 @@ func AnimatedFocusBorderStyle(phase float64, width, height int) lipgloss.Style {
 
 // RotatedFocusedBorderBlend returns focusedBorderBlend rotated by phase (0..1 = one full wrap).
 func RotatedFocusedBorderBlend(phase float64) []color.Color {
-	const n = 5
-	if n == 0 {
+	const blendCount = 5
+	if blendCount == 0 {
 		return focusedBorderBlend
 	}
 
-	offset := int(phase*float64(n)) % n
+	offset := int(phase*float64(blendCount)) % blendCount
 	if offset < 0 {
-		offset += n
+		offset += blendCount
 	}
 
-	out := make([]color.Color, n)
-	for i := 0; i < n; i++ {
-		out[i] = focusedBorderBlend[(offset+i)%n]
+	out := make([]color.Color, blendCount)
+	for i := 0; i < blendCount; i++ {
+		out[i] = focusedBorderBlend[(offset+i)%blendCount]
 	}
 
 	return out

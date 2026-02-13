@@ -11,7 +11,7 @@ import (
 type FloatingHelp struct {
 	width    int
 	height   int
-	bindings []HelpBinding
+	bindings []Binding
 
 	// Styles (cached for frame size calculations)
 	borderStyle lipgloss.Style
@@ -41,7 +41,7 @@ func (f *FloatingHelp) SetSize(width, height int) {
 }
 
 // SetBindings sets the keybindings to display.
-func (f *FloatingHelp) SetBindings(bindings []HelpBinding) {
+func (f *FloatingHelp) SetBindings(bindings []Binding) {
 	f.bindings = bindings
 }
 
@@ -112,29 +112,29 @@ var categoryOrder = []Category{
 
 // groupByCategory groups enabled bindings by category, deduping by description.
 // If multiple bindings have the same description, only the first (lowest Order) is kept.
-func (f *FloatingHelp) groupByCategory() map[Category][]HelpBinding {
-	groups := make(map[Category][]HelpBinding)
+func (f *FloatingHelp) groupByCategory() map[Category][]Binding {
+	groups := make(map[Category][]Binding)
 
 	// Track seen descriptions per category to dedupe
 	seen := make(map[Category]map[string]bool)
 
-	for _, hb := range f.bindings {
-		if !hb.Binding.Enabled() {
+	for _, binding := range f.bindings {
+		if !binding.Key.Enabled() {
 			continue
 		}
 
-		desc := hb.Binding.Help().Desc
-		if seen[hb.Category] == nil {
-			seen[hb.Category] = make(map[string]bool)
+		desc := binding.Key.Help().Desc
+		if seen[binding.Category] == nil {
+			seen[binding.Category] = make(map[string]bool)
 		}
 
 		// Skip if we've already seen this description in this category
-		if seen[hb.Category][desc] {
+		if seen[binding.Category][desc] {
 			continue
 		}
 
-		seen[hb.Category][desc] = true
-		groups[hb.Category] = append(groups[hb.Category], hb)
+		seen[binding.Category][desc] = true
+		groups[binding.Category] = append(groups[binding.Category], binding)
 	}
 
 	// Sort bindings within each category by order
@@ -157,7 +157,7 @@ type column struct {
 // renderColumns renders categories in a flowing column layout.
 // Categories wrap to the next row if they don't fit horizontally.
 // Returns the rendered content, its width, and its height.
-func (f *FloatingHelp) renderColumns(groups map[Category][]HelpBinding, maxWidth int) (string, int, int) {
+func (f *FloatingHelp) renderColumns(groups map[Category][]Binding, maxWidth int) (string, int, int) {
 	if len(groups) == 0 {
 		return "No keybindings available", 24, 1
 	}
@@ -224,7 +224,7 @@ func (f *FloatingHelp) renderColumns(groups map[Category][]HelpBinding, maxWidth
 }
 
 // buildColumns creates column structures for each category
-func (f *FloatingHelp) buildColumns(groups map[Category][]HelpBinding) []column {
+func (f *FloatingHelp) buildColumns(groups map[Category][]Binding) []column {
 	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62")).Underline(true)
@@ -241,7 +241,7 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]HelpBinding) []column 
 		maxKeyWidth := 0
 
 		for _, hb := range bindings {
-			w := lipgloss.Width(hb.Binding.Help().Key)
+			w := lipgloss.Width(hb.Key.Help().Key)
 			if w > maxKeyWidth {
 				maxKeyWidth = w
 			}
@@ -254,7 +254,7 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]HelpBinding) []column 
 		colWidth := lipgloss.Width(string(cat))
 
 		for _, hb := range bindings {
-			help := hb.Binding.Help()
+			help := hb.Key.Help()
 			key := keyStyle.Width(maxKeyWidth + 2).Render(help.Key) // +2 for breathing room
 			desc := descStyle.Render(help.Desc)
 			line := key + desc

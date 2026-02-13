@@ -9,8 +9,8 @@ import (
 	"pgregory.net/rapid"
 )
 
-// generateBinding creates a random HelpBinding
-func generateBinding(t *rapid.T, idx int) HelpBinding {
+// generateBinding creates a random Binding
+func generateBinding(t *rapid.T, idx int) Binding {
 	keyStr := string(rune('a' + idx%26))
 	desc := rapid.StringMatching(`[a-z]{3,10}`).Draw(t, "desc")
 	order := rapid.IntRange(0, 100).Draw(t, "order")
@@ -22,16 +22,16 @@ func generateBinding(t *rapid.T, idx int) HelpBinding {
 		binding.SetEnabled(false)
 	}
 
-	return HelpBinding{
-		Binding:  binding,
+	return Binding{
+		Key:      binding,
 		Category: category,
 		Order:    order,
 	}
 }
 
-func generateBindings(t *rapid.T) []HelpBinding {
+func generateBindings(t *rapid.T) []Binding {
 	numBindings := rapid.IntRange(0, 20).Draw(t, "numBindings")
-	bindings := make([]HelpBinding, numBindings)
+	bindings := make([]Binding, numBindings)
 	for i := 0; i < numBindings; i++ {
 		bindings[i] = generateBinding(t, i)
 	}
@@ -97,13 +97,13 @@ func TestStatusBar_DisabledBindingsNeverAppear(t *testing.T) {
 
 		// Create some disabled bindings with unique descriptions
 		numBindings := rapid.IntRange(1, 10).Draw(t, "numBindings")
-		bindings := make([]HelpBinding, numBindings)
+		bindings := make([]Binding, numBindings)
 		for i := 0; i < numBindings; i++ {
 			desc := "disabled" + string(rune('0'+i))
 			binding := key.NewBinding(key.WithKeys("x"), key.WithHelp("x", desc))
 			binding.SetEnabled(false)
-			bindings[i] = HelpBinding{
-				Binding:  binding,
+			bindings[i] = Binding{
+				Key:      binding,
 				Category: CategoryActions,
 				Order:    i,
 			}
@@ -130,15 +130,15 @@ func TestStatusBar_BindingsOrderedByPriority(t *testing.T) {
 
 		// Create bindings with distinct orders and descriptions that reveal order
 		numBindings := rapid.IntRange(2, 5).Draw(t, "numBindings")
-		bindings := make([]HelpBinding, numBindings)
+		bindings := make([]Binding, numBindings)
 		orders := make([]int, numBindings)
 
 		for i := 0; i < numBindings; i++ {
 			orders[i] = rapid.IntRange(0, 100).Draw(t, "order")
 			desc := "d" + string(rune('a'+i)) // da, db, dc, etc.
 			binding := key.NewBinding(key.WithKeys(string(rune('a'+i))), key.WithHelp(string(rune('a'+i)), desc))
-			bindings[i] = HelpBinding{
-				Binding:  binding,
+			bindings[i] = Binding{
+				Key:      binding,
 				Category: CategoryNavigation,
 				Order:    orders[i],
 			}
@@ -179,14 +179,14 @@ func TestStatusBar_SeparatorBetweenMultipleBindings(t *testing.T) {
 		width := rapid.IntRange(100, 300).Draw(t, "width")
 
 		// Create exactly 2 enabled bindings
-		bindings := []HelpBinding{
+		bindings := []Binding{
 			{
-				Binding:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "first")),
+				Key:      key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "first")),
 				Category: CategoryNavigation,
 				Order:    1,
 			},
 			{
-				Binding:  key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "second")),
+				Key:      key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "second")),
 				Category: CategoryNavigation,
 				Order:    2,
 			},
@@ -235,10 +235,10 @@ func TestStatusBar_PinnedBindingsAlwaysAppear(t *testing.T) {
 
 		// Create many regular bindings that will get truncated
 		numRegular := rapid.IntRange(5, 15).Draw(t, "numRegular")
-		bindings := make([]HelpBinding, numRegular+1)
+		bindings := make([]Binding, numRegular+1)
 		for i := 0; i < numRegular; i++ {
-			bindings[i] = HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys(string(rune('a'+i))), key.WithHelp(string(rune('a'+i)), "action"+string(rune('0'+i)))),
+			bindings[i] = Binding{
+				Key:      key.NewBinding(key.WithKeys(string(rune('a'+i))), key.WithHelp(string(rune('a'+i)), "action"+string(rune('0'+i)))),
 				Category: CategoryNavigation,
 				Order:    i,
 				Pinned:   false,
@@ -246,8 +246,8 @@ func TestStatusBar_PinnedBindingsAlwaysAppear(t *testing.T) {
 		}
 
 		// Add one pinned binding
-		bindings[numRegular] = HelpBinding{
-			Binding:  key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		bindings[numRegular] = Binding{
+			Key:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 			Category: CategoryActions,
 			Order:    99,
 			Pinned:   true,

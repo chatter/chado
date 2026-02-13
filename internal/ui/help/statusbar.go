@@ -11,7 +11,7 @@ import (
 type StatusBar struct {
 	width    int
 	version  string
-	bindings []HelpBinding
+	bindings []Binding
 
 	// Styles
 	keyStyle  lipgloss.Style
@@ -36,7 +36,7 @@ func NewStatusBar(version string) *StatusBar {
 }
 
 // SetBindings sets the keybindings to display.
-func (s *StatusBar) SetBindings(bindings []HelpBinding) {
+func (s *StatusBar) SetBindings(bindings []Binding) {
 	s.bindings = bindings
 }
 
@@ -54,30 +54,31 @@ func (s *StatusBar) View() string {
 	// Dedupe bindings by description (keep first occurrence)
 	seen := make(map[string]bool)
 
-	var deduped []HelpBinding
-	for _, hb := range s.bindings {
-		if !hb.Binding.Enabled() {
+	var deduped []Binding
+
+	for _, binding := range s.bindings {
+		if !binding.Key.Enabled() {
 			continue
 		}
 
-		desc := hb.Binding.Help().Desc
+		desc := binding.Key.Help().Desc
 		if seen[desc] {
 			continue
 		}
 
 		seen[desc] = true
 
-		deduped = append(deduped, hb)
+		deduped = append(deduped, binding)
 	}
 
 	// Separate pinned and regular bindings
-	var pinned, regular []HelpBinding
+	var pinned, regular []Binding
 
-	for _, hb := range deduped {
-		if hb.Pinned {
-			pinned = append(pinned, hb)
+	for _, binding := range deduped {
+		if binding.Pinned {
+			pinned = append(pinned, binding)
 		} else {
-			regular = append(regular, hb)
+			regular = append(regular, binding)
 		}
 	}
 
@@ -104,8 +105,8 @@ func (s *StatusBar) View() string {
 
 	pinnedWidth := 0
 
-	for _, hb := range pinned {
-		help := hb.Binding.Help()
+	for _, binding := range pinned {
+		help := binding.Key.Help()
 		part := s.keyStyle.Render(help.Key) + " " + s.descStyle.Render(help.Desc)
 		pinnedParts = append(pinnedParts, part)
 
@@ -125,8 +126,8 @@ func (s *StatusBar) View() string {
 	ellipsis := "…"
 	ellipsisWidth := lipgloss.Width(ellipsis)
 
-	for i, hb := range regular {
-		help := hb.Binding.Help()
+	for bindingIdx, binding := range regular {
+		help := binding.Key.Help()
 		part := s.keyStyle.Render(help.Key) + " " + s.descStyle.Render(help.Desc)
 		partWidth := lipgloss.Width(part)
 
@@ -138,7 +139,7 @@ func (s *StatusBar) View() string {
 
 		// Check if adding this part would exceed available width
 		reserveForEllipsis := 0
-		if i < len(regular)-1 {
+		if bindingIdx < len(regular)-1 {
 			reserveForEllipsis = ellipsisWidth + separatorWidth
 		}
 

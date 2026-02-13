@@ -390,20 +390,20 @@ func stripANSI(s string) string {
 }
 
 // HelpBindings returns the keybindings for this panel (display-only, for status bar)
-func (p DiffPanel) HelpBindings() []help.HelpBinding {
-	return []help.HelpBinding{
+func (p DiffPanel) HelpBindings() []help.Binding {
+	return []help.Binding{
 		{
-			Binding:  key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
 			Category: help.CategoryNavigation,
 			Order:    1,
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("{", "}"), key.WithHelp("{/}", "next/prev hunk")),
+			Key:      key.NewBinding(key.WithKeys("{", "}"), key.WithHelp("{/}", "next/prev hunk")),
 			Category: help.CategoryDiff,
 			Order:    1,
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
 			Category: help.CategoryNavigation,
 			Order:    2,
 		},

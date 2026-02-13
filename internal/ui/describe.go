@@ -26,13 +26,13 @@ type DescribeInput struct {
 
 // NewDescribeInput creates a new describe input overlay.
 func NewDescribeInput() *DescribeInput {
-	ti := textinput.New()
-	ti.Placeholder = "Enter description..."
-	ti.CharLimit = 256
-	ti.Focus()
+	input := textinput.New()
+	input.Placeholder = "Enter description..."
+	input.CharLimit = 256
+	input.Focus()
 
 	return &DescribeInput{
-		input: ti,
+		input: input,
 		submit: key.NewBinding(
 			key.WithKeys("enter"),
 		),
