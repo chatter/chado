@@ -72,6 +72,9 @@ type Model struct {
 	// Focus border animation (one wrap when any panel is focused)
 	logPanelBorderPhase  float64
 	borderAnimGeneration int // incremented on each focus change so stale ticks are ignored
+
+	// Watcher coalescing: one refresh per burst of file-system events
+	watcherPending bool // true while a watcherFlushMsg tick is in flight
 }
 
 // borderAnimTickMsg is sent each frame during the focus border wrap animation.
@@ -247,8 +250,7 @@ func (m Model) waitForChange() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		<-m.watcher.Events()               // Block until valid event
-		time.Sleep(100 * time.Millisecond) // Debounce
+		<-m.watcher.Events() // Block until valid event
 		return jj.WatcherMsg{}
 	}
 }
@@ -297,6 +299,9 @@ type watcherStartedMsg struct {
 	watcher *jj.Watcher
 	err     error
 }
+
+// watcherFlushMsg fires after the coalescing delay; triggers one refresh.
+type watcherFlushMsg struct{}
 
 type errMsg struct {
 	err error
@@ -430,7 +435,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case jj.WatcherMsg:
-		// Refresh on file system changes
+		// Coalesce: schedule a single flush after a short delay.
+		// Do NOT refresh or re-arm waitForChange here.
+		if !m.watcherPending {
+			m.watcherPending = true
+			cmds = append(cmds, tea.Tick(300*time.Millisecond, func(time.Time) tea.Msg {
+				return watcherFlushMsg{}
+			}))
+		}
+
+	case watcherFlushMsg:
+		// One refresh per burst, then re-arm the watcher.
+		m.watcherPending = false
 		cmds = append(cmds, m.loadLog(), m.loadOpLog(), m.waitForChange())
 
 		// If drilled into files view, reload file list and current diff

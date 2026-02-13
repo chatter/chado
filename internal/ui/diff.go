@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"crypto/sha256"
 	"regexp"
 	"strings"
 
@@ -31,9 +32,10 @@ type DiffPanel struct {
 	diffContent     string
 	hunks           []jj.Hunk
 	currentHunk     int
-	headerLines     int     // Number of lines in the header (offset for hunk positions)
-	borderAnimPhase float64 // 0..1 for focus border animation
-	borderAnimating bool    // true only while the one-shot wrap is running
+	headerLines     int      // Number of lines in the header (offset for hunk positions)
+	contentHash     [32]byte // SHA-256 of diffContent; used to skip no-op SetDiff calls
+	borderAnimPhase float64  // 0..1 for focus border animation
+	borderAnimating bool     // true only while the one-shot wrap is running
 }
 
 // DetailsHeader contains the commit details shown above the diff
@@ -94,8 +96,14 @@ func (p *DiffPanel) SetDetails(details DetailsHeader) {
 	p.updateContent()
 }
 
-// SetDiff sets the diff content
+// SetDiff sets the diff content. If the content is unchanged (same SHA-256
+// hash), it returns immediately — no viewport update, no scroll reset.
 func (p *DiffPanel) SetDiff(diff string) {
+	hash := sha256.Sum256([]byte(diff))
+	if hash == p.contentHash {
+		return
+	}
+	p.contentHash = hash
 	p.diffContent = diff
 	p.hunks = jj.FindHunks(diff)
 	p.currentHunk = noHunkSelected

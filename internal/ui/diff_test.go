@@ -402,6 +402,48 @@ func TestDiffPanel_SetDiffResetsHunk(t *testing.T) {
 	})
 }
 
+// Property: SetDiff with same content preserves scroll position and hunk
+func TestDiffPanel_SetDiffSameContentPreservesScroll(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		panel := NewDiffPanel()
+		panel.SetSize(80, 24)
+
+		// Generate diff content with enough lines to scroll
+		numLines := rapid.IntRange(30, 200).Draw(t, "numLines")
+		var b strings.Builder
+		for i := 0; i < numLines; i++ {
+			b.WriteString("line content\n")
+		}
+		diff := b.String()
+
+		// Set initial diff (this goes to top)
+		panel.SetDiff(diff)
+
+		// Scroll to a random offset
+		maxOffset := numLines - panel.viewport.Height()
+		if maxOffset < 1 {
+			return
+		}
+		offset := rapid.IntRange(1, maxOffset).Draw(t, "scrollOffset")
+		panel.viewport.SetYOffset(offset)
+		panel.syncCurrentHunk()
+		savedOffset := panel.viewport.YOffset()
+		savedHunk := panel.currentHunk
+
+		// Set the same diff again — should be a no-op
+		panel.SetDiff(diff)
+
+		if panel.viewport.YOffset() != savedOffset {
+			t.Fatalf("expected YOffset=%d after same SetDiff, got %d",
+				savedOffset, panel.viewport.YOffset())
+		}
+		if panel.currentHunk != savedHunk {
+			t.Fatalf("expected currentHunk=%d after same SetDiff, got %d",
+				savedHunk, panel.currentHunk)
+		}
+	})
+}
+
 // Property: NextHunk increments currentHunk and positions viewport at hunk start
 func TestNextHunk_IncrementsAndPositions(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {

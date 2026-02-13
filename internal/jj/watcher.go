@@ -64,7 +64,7 @@ func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 
 	self := &Watcher{
 		watcher:  watcher,
-		filtered: make(chan fsnotify.Event),
+		filtered: make(chan fsnotify.Event, 1),
 		done:     make(chan struct{}),
 		log:      log,
 	}
@@ -107,7 +107,13 @@ func (w *Watcher) filterEvents() {
 			}
 
 			w.log.Debug("file change detected", "path", event.Name, "op", event.Op.String())
-			w.filtered <- event
+			// Non-blocking send: drop event when channel is full so the
+			// watcher goroutine never blocks during event bursts.
+			select {
+			case w.filtered <- event:
+			default:
+				w.log.Debug("watcher event dropped (pending)", "path", event.Name)
+			}
 		case err := <-w.watcher.Errors:
 			if err != nil {
 				w.log.Warn("watcher error", "err", err)
