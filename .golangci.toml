@@ -1,0 +1,128 @@
+version = '2'
+
+[linters]
+enable = [
+  # Correctness — catch real bugs
+  'bodyclose',
+  'copyloopvar',
+  'durationcheck',
+  'embeddedstructfieldcheck',
+  'errcheck',
+  'fatcontext',
+  'forcetypeassert',
+  'gochecknoglobals',
+  'gochecknoinits',
+  'govet',
+  'ineffassign',
+  'makezero',
+  'nilerr',
+  'nilnesserr',
+  'noctx',
+  'reassign',
+  'recvcheck',
+  'staticcheck',
+  'unused',
+  'wastedassign',
+
+  # Error handling discipline
+  'err113',
+  'errchkjson',
+  'errname',
+  'errorlint',
+  'wrapcheck',
+
+  # Readability and style
+  'asciicheck',
+  'bidichk',
+  'decorder',
+  'dupword',
+  'funcorder',
+  'godot',
+  'goconst',
+  'inamedparam',
+  'misspell',
+  'mnd',
+  'nestif',
+  'nonamedreturns',
+  'prealloc',
+  'predeclared',
+  'unconvert',
+  'unparam',
+  'varnamelen',
+  'wsl_v5',
+
+  # Modernization
+  'exptostd',
+  'intrange',
+  'modernize',
+  'perfsprint',
+  'usestdlibvars',
+
+  # Complexity
+  'gocognit',
+
+  # Meta-linters
+  'gocritic',
+  'revive',
+
+  # Testing
+  'paralleltest',
+  'testableexamples',
+  'thelper',
+  'tparallel',
+  'usetesting',
+
+  # Documentation
+  'godoclint',
+  'godot',
+
+  # Security
+  'gosec',
+
+  # Self-governance
+  'nolintlint',
+]
+
+[linters.exclusions]
+generated = 'lax'
+presets = [
+  'comments',
+  'common-false-positives',
+  'legacy',
+  'std-error-handling',
+]
+paths = [
+  '_test\.go$',
+  'third_party$',
+  'builtin$',
+  'examples$',
+]
+
+[linters.settings.embeddedstructfieldcheck]
+empty-line = true
+forbid-mutex = true
+
+
+[linters.settings.gocognit]
+min-complexity = 15
+
+[linters.settings.godoclint]
+default = 'all'
+
+
+[linters.settings.staticcheck]
+checks = ['all']
+
+[formatters]
+enable = ['gofumpt']
+
+[formatters.exclusions]
+generated = 'lax'
+paths = [
+  'third_party$',
+  'builtin$',
+  'examples$',
+]
+
+[issues]
+max-issues-per-linter = 0
