@@ -201,7 +201,6 @@ type logLoadedMsg struct {
 
 type diffLoadedMsg struct {
 	changeID   string
-	showOutput string
 	diffOutput string
 }
 
@@ -321,13 +320,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case diffLoadedMsg:
 		m.currentDiff = msg.diffOutput
-
-		details := ui.ParseDetailsFromShow(msg.showOutput)
-		if details.ChangeID == "" {
-			details.ChangeID = msg.changeID
-		}
-
-		m.diffPanel.SetDetails(details)
 		m.diffPanel.SetDiff(msg.diffOutput)
 
 	case filesLoadedMsg:
@@ -341,7 +333,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case fileDiffLoadedMsg:
-		m.diffPanel.SetShowDetails(false)
 		m.diffPanel.SetTitle("Patch")
 		m.diffPanel.SetDiff(msg.diffOutput)
 
@@ -364,7 +355,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case opShowLoadedMsg:
-		m.diffPanel.SetShowDetails(false)
 		m.diffPanel.SetTitle("Operation")
 		m.diffPanel.SetDiff(msg.output)
 
@@ -800,7 +790,6 @@ func (m *Model) handleBack() tea.Cmd {
 		// Go back to log view
 		m.viewMode = ViewLog
 		m.updatePanelFocus() // log now visible in left slot; focused, not animated
-		m.diffPanel.SetShowDetails(true)
 		m.diffPanel.SetTitle("Diff")
 		// Restore full diff for selected change
 		if change := m.logPanel.SelectedChange(); change != nil {
@@ -960,18 +949,14 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 // loadDiff fetches the diff for a change.
 func (m *Model) loadDiff(changeID string) tea.Cmd {
 	return func() tea.Msg {
-		// Get show output for details
-		showOutput, _ := m.runner.Show(changeID)
-
 		// Get diff
-		diffOutput, err := m.runner.Diff(changeID)
+		diffOutput, err := m.runner.Show(changeID)
 		if err != nil {
 			return errMsg{err}
 		}
 
 		return diffLoadedMsg{
 			changeID:   changeID,
-			showOutput: showOutput,
 			diffOutput: diffOutput,
 		}
 	}

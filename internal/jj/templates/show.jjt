@@ -1,0 +1,21 @@
+if(conflict,
+  raw_escape_sequence("\x1b[31m") ++ "Rev:    " ++ raw_escape_sequence("\x1b[0m"),
+  if(self.contained_in("::remote_bookmarks()"),
+    raw_escape_sequence("\x1b[34m") ++ "Rev:    " ++ raw_escape_sequence("\x1b[0m"),
+    "Rev:    "
+  )
+) ++ change_id.shortest() ++ " (" ++ commit_id.short() ++ ")" ++ "\n" ++
+
+if(signature,
+  raw_escape_sequence("\x1b[32m") ++ "Author: " ++ raw_escape_sequence("\x1b[0m"),
+  "Author: "
+) ++ author ++ "\n" ++
+
+"Date:   " ++ author.timestamp().local().format("%Y-%m-%d %H:%M:%S %z") ++ "\n" ++
+
+if(bookmarks,
+  "Refs:   " ++ bookmarks.map(|b| b).join(", ") ++ "\n"
+) ++
+
+"----\n" ++
+description ++ "\n"

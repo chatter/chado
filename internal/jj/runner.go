@@ -14,14 +14,15 @@ import (
 
 // Runner executes jj commands and returns output.
 type Runner struct {
-	ctx     context.Context
-	workDir string
-	log     *logger.Logger
+	ctx       context.Context
+	workDir   string
+	log       *logger.Logger
+	templates *Templates
 }
 
 // NewRunner creates a new jj command runner.
 func NewRunner(ctx context.Context, workDir string, log *logger.Logger) *Runner {
-	return &Runner{ctx: ctx, workDir: workDir, log: log}
+	return &Runner{ctx: ctx, workDir: workDir, log: log, templates: NewTemplates()}
 }
 
 // Run executes a jj command and returns the output with colors preserved.
@@ -72,7 +73,7 @@ func (r *Runner) LogWithTemplate(template string) (string, error) {
 
 // Show returns details for a specific revision.
 func (r *Runner) Show(rev string) (string, error) {
-	return r.Run("show", "-r", rev, "--color=always")
+	return r.Run("show", "-r", rev, "--color=always", "-T", r.templates.Get("show"))
 }
 
 // Diff returns the diff for a revision.
@@ -343,7 +344,7 @@ func FindHunks(diffOutput string) []Hunk {
 	// Git-style hunk header
 	gitHunkRe := regexp.MustCompile(`^@@.*@@`)
 	// jj-style file headers
-	jjFileRe := regexp.MustCompile(`^(Added|Modified|Removed) regular file .+:$`)
+	jjFileRe := regexp.MustCompile(`^(Added|Modified|Removed) regular file .+:\s*$`)
 
 	var currentHunk *Hunk
 
