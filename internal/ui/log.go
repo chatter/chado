@@ -48,9 +48,9 @@ func NewLogPanel() LogPanel {
 func (p *LogPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
-	// Account for border (2) and title (1)
-	p.viewport.SetWidth(width - 2)
-	p.viewport.SetHeight(height - 3)
+	// Account for border and title
+	p.viewport.SetWidth(width - PanelBorderWidth)
+	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
 // SetFocused sets the focus state
@@ -221,7 +221,7 @@ func (p *LogPanel) ensureCursorVisible() {
 	if cursorLine < viewTop {
 		p.viewport.SetYOffset(cursorLine)
 	} else if cursorLine >= viewBottom {
-		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + 2)
+		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + ScrollPadding)
 	}
 }
 
@@ -311,12 +311,12 @@ func (p LogPanel) HelpBindings() []help.Binding {
 		{
 			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
 			Category: help.CategoryNavigation,
-			Order:    1,
+			Order:    PanelOrderPrimary,
 		},
 		{
 			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
 			Category: help.CategoryNavigation,
-			Order:    2,
+			Order:    PanelOrderSecondary,
 		},
 	}
 }

@@ -8,10 +8,37 @@ import (
 	"github.com/charmbracelet/colorprofile"
 )
 
+const (
+	// PanelBorderWidth is the horizontal space consumed by left + right borders.
+	PanelBorderWidth = 2
+
+	// PanelBorderHeight is the vertical space consumed by top + bottom borders.
+	PanelBorderHeight = 2
+
+	// PanelTitleHeight is the vertical space consumed by the title row.
+	PanelTitleHeight = 1
+
+	// PanelChromeHeight is total vertical chrome: borders + title.
+	PanelChromeHeight = PanelBorderHeight + PanelTitleHeight
+
+	// borderSidesPerDimension is the rectangle side count per axis (used
+	// in the perimeter formula: 2*width + 2*height).
+	borderSidesPerDimension = 2
+
+	// PanelOrderPrimary and PanelOrderSecondary are panel-level help binding
+	// display priorities (lower = shown first).
+	PanelOrderPrimary   = 1
+	PanelOrderSecondary = 2
+
+	// ScrollPadding is the number of lines of context kept visible below the
+	// cursor when scrolling the viewport to keep the cursor in view.
+	ScrollPadding = 2
+)
+
 // AnimatedFocusBorderStyle returns the panel style with the focus border animation at the given phase.
 // Use when a panel is focused and the border wrap animation is running.
 func AnimatedFocusBorderStyle(phase float64, width, height int) lipgloss.Style {
-	perimeter := 2*width + 2*height
+	perimeter := borderSidesPerDimension*width + borderSidesPerDimension*height
 	offset := int(phase * float64(perimeter))
 
 	return lipgloss.NewStyle().

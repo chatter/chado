@@ -7,6 +7,10 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+// statusBarPadding is the horizontal space reserved for padding and separators
+// around the regular bindings section of the status bar.
+const statusBarPadding = 4
+
 // StatusBar renders keybinding hints in the status bar.
 type StatusBar struct {
 	width    int
@@ -118,7 +122,7 @@ func (s *StatusBar) View() string {
 	}
 
 	// Available width for regular bindings
-	availableWidth := s.width - versionWidth - pinnedWidth - 4 // 4 for padding and separators
+	availableWidth := s.width - versionWidth - pinnedWidth - statusBarPadding
 
 	var regularParts []string
 

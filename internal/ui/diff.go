@@ -62,8 +62,8 @@ func NewDiffPanel() DiffPanel {
 func (p *DiffPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
-	p.viewport.SetWidth(width - 2)   // -border
-	p.viewport.SetHeight(height - 3) // -title
+	p.viewport.SetWidth(width - PanelBorderWidth)
+	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
 // SetFocused sets the focus state
@@ -125,7 +125,9 @@ func (p *DiffPanel) updateContent() {
 			content.WriteString(p.details.Description)
 			content.WriteString("\n\n")
 			// Count lines in description
-			p.headerLines += strings.Count(p.details.Description, "\n") + 2
+			// +1 for the description line itself, +1 for the trailing blank line
+			descriptionChrome := 2
+			p.headerLines += strings.Count(p.details.Description, "\n") + descriptionChrome
 		}
 
 		// Metadata line
@@ -301,7 +303,8 @@ func (p DiffPanel) View() string {
 	} else {
 		style = PanelStyle
 	}
-	style = style.Height(p.height - 2)
+
+	style = style.Height(p.height - PanelBorderHeight)
 
 	// Build content with title
 	content := title + "\n" + p.viewport.View()
@@ -395,17 +398,17 @@ func (p DiffPanel) HelpBindings() []help.Binding {
 		{
 			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
 			Category: help.CategoryNavigation,
-			Order:    1,
+			Order:    PanelOrderPrimary,
 		},
 		{
 			Key:      key.NewBinding(key.WithKeys("{", "}"), key.WithHelp("{/}", "next/prev hunk")),
 			Category: help.CategoryDiff,
-			Order:    1,
+			Order:    PanelOrderPrimary,
 		},
 		{
 			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
 			Category: help.CategoryNavigation,
-			Order:    2,
+			Order:    PanelOrderSecondary,
 		},
 	}
 }

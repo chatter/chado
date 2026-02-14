@@ -43,9 +43,9 @@ func NewFilesPanel() FilesPanel {
 func (p *FilesPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
-	// Account for border (2) and title (1)
-	p.viewport.SetWidth(width - 2)
-	p.viewport.SetHeight(height - 3)
+	// Account for border and title
+	p.viewport.SetWidth(width - PanelBorderWidth)
+	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
 // SetFocused sets the focus state
@@ -225,7 +225,7 @@ func (p FilesPanel) View() string {
 		style = PanelStyle
 	}
 
-	style = style.Height(p.height - 2)
+	style = style.Height(p.height - PanelBorderHeight)
 
 	// Build content with title
 	content := title + "\n" + p.viewport.View()
@@ -239,12 +239,12 @@ func (p FilesPanel) HelpBindings() []help.Binding {
 		{
 			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
 			Category: help.CategoryNavigation,
-			Order:    1,
+			Order:    PanelOrderPrimary,
 		},
 		{
 			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
 			Category: help.CategoryNavigation,
-			Order:    2,
+			Order:    PanelOrderSecondary,
 		},
 	}
 }

@@ -13,6 +13,11 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
+const (
+	// opLogPanelNumber is the panel index shown in the title gutter.
+	opLogPanelNumber = 2
+)
+
 // OpLogMode represents the current display mode of the OpLogPanel
 type OpLogMode int
 
@@ -57,9 +62,9 @@ func NewOpLogPanel() OpLogPanel {
 func (p *OpLogPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
-	// Account for border (2) and title (1)
-	p.viewport.SetWidth(width - 2)
-	p.viewport.SetHeight(height - 3)
+	// Account for border and title
+	p.viewport.SetWidth(width - PanelBorderWidth)
+	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
 // SetFocused sets the focus state
@@ -237,7 +242,7 @@ func (p *OpLogPanel) ensureCursorVisible() {
 	if cursorLine < viewTop {
 		p.viewport.SetYOffset(cursorLine)
 	} else if cursorLine >= viewBottom {
-		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + 2)
+		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + ScrollPadding)
 	}
 }
 
@@ -324,9 +329,9 @@ func (p OpLogPanel) View() string {
 			coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
 		}
 
-		title = PanelTitle(2, "Evolution: "+coloredID, p.focused)
+		title = PanelTitle(opLogPanelNumber, "Evolution: "+coloredID, p.focused)
 	default:
-		title = PanelTitle(2, "Operations Log", p.focused)
+		title = PanelTitle(opLogPanelNumber, "Operations Log", p.focused)
 	}
 
 	// Get the appropriate border style
@@ -351,12 +356,12 @@ func (p OpLogPanel) HelpBindings() []help.Binding {
 		{
 			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
 			Category: help.CategoryNavigation,
-			Order:    1,
+			Order:    PanelOrderPrimary,
 		},
 		{
 			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
 			Category: help.CategoryNavigation,
-			Order:    2,
+			Order:    PanelOrderSecondary,
 		},
 	}
 }

@@ -29,6 +29,67 @@ const (
 	PaneOpLog                    // [2] Left pane - op log
 )
 
+const (
+	// watcherDebounceDelay is the pause before flushing batched file-watcher events.
+	watcherDebounceDelay = 300 * time.Millisecond
+
+	// paneCount is the total number of navigable panes.
+	paneCount = 3
+
+	// borderAnimTickInterval is the frame interval for the focus border animation.
+	borderAnimTickInterval = 15 * time.Millisecond
+
+	// describeOverlayWidth is the fixed width of the describe-input overlay.
+	describeOverlayWidth = 60
+
+	// describeOverlayHeight is the fixed height of the describe-input overlay.
+	describeOverlayHeight = 10
+
+	// Help binding display order values (lower = shown first in status bar).
+	orderSelect     = 10
+	orderBack       = 11
+	orderDescribe   = 12
+	orderEdit       = 13
+	orderNew        = 14
+	orderAbandon    = 15
+	orderNextPane   = 20
+	orderPrevPane   = 21
+	orderFocusPane0 = 50
+	orderFocusPane1 = 51
+	orderFocusPane2 = 52
+	orderHelp       = 99
+	orderQuit       = 100
+
+	// percentDivisor converts a percentage numerator to a fraction.
+	percentDivisor = 100
+
+	// centerDivisor halves a dimension to find the center point.
+	centerDivisor = 2
+
+	// leftPanelWidthPct is the left panel's share of screen width.
+	leftPanelWidthPct = 40
+
+	// leftPanelSplitDivisor divides the left panel vertically into equal halves.
+	leftPanelSplitDivisor = 2
+
+	// modalWidthPct and modalHeightPct control the help modal's screen share.
+	modalWidthPct  = 80
+	modalHeightPct = 70
+
+	// minModalWidth and minModalHeight are floor sizes for the help modal.
+	minModalWidth  = 40
+	minModalHeight = 10
+
+	// modalEdgePadding is the gap kept between the modal and the screen edge.
+	modalEdgePadding = 4
+
+	// statusBarHeight is the vertical space reserved for the status bar.
+	statusBarHeight = 1
+
+	// contentYOffset accounts for border (1) + title line (1) in a panel.
+	contentYOffset = 2
+)
+
 // Model is the main application model
 type Model struct {
 	// Core state
@@ -455,7 +516,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Do NOT refresh or re-arm waitForChange here.
 		if !m.watcherPending {
 			m.watcherPending = true
-			cmds = append(cmds, tea.Tick(300*time.Millisecond, func(time.Time) tea.Msg {
+
+			cmds = append(cmds, tea.Tick(watcherDebounceDelay, func(time.Time) tea.Msg {
 				return watcherFlushMsg{}
 			}))
 		}
@@ -656,7 +718,7 @@ func (m *Model) actionFocusPane2() (Model, tea.Cmd) {
 
 func (m *Model) actionNextPane() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
-	m.focusedPane = (m.focusedPane + 1) % 3
+	m.focusedPane = (m.focusedPane + 1) % paneCount
 	m.updatePanelFocus()
 	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
 
@@ -665,7 +727,7 @@ func (m *Model) actionNextPane() (Model, tea.Cmd) {
 
 func (m *Model) actionPrevPane() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
-	m.focusedPane = (m.focusedPane + 2) % 3 // +2 is same as -1 mod 3
+	m.focusedPane = (m.focusedPane + paneCount - 1) % paneCount
 	m.updatePanelFocus()
 	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
 
@@ -716,7 +778,7 @@ func (m *Model) setFocusBorderAnimating(animating bool) {
 
 // startLogPanelBorderAnimWithPhase schedules the next tick with phase and generation.
 func (m *Model) startLogPanelBorderAnimWithPhase(phase float64, generation int) tea.Cmd {
-	return tea.Tick(15*time.Millisecond, func(_ time.Time) tea.Msg {
+	return tea.Tick(borderAnimTickInterval, func(_ time.Time) tea.Msg {
 		return borderAnimTickMsg{Phase: phase, Generation: generation}
 	})
 }
@@ -790,7 +852,7 @@ func (m *Model) actionDescribe() (Model, tea.Cmd) {
 	}
 
 	m.describeInput.SetValue(desc)
-	m.describeInput.SetSize(60, 10) // Fixed size for the overlay
+	m.describeInput.SetSize(describeOverlayWidth, describeOverlayHeight)
 	m.editMode = true
 
 	return *m, m.describeInput.Focus()
@@ -915,7 +977,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.Quit,
 				Category: help.CategoryActions,
-				Order:    100,
+				Order:    orderQuit,
 				Pinned:   true,
 			},
 			Action: (*Model).actionQuit,
@@ -925,7 +987,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.FocusPane0,
 				Category: help.CategoryNavigation,
-				Order:    50,
+				Order:    orderFocusPane0,
 			},
 			Action: (*Model).actionFocusPane0,
 		},
@@ -933,7 +995,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.FocusPane1,
 				Category: help.CategoryNavigation,
-				Order:    51,
+				Order:    orderFocusPane1,
 			},
 			Action: (*Model).actionFocusPane1,
 		},
@@ -941,7 +1003,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.FocusPane2,
 				Category: help.CategoryNavigation,
-				Order:    52,
+				Order:    orderFocusPane2,
 			},
 			Action: (*Model).actionFocusPane2,
 		},
@@ -950,7 +1012,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.NextPane,
 				Category: help.CategoryNavigation,
-				Order:    20,
+				Order:    orderNextPane,
 			},
 			Action: (*Model).actionNextPane,
 		},
@@ -958,7 +1020,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.PrevPane,
 				Category: help.CategoryNavigation,
-				Order:    21,
+				Order:    orderPrevPane,
 			},
 			Action: (*Model).actionPrevPane,
 		},
@@ -967,7 +1029,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.Enter,
 				Category: help.CategoryActions,
-				Order:    10,
+				Order:    orderSelect,
 			},
 			Action: (*Model).actionEnter,
 		},
@@ -975,7 +1037,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.Back,
 				Category: help.CategoryActions,
-				Order:    11,
+				Order:    orderBack,
 			},
 			Action: (*Model).actionBack,
 		},
@@ -983,7 +1045,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.Describe,
 				Category: help.CategoryActions,
-				Order:    12,
+				Order:    orderDescribe,
 			},
 			Action: (*Model).actionDescribe,
 		},
@@ -991,7 +1053,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.Edit,
 				Category: help.CategoryActions,
-				Order:    13,
+				Order:    orderEdit,
 			},
 			Action: (*Model).actionEdit,
 		},
@@ -999,7 +1061,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.New,
 				Category: help.CategoryActions,
-				Order:    14,
+				Order:    orderNew,
 			},
 			Action: (*Model).actionNew,
 		},
@@ -1007,7 +1069,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.Abandon,
 				Category: help.CategoryActions,
-				Order:    15,
+				Order:    orderAbandon,
 			},
 			Action: (*Model).actionAbandon,
 		},
@@ -1016,7 +1078,7 @@ func (m *Model) globalBindings() []ActionBinding {
 			Binding: help.Binding{
 				Key:      m.keys.Help,
 				Category: help.CategoryActions,
-				Order:    99,
+				Order:    orderHelp,
 				Pinned:   true,
 			},
 			Action: (*Model).actionToggleHelp,
@@ -1037,11 +1099,10 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	// Calculate panel heights for vertical split
-	contentHeight := m.height - 1
-	leftTopHeight := contentHeight / 2
+	contentHeight := m.height - statusBarHeight
+	leftTopHeight := contentHeight / leftPanelSplitDivisor
 
 	// Panel content starts after border (1) and title line (1)
-	contentYOffset := 2
 
 	// Determine which panel was interacted with
 	inLeftPanel := mouse.X < leftWidth
@@ -1118,14 +1179,14 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 func (m *Model) updatePanelSizes() {
 	// Leave room for status bar
-	contentHeight := m.height - 1
+	contentHeight := m.height - statusBarHeight
 
 	// Split horizontally: left panel ~40%, right panel ~60%
-	leftWidth := m.width * 40 / 100
+	leftWidth := m.width * leftPanelWidthPct / percentDivisor
 	rightWidth := m.width - leftWidth
 
 	// Left pane splits vertically: log 50%, op log 50%
-	leftTopHeight := contentHeight / 2
+	leftTopHeight := contentHeight / leftPanelSplitDivisor
 	leftBottomHeight := contentHeight - leftTopHeight
 
 	m.logPanel.SetSize(leftWidth, leftTopHeight)
@@ -1186,14 +1247,15 @@ func (m Model) View() tea.View {
 // using lipgloss v2 Canvas/Layer for true transparency.
 func (m Model) renderWithOverlay(base string) string {
 	// Calculate modal size (centered, ~80% of screen)
-	modalWidth := m.width * 80 / 100
-	modalHeight := m.height * 70 / 100
+	modalWidth := m.width * modalWidthPct / percentDivisor
+	modalHeight := m.height * modalHeightPct / percentDivisor
 
-	if modalWidth < 40 {
-		modalWidth = min(40, m.width-4)
+	if modalWidth < minModalWidth {
+		modalWidth = min(minModalWidth, m.width-modalEdgePadding)
 	}
-	if modalHeight < 10 {
-		modalHeight = min(10, m.height-4)
+
+	if modalHeight < minModalHeight {
+		modalHeight = min(minModalHeight, m.height-modalEdgePadding)
 	}
 
 	// Set up and render floating help
@@ -1204,8 +1266,8 @@ func (m Model) renderWithOverlay(base string) string {
 	// Calculate center position
 	overlayWidth := lipgloss.Width(modal)
 	overlayHeight := lipgloss.Height(modal)
-	overlayX := (m.width - overlayWidth) / 2
-	overlayY := (m.height - overlayHeight) / 2
+	overlayX := (m.width - overlayWidth) / centerDivisor
+	overlayY := (m.height - overlayHeight) / centerDivisor
 
 	// Create base layer (full screen)
 	baseLayer := lipgloss.NewLayer(base).
@@ -1239,8 +1301,8 @@ func (m Model) renderWithDescribeOverlay(base string) string {
 	overlayHeight := m.describeInput.Height()
 
 	// Calculate center position
-	overlayX := (m.width - overlayWidth) / 2
-	overlayY := (m.height - overlayHeight) / 2
+	overlayX := (m.width - overlayWidth) / centerDivisor
+	overlayY := (m.height - overlayHeight) / centerDivisor
 
 	// Create base layer (full screen)
 	baseLayer := lipgloss.NewLayer(base).

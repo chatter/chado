@@ -7,6 +7,18 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+const (
+	// describeHorizontalPadding is the horizontal padding value for the overlay border.
+	describeHorizontalPadding = 2
+
+	// describeInputChrome is the total horizontal space consumed by the overlay's
+	// border (2) and padding (4) on each side: (1+2)*2 = 12.
+	describeInputChrome = 12
+
+	// minDescribeInputWidth is the floor width for the text input field.
+	minDescribeInputWidth = 20
+)
+
 // DescribeInput is a text input overlay for editing change descriptions.
 type DescribeInput struct {
 	input    textinput.Model
@@ -42,7 +54,7 @@ func NewDescribeInput() *DescribeInput {
 		borderStyle: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("62")).
-			Padding(1, 2),
+			Padding(1, describeHorizontalPadding),
 		titleStyle: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("86")),
@@ -58,9 +70,9 @@ func (d *DescribeInput) SetSize(width, height int) {
 
 	// Set input width to fit within the modal
 	// Account for border (2) + padding (4) on each side
-	inputWidth := width - 12
-	if inputWidth < 20 {
-		inputWidth = 20
+	inputWidth := width - describeInputChrome
+	if inputWidth < minDescribeInputWidth {
+		inputWidth = minDescribeInputWidth
 	}
 
 	d.input.SetWidth(inputWidth)

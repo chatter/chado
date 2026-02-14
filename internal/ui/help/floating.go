@@ -7,6 +7,15 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+const (
+	// floatingChromeLines is the vertical space consumed by the modal's
+	// title, blank lines, and footer: title(1) + blank(1) + blank(1) + footer(1).
+	floatingChromeLines = 4
+
+	// noBindingsWidth is the rendered width of the "No keybindings available" fallback.
+	noBindingsWidth = 24
+)
+
 // FloatingHelp renders a modal with all keybindings organized by category.
 type FloatingHelp struct {
 	width    int
@@ -87,7 +96,7 @@ func (f *FloatingHelp) View() string {
 
 	// Calculate available height for content
 	// title (1) + blank (1) + content + blank (1) + footer (1) = 4 + content
-	availableContentHeight := maxInnerHeight - 4
+	availableContentHeight := maxInnerHeight - floatingChromeLines
 
 	// Truncate content if needed
 	contentLines := strings.Split(strings.TrimRight(content, "\n"), "\n")
@@ -159,13 +168,13 @@ type column struct {
 // Returns the rendered content, its width, and its height.
 func (f *FloatingHelp) renderColumns(groups map[Category][]Binding, maxWidth int) (string, int, int) {
 	if len(groups) == 0 {
-		return "No keybindings available", 24, 1
+		return "No keybindings available", noBindingsWidth, 1
 	}
 
 	// Build all category columns
 	allColumns := f.buildColumns(groups)
 	if len(allColumns) == 0 {
-		return "No keybindings available", 24, 1
+		return "No keybindings available", noBindingsWidth, 1
 	}
 
 	columnGap := "    " // 4 spaces between columns
@@ -254,8 +263,11 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]Binding) []column {
 		colWidth := lipgloss.Width(string(cat))
 
 		for _, hb := range bindings {
+			// keyColumnPadding adds breathing room between key and description.
+			const keyColumnPadding = 2
+
 			help := hb.Key.Help()
-			key := keyStyle.Width(maxKeyWidth + 2).Render(help.Key) // +2 for breathing room
+			key := keyStyle.Width(maxKeyWidth + keyColumnPadding).Render(help.Key)
 			desc := descStyle.Render(help.Desc)
 			line := key + desc
 			lines = append(lines, line)

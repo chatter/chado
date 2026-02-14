@@ -11,6 +11,14 @@ import (
 	"strings"
 )
 
+const (
+	// dirPermissions is the mode for the log directory (owner rwx, group/other rx).
+	dirPermissions = 0o755
+
+	// filePermissions is the mode for individual log files (owner rw, group/other r).
+	filePermissions = 0o644
+)
+
 // Logger wraps slog with file-based output for TUI applications.
 type Logger struct {
 	log     *slog.Logger
@@ -99,7 +107,7 @@ func createLogDir() (string, error) {
 	}
 
 	logDir := filepath.Join(stateDir, "chado")
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	if err := os.MkdirAll(logDir, dirPermissions); err != nil {
 		return "", fmt.Errorf("could not create log directory: %w", err)
 	}
 
@@ -108,7 +116,8 @@ func createLogDir() (string, error) {
 
 func openLogFile(logDir string) (*os.File, error) {
 	logPath := filepath.Join(logDir, fmt.Sprintf("chado-%d.log", os.Getpid()))
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, filePermissions)
 	if err != nil {
 		return nil, fmt.Errorf("could not open log file: %w", err)
 	}
