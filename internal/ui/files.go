@@ -154,7 +154,7 @@ func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
 }
 
 // View renders the panel.
-func (p FilesPanel) View() string {
+func (p *FilesPanel) View() string {
 	// Build change ID with shortcode highlighted
 	coloredID := p.changeID
 	if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
@@ -193,7 +193,7 @@ func (p FilesPanel) View() string {
 }
 
 // HelpBindings returns the keybindings for this panel (display-only, for status bar).
-func (p FilesPanel) HelpBindings() []help.Binding {
+func (p *FilesPanel) HelpBindings() []help.Binding {
 	return []help.Binding{
 		{
 			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),

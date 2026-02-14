@@ -69,7 +69,7 @@ func (p *LogPanel) SetBorderAnimating(animating bool) {
 }
 
 // BorderAnimPhase returns the current border animation phase.
-func (p LogPanel) BorderAnimPhase() float64 {
+func (p *LogPanel) BorderAnimPhase() float64 {
 	return p.borderAnimPhase
 }
 
@@ -199,7 +199,7 @@ func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
 }
 
 // View renders the panel.
-func (p LogPanel) View() string {
+func (p *LogPanel) View() string {
 	title := PanelTitle(1, "Change Log", p.focused)
 
 	var style lipgloss.Style
@@ -219,7 +219,7 @@ func (p LogPanel) View() string {
 }
 
 // HelpBindings returns the keybindings for this panel (display-only, for status bar).
-func (p LogPanel) HelpBindings() []help.Binding {
+func (p *LogPanel) HelpBindings() []help.Binding {
 	return []help.Binding{
 		{
 			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),

@@ -12,8 +12,9 @@ type Action func(m *Model) (Model, tea.Cmd)
 
 // ActionBinding combines a display binding with its action for dispatch.
 type ActionBinding struct {
-	help.Binding        // embedded for display (Key, Category, Order)
-	Action       Action // nil = display-only (no action)
+	help.Binding // embedded for display (Key, Category, Order)
+
+	Action Action // nil = display-only (no action)
 }
 
 // dispatchKey iterates through bindings and executes the first matching action.

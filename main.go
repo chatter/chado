@@ -65,7 +65,7 @@ func run(ctx context.Context, args []string) error {
 	model := app.New(ctx, cwd, version, log)
 
 	p := tea.NewProgram(
-		model,
+		&model,
 		tea.WithContext(ctx),
 	)
 

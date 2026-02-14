@@ -208,7 +208,7 @@ func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 }
 
 // View renders the panel.
-func (p DiffPanel) View() string {
+func (p *DiffPanel) View() string {
 	title := PanelTitle(0, p.title, p.focused)
 
 	// Get the appropriate border style
@@ -312,7 +312,7 @@ func stripANSI(s string) string {
 }
 
 // HelpBindings returns the keybindings for this panel (display-only, for status bar).
-func (p DiffPanel) HelpBindings() []help.Binding {
+func (p *DiffPanel) HelpBindings() []help.Binding {
 	return []help.Binding{
 		{
 			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),

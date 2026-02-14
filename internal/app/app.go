@@ -183,7 +183,7 @@ func New(ctx context.Context, workDir string, version string, log *logger.Logger
 }
 
 // Init initializes the application.
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	m.log.Info("initializing app", "workdir", m.workDir, "version", m.version)
 
 	return tea.Batch(
@@ -260,7 +260,7 @@ type abandonCompleteMsg struct {
 }
 
 // Update handles messages.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -290,8 +290,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Try active bindings first
-		if newModel, cmd := dispatchKey(&m, msg, m.activeBindings()); newModel != nil {
-			m = *newModel
+		if newModel, cmd := dispatchKey(m, msg, m.activeBindings()); newModel != nil {
+			m = newModel
 
 			if cmd != nil {
 				cmds = append(cmds, cmd)
@@ -460,7 +460,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the application.
-func (m Model) View() tea.View {
+func (m *Model) View() tea.View {
 	view := tea.NewView("")
 	view.AltScreen = true
 	view.MouseMode = tea.MouseModeCellMotion
@@ -837,20 +837,20 @@ func (m *Model) handleEnter() tea.Cmd {
 }
 
 // handleFocusChange loads appropriate content when focus changes between panes.
-func (m *Model) handleFocusChange(from, to FocusedPane) tea.Cmd {
-	if from == to {
+func (m *Model) handleFocusChange(fromPane, toPane FocusedPane) tea.Cmd {
+	if fromPane == toPane {
 		return nil
 	}
 
 	// When focusing op log, show op details in diff pane
-	if to == PaneOpLog {
+	if toPane == PaneOpLog {
 		if op := m.opLogPanel.SelectedOperation(); op != nil {
 			return m.loadOpShow(op.OpID)
 		}
 	}
 
 	// When focusing log (from op log), show change diff in diff pane
-	if to == PaneLog && from == PaneOpLog {
+	if toPane == PaneLog && fromPane == PaneOpLog {
 		if m.viewMode == ViewLog {
 			if change := m.logPanel.SelectedChange(); change != nil {
 				return m.loadDiff(change.ChangeID)
@@ -958,7 +958,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 }
 
 // loadDiff fetches the diff for a change.
-func (m Model) loadDiff(changeID string) tea.Cmd {
+func (m *Model) loadDiff(changeID string) tea.Cmd {
 	return func() tea.Msg {
 		// Get show output for details
 		showOutput, _ := m.runner.Show(changeID)
@@ -978,7 +978,7 @@ func (m Model) loadDiff(changeID string) tea.Cmd {
 }
 
 // loadEvoLog fetches the evolution log for a specific change.
-func (m Model) loadEvoLog(changeID, shortCode string) tea.Cmd {
+func (m *Model) loadEvoLog(changeID, shortCode string) tea.Cmd {
 	return func() tea.Msg {
 		output, err := m.runner.EvoLog(changeID)
 		if err != nil {
@@ -997,7 +997,7 @@ func (m Model) loadEvoLog(changeID, shortCode string) tea.Cmd {
 }
 
 // loadFileDiff fetches the diff for a specific file.
-func (m Model) loadFileDiff(changeID, filePath string) tea.Cmd {
+func (m *Model) loadFileDiff(changeID, filePath string) tea.Cmd {
 	return func() tea.Msg {
 		diffOutput, err := m.runner.DiffFile(changeID, filePath)
 		if err != nil {
@@ -1009,7 +1009,7 @@ func (m Model) loadFileDiff(changeID, filePath string) tea.Cmd {
 }
 
 // loadFiles parses files from diff output.
-func (m Model) loadFiles(changeID string) tea.Cmd {
+func (m *Model) loadFiles(changeID string) tea.Cmd {
 	return func() tea.Msg {
 		diffOutput, err := m.runner.Diff(changeID)
 		if err != nil {
@@ -1029,7 +1029,7 @@ func (m Model) loadFiles(changeID string) tea.Cmd {
 }
 
 // loadLog fetches the jj log.
-func (m Model) loadLog() tea.Cmd {
+func (m *Model) loadLog() tea.Cmd {
 	return func() tea.Msg {
 		output, err := m.runner.Log()
 		if err != nil {
@@ -1043,7 +1043,7 @@ func (m Model) loadLog() tea.Cmd {
 }
 
 // loadOpLog fetches the jj operation log.
-func (m Model) loadOpLog() tea.Cmd {
+func (m *Model) loadOpLog() tea.Cmd {
 	return func() tea.Msg {
 		output, err := m.runner.OpLog()
 		if err != nil {
@@ -1057,7 +1057,7 @@ func (m Model) loadOpLog() tea.Cmd {
 }
 
 // loadOpShow fetches details for a specific operation.
-func (m Model) loadOpShow(opID string) tea.Cmd {
+func (m *Model) loadOpShow(opID string) tea.Cmd {
 	return func() tea.Msg {
 		output, err := m.runner.OpShow(opID)
 		if err != nil {
@@ -1070,7 +1070,7 @@ func (m Model) loadOpShow(opID string) tea.Cmd {
 
 // renderWithOverlay composites the help modal on top of the base view.
 // using lipgloss v2 Canvas/Layer for true transparency.
-func (m Model) renderWithOverlay(base string) string {
+func (m *Model) renderWithOverlay(base string) string {
 	// Calculate modal size (centered, ~80% of screen)
 	modalWidth := m.width * modalWidthPct / percentDivisor
 	modalHeight := m.height * modalHeightPct / percentDivisor
@@ -1110,7 +1110,7 @@ func (m Model) renderWithOverlay(base string) string {
 	return canvas.Render()
 }
 
-func (m Model) renderStatusBar() string {
+func (m *Model) renderStatusBar() string {
 	m.statusBar.SetWidth(m.width)
 	m.statusBar.SetBindings(m.activeHelpBindings())
 
@@ -1119,7 +1119,7 @@ func (m Model) renderStatusBar() string {
 
 // renderWithDescribeOverlay composites the describe input on top of the base view
 // using lipgloss v2 Canvas/Layer for true transparency.
-func (m Model) renderWithDescribeOverlay(base string) string {
+func (m *Model) renderWithDescribeOverlay(base string) string {
 	// Render the describe input
 	describeView := m.describeInput.View()
 	overlayWidth := m.describeInput.Width()
@@ -1240,7 +1240,7 @@ func (m *Model) startLogPanelBorderAnimWithPhase(phase float64, generation int) 
 }
 
 // startWatcher starts the file system watcher.
-func (m Model) startWatcher() tea.Cmd {
+func (m *Model) startWatcher() tea.Cmd {
 	return func() tea.Msg {
 		watcher, err := jj.NewWatcher(m.workDir, m.log)
 		if err != nil {
@@ -1317,7 +1317,7 @@ func (m *Model) updatePanelSizes() {
 }
 
 // waitForChange waits for file system changes.
-func (m Model) waitForChange() tea.Cmd {
+func (m *Model) waitForChange() tea.Cmd {
 	if m.watcher == nil {
 		return nil
 	}

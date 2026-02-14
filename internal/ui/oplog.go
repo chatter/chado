@@ -219,7 +219,7 @@ func (p *OpLogPanel) Update(msg tea.Msg) tea.Cmd {
 }
 
 // View renders the panel.
-func (p OpLogPanel) View() string {
+func (p *OpLogPanel) View() string {
 	var title string
 
 	switch p.mode {
@@ -264,7 +264,7 @@ func (p OpLogPanel) View() string {
 }
 
 // HelpBindings returns the keybindings for this panel (display-only, for status bar).
-func (p OpLogPanel) HelpBindings() []help.Binding {
+func (p *OpLogPanel) HelpBindings() []help.Binding {
 	return []help.Binding{
 		{
 			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
