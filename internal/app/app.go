@@ -1,3 +1,4 @@
+// Package app implements the main TUI application model and update loop.
 package app
 
 import (
@@ -12,7 +13,7 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// ViewMode represents the current view hierarchy
+// ViewMode represents the current view hierarchy.
 type ViewMode int
 
 const (
@@ -20,7 +21,7 @@ const (
 	ViewFiles                 // Drill down: files in a change
 )
 
-// FocusedPane represents which pane has focus
+// FocusedPane represents which pane has focus.
 type FocusedPane int
 
 const (
@@ -90,7 +91,7 @@ const (
 	contentYOffset = 2
 )
 
-// Model is the main application model
+// Model is the main application model.
 type Model struct {
 	// Core state
 	workDir string
@@ -144,7 +145,7 @@ type borderAnimTickMsg struct {
 	Generation int // must match Model.borderAnimGeneration or tick is ignored (stale)
 }
 
-// New creates a new application model
+// New creates a new application model.
 func New(workDir string, version string, log *logger.Logger) Model {
 	runner := jj.NewRunner(workDir, log)
 
@@ -180,7 +181,7 @@ func New(workDir string, version string, log *logger.Logger) Model {
 	}
 }
 
-// Init initializes the application
+// Init initializes the application.
 func (m Model) Init() tea.Cmd {
 	m.log.Info("initializing app", "workdir", m.workDir, "version", m.version)
 
@@ -191,7 +192,7 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
-// loadLog fetches the jj log
+// loadLog fetches the jj log.
 func (m Model) loadLog() tea.Cmd {
 	return func() tea.Msg {
 		output, err := m.runner.Log()
@@ -205,7 +206,7 @@ func (m Model) loadLog() tea.Cmd {
 	}
 }
 
-// loadDiff fetches the diff for a change
+// loadDiff fetches the diff for a change.
 func (m Model) loadDiff(changeID string) tea.Cmd {
 	return func() tea.Msg {
 		// Get show output for details
@@ -225,7 +226,7 @@ func (m Model) loadDiff(changeID string) tea.Cmd {
 	}
 }
 
-// loadFileDiff fetches the diff for a specific file
+// loadFileDiff fetches the diff for a specific file.
 func (m Model) loadFileDiff(changeID, filePath string) tea.Cmd {
 	return func() tea.Msg {
 		diffOutput, err := m.runner.DiffFile(changeID, filePath)
@@ -237,7 +238,7 @@ func (m Model) loadFileDiff(changeID, filePath string) tea.Cmd {
 	}
 }
 
-// loadFiles parses files from diff output
+// loadFiles parses files from diff output.
 func (m Model) loadFiles(changeID string) tea.Cmd {
 	return func() tea.Msg {
 		diffOutput, err := m.runner.Diff(changeID)
@@ -257,7 +258,7 @@ func (m Model) loadFiles(changeID string) tea.Cmd {
 	}
 }
 
-// loadOpLog fetches the jj operation log
+// loadOpLog fetches the jj operation log.
 func (m Model) loadOpLog() tea.Cmd {
 	return func() tea.Msg {
 		output, err := m.runner.OpLog()
@@ -271,7 +272,7 @@ func (m Model) loadOpLog() tea.Cmd {
 	}
 }
 
-// loadOpShow fetches details for a specific operation
+// loadOpShow fetches details for a specific operation.
 func (m Model) loadOpShow(opID string) tea.Cmd {
 	return func() tea.Msg {
 		output, err := m.runner.OpShow(opID)
@@ -283,7 +284,7 @@ func (m Model) loadOpShow(opID string) tea.Cmd {
 	}
 }
 
-// loadEvoLog fetches the evolution log for a specific change
+// loadEvoLog fetches the evolution log for a specific change.
 func (m Model) loadEvoLog(changeID, shortCode string) tea.Cmd {
 	return func() tea.Msg {
 		output, err := m.runner.EvoLog(changeID)
@@ -302,7 +303,7 @@ func (m Model) loadEvoLog(changeID, shortCode string) tea.Cmd {
 	}
 }
 
-// startWatcher starts the file system watcher
+// startWatcher starts the file system watcher.
 func (m Model) startWatcher() tea.Cmd {
 	return func() tea.Msg {
 		watcher, err := jj.NewWatcher(m.workDir, m.log)
@@ -315,7 +316,7 @@ func (m Model) startWatcher() tea.Cmd {
 	}
 }
 
-// waitForChange waits for file system changes
+// waitForChange waits for file system changes.
 func (m Model) waitForChange() tea.Cmd {
 	if m.watcher == nil {
 		return nil
@@ -327,7 +328,7 @@ func (m Model) waitForChange() tea.Cmd {
 	}
 }
 
-// Message types
+// Message types.
 type logLoadedMsg struct {
 	raw     string
 	changes []jj.Change
@@ -393,7 +394,7 @@ type abandonCompleteMsg struct {
 	changeID string
 }
 
-// Update handles messages
+// Update handles messages.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -681,7 +682,7 @@ func (m *Model) updatePanelFocus() {
 	m.opLogPanel.SetBorderAnimating(false)
 }
 
-// Action methods for keybindings
+// Action methods for keybindings.
 
 func (m *Model) actionQuit() (Model, tea.Cmd) {
 	if m.watcher != nil {
@@ -783,7 +784,7 @@ func (m *Model) startLogPanelBorderAnimWithPhase(phase float64, generation int) 
 	})
 }
 
-// handleFocusChange loads appropriate content when focus changes between panes
+// handleFocusChange loads appropriate content when focus changes between panes.
 func (m *Model) handleFocusChange(from, to FocusedPane) tea.Cmd {
 	if from == to {
 		return nil
@@ -858,7 +859,7 @@ func (m *Model) actionDescribe() (Model, tea.Cmd) {
 	return *m, m.describeInput.Focus()
 }
 
-// runDescribe executes jj describe and returns a completion message
+// runDescribe executes jj describe and returns a completion message.
 func (m *Model) runDescribe(changeID, message string) tea.Cmd {
 	return func() tea.Msg {
 		if err := m.runner.Describe(changeID, message); err != nil {
@@ -883,7 +884,7 @@ func (m *Model) actionEdit() (Model, tea.Cmd) {
 	return *m, m.runEdit(selected.ChangeID)
 }
 
-// runEdit executes jj edit and returns a completion message
+// runEdit executes jj edit and returns a completion message.
 func (m *Model) runEdit(changeID string) tea.Cmd {
 	return func() tea.Msg {
 		if err := m.runner.Edit(changeID); err != nil {
@@ -900,7 +901,7 @@ func (m *Model) actionNew() (Model, tea.Cmd) {
 	return *m, m.runNew()
 }
 
-// runNew executes jj new and returns a completion message
+// runNew executes jj new and returns a completion message.
 func (m *Model) runNew() tea.Cmd {
 	return func() tea.Msg {
 		if err := m.runner.New(); err != nil {
@@ -925,7 +926,7 @@ func (m *Model) actionAbandon() (Model, tea.Cmd) {
 	return *m, m.runAbandon(selected.ChangeID)
 }
 
-// runAbandon executes jj abandon and returns a completion message
+// runAbandon executes jj abandon and returns a completion message.
 func (m *Model) runAbandon(changeID string) tea.Cmd {
 	return func() tea.Msg {
 		err := m.runner.Abandon(changeID)
@@ -1195,7 +1196,7 @@ func (m *Model) updatePanelSizes() {
 	m.diffPanel.SetSize(rightWidth, contentHeight)
 }
 
-// View renders the application
+// View renders the application.
 func (m Model) View() tea.View {
 	view := tea.NewView("")
 	view.AltScreen = true
@@ -1243,7 +1244,7 @@ func (m Model) View() tea.View {
 	return view
 }
 
-// renderWithOverlay composites the help modal on top of the base view
+// renderWithOverlay composites the help modal on top of the base view.
 // using lipgloss v2 Canvas/Layer for true transparency.
 func (m Model) renderWithOverlay(base string) string {
 	// Calculate modal size (centered, ~80% of screen)

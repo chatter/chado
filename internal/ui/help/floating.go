@@ -112,7 +112,7 @@ func (f *FloatingHelp) View() string {
 	return f.borderStyle.Render(fullContent)
 }
 
-// categoryOrder defines the display order of categories
+// categoryOrder defines the display order of categories.
 var categoryOrder = []Category{
 	CategoryNavigation,
 	CategoryActions,
@@ -156,7 +156,7 @@ func (f *FloatingHelp) groupByCategory() map[Category][]Binding {
 	return groups
 }
 
-// column represents a category rendered as a column
+// column represents a category rendered as a column.
 type column struct {
 	lines  []string
 	width  int
@@ -232,7 +232,7 @@ func (f *FloatingHelp) renderColumns(groups map[Category][]Binding, maxWidth int
 	return result, maxRowWidth, totalHeight
 }
 
-// buildColumns creates column structures for each category
+// buildColumns creates column structures for each category.
 func (f *FloatingHelp) buildColumns(groups map[Category][]Binding) []column {
 	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
@@ -287,7 +287,7 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]Binding) []column {
 	return columns
 }
 
-// renderRow renders a single row of columns side by side
+// renderRow renders a single row of columns side by side.
 func (f *FloatingHelp) renderRow(row []column, gap string) (string, int, int) {
 	if len(row) == 0 {
 		return "", 0, 0

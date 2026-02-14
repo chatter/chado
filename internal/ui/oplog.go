@@ -18,7 +18,7 @@ const (
 	opLogPanelNumber = 2
 )
 
-// OpLogMode represents the current display mode of the OpLogPanel
+// OpLogMode represents the current display mode of the OpLogPanel.
 type OpLogMode int
 
 const (
@@ -26,7 +26,7 @@ const (
 	ModeEvoLog                  // Evolution log for a specific change (jj evolog -r)
 )
 
-// OpLogPanel displays the jj operation log or evolution log
+// OpLogPanel displays the jj operation log or evolution log.
 type OpLogPanel struct {
 	viewport        viewport.Model
 	operations      []jj.Operation
@@ -46,7 +46,7 @@ type OpLogPanel struct {
 	shortCode string    // Shortest unique prefix for highlighting
 }
 
-// NewOpLogPanel creates a new operation log panel
+// NewOpLogPanel creates a new operation log panel.
 func NewOpLogPanel() OpLogPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
@@ -58,7 +58,7 @@ func NewOpLogPanel() OpLogPanel {
 	}
 }
 
-// SetSize sets the panel dimensions
+// SetSize sets the panel dimensions.
 func (p *OpLogPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
@@ -67,7 +67,7 @@ func (p *OpLogPanel) SetSize(width, height int) {
 	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
-// SetFocused sets the focus state
+// SetFocused sets the focus state.
 func (p *OpLogPanel) SetFocused(focused bool) {
 	p.focused = focused
 }
@@ -82,7 +82,7 @@ func (p *OpLogPanel) SetBorderAnimating(animating bool) {
 	p.borderAnimating = animating
 }
 
-// findOpIndex returns the index of the operation with the given ID, or -1 if not found
+// findOpIndex returns the index of the operation with the given ID, or -1 if not found.
 func findOpIndex(operations []jj.Operation, opID string) int {
 	for i, op := range operations {
 		if op.OpID == opID {
@@ -93,7 +93,7 @@ func findOpIndex(operations []jj.Operation, opID string) int {
 	return -1
 }
 
-// SetContent sets the op log content from raw jj output
+// SetContent sets the op log content from raw jj output.
 func (p *OpLogPanel) SetContent(rawLog string, operations []jj.Operation) {
 	// Capture current selection before overwriting
 	var selectedID string
@@ -118,7 +118,7 @@ func (p *OpLogPanel) SetContent(rawLog string, operations []jj.Operation) {
 	p.updateViewport()
 }
 
-// SetOpLogContent switches to global op log mode and sets content
+// SetOpLogContent switches to global op log mode and sets content.
 func (p *OpLogPanel) SetOpLogContent(rawLog string, operations []jj.Operation) {
 	p.mode = ModeOpLog
 	p.changeID = ""
@@ -126,7 +126,7 @@ func (p *OpLogPanel) SetOpLogContent(rawLog string, operations []jj.Operation) {
 	p.SetContent(rawLog, operations)
 }
 
-// SetEvoLogContent switches to evolog mode for a specific change and sets content
+// SetEvoLogContent switches to evolog mode for a specific change and sets content.
 func (p *OpLogPanel) SetEvoLogContent(changeID, shortCode, rawLog string, operations []jj.Operation) {
 	p.mode = ModeEvoLog
 	p.changeID = changeID
@@ -134,13 +134,13 @@ func (p *OpLogPanel) SetEvoLogContent(changeID, shortCode, rawLog string, operat
 	p.SetContent(rawLog, operations)
 }
 
-// isEntryStart checks if a line starts a new entry (operation or change)
+// isEntryStart checks if a line starts a new entry (operation or change).
 func isEntryStart(line string) bool {
 	stripped := ansiRegex.ReplaceAllString(line, "")
 	return jj.EntryLineRe.MatchString(stripped)
 }
 
-// computeOpStartLines pre-computes the line number where each operation starts
+// computeOpStartLines pre-computes the line number where each operation starts.
 func (p *OpLogPanel) computeOpStartLines() {
 	p.opStartLines = nil
 	p.totalLines = 0
@@ -160,7 +160,7 @@ func (p *OpLogPanel) computeOpStartLines() {
 	}
 }
 
-// SelectedOperation returns the currently selected operation
+// SelectedOperation returns the currently selected operation.
 func (p *OpLogPanel) SelectedOperation() *jj.Operation {
 	if p.cursor >= 0 && p.cursor < len(p.operations) {
 		return &p.operations[p.cursor]
@@ -169,7 +169,7 @@ func (p *OpLogPanel) SelectedOperation() *jj.Operation {
 	return nil
 }
 
-// CursorUp moves the cursor up
+// CursorUp moves the cursor up.
 func (p *OpLogPanel) CursorUp() {
 	if p.cursor > 0 {
 		p.cursor--
@@ -177,7 +177,7 @@ func (p *OpLogPanel) CursorUp() {
 	}
 }
 
-// CursorDown moves the cursor down
+// CursorDown moves the cursor down.
 func (p *OpLogPanel) CursorDown() {
 	if p.cursor < len(p.operations)-1 {
 		p.cursor++
@@ -185,13 +185,13 @@ func (p *OpLogPanel) CursorDown() {
 	}
 }
 
-// GotoTop moves to the first item
+// GotoTop moves to the first item.
 func (p *OpLogPanel) GotoTop() {
 	p.cursor = 0
 	p.updateViewport()
 }
 
-// GotoBottom moves to the last item
+// GotoBottom moves to the last item.
 func (p *OpLogPanel) GotoBottom() {
 	if len(p.operations) > 0 {
 		p.cursor = len(p.operations) - 1
@@ -246,8 +246,8 @@ func (p *OpLogPanel) ensureCursorVisible() {
 	}
 }
 
-// lineToOpIndex maps a visual line number to an operation index
-// Returns -1 if the line is outside content bounds or before any operation
+// lineToOpIndex maps a visual line number to an operation index.
+// Returns -1 if the line is outside content bounds or before any operation.
 func (p *OpLogPanel) lineToOpIndex(visualLine int) int {
 	if len(p.opStartLines) == 0 || visualLine < 0 || visualLine >= p.totalLines {
 		return -1
@@ -267,8 +267,8 @@ func (p *OpLogPanel) lineToOpIndex(visualLine int) int {
 	return opIdx
 }
 
-// HandleClick selects the operation at the given Y coordinate (relative to content area)
-// Returns true if the selection changed
+// HandleClick selects the operation at the given Y coordinate (relative to content area).
+// Returns true if the selection changed.
 func (p *OpLogPanel) HandleClick(y int) bool {
 	// Account for viewport scroll offset
 	visualLine := y + p.viewport.YOffset()
@@ -284,7 +284,7 @@ func (p *OpLogPanel) HandleClick(y int) bool {
 	return false
 }
 
-// Update handles input
+// Update handles input.
 func (p *OpLogPanel) Update(msg tea.Msg) tea.Cmd {
 	if !p.focused {
 		return nil
@@ -307,7 +307,7 @@ func (p *OpLogPanel) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// View renders the panel
+// View renders the panel.
 func (p OpLogPanel) View() string {
 	var title string
 
@@ -350,7 +350,7 @@ func (p OpLogPanel) View() string {
 	return style.Render(content)
 }
 
-// HelpBindings returns the keybindings for this panel (display-only, for status bar)
+// HelpBindings returns the keybindings for this panel (display-only, for status bar).
 func (p OpLogPanel) HelpBindings() []help.Binding {
 	return []help.Binding{
 		{

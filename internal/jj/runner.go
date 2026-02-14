@@ -1,3 +1,4 @@
+// Package jj wraps the jj CLI, executing commands and parsing their output.
 package jj
 
 import (
@@ -10,18 +11,18 @@ import (
 	"github.com/chatter/chado/internal/logger"
 )
 
-// Runner executes jj commands and returns output
+// Runner executes jj commands and returns output.
 type Runner struct {
 	workDir string
 	log     *logger.Logger
 }
 
-// NewRunner creates a new jj command runner
+// NewRunner creates a new jj command runner.
 func NewRunner(workDir string, log *logger.Logger) *Runner {
 	return &Runner{workDir: workDir, log: log}
 }
 
-// Run executes a jj command and returns the output with colors preserved
+// Run executes a jj command and returns the output with colors preserved.
 func (r *Runner) Run(args ...string) (string, error) {
 	r.log.Debug("executing jj command", "args", args)
 
@@ -57,80 +58,81 @@ func (r *Runner) Run(args ...string) (string, error) {
 	return stdout.String(), nil
 }
 
-// Log returns the jj log output with colors
+// Log returns the jj log output with colors.
 func (r *Runner) Log() (string, error) {
 	return r.Run("log", "--color=always")
 }
 
-// LogWithTemplate returns jj log with a custom template
+// LogWithTemplate returns jj log with a custom template.
 func (r *Runner) LogWithTemplate(template string) (string, error) {
 	return r.Run("log", "--color=always", "-T", template)
 }
 
-// Show returns details for a specific revision
+// Show returns details for a specific revision.
 func (r *Runner) Show(rev string) (string, error) {
 	return r.Run("show", "-r", rev, "--color=always")
 }
 
-// Diff returns the diff for a revision
+// Diff returns the diff for a revision.
 func (r *Runner) Diff(rev string) (string, error) {
 	return r.Run("diff", "-r", rev, "--color=always")
 }
 
-// DiffFile returns the diff for a specific file in a revision
+// DiffFile returns the diff for a specific file in a revision.
 func (r *Runner) DiffFile(rev, file string) (string, error) {
 	return r.Run("diff", "-r", rev, "--color=always", file)
 }
 
-// Status returns jj status output
+// Status returns jj status output.
 func (r *Runner) Status() (string, error) {
 	return r.Run("status", "--color=always")
 }
 
-// OpLog returns the jj operation log output with colors
+// OpLog returns the jj operation log output with colors.
 func (r *Runner) OpLog() (string, error) {
 	return r.Run("op", "log", "--color=always")
 }
 
-// EvoLog returns the evolution log for a specific change (operations that affected it)
-// evoLogTemplate formats evolog output to show operation details instead of change IDs.
-// This makes entries look like op log output, with operation IDs that can be used with OpShow.
+// evoLogTemplate formats evolog output to show operation details
+// instead of change IDs, producing entries that look like op log
+// output with operation IDs usable by OpShow.
 const evoLogTemplate = `self.operation().id().short(12) ++ " " ++ self.operation().user() ++ " " ++ self.operation().time().start().ago() ++ ", lasted " ++ self.operation().time().duration() ++ "\n" ++ self.operation().description()`
 
+// EvoLog returns the evolution log for a specific change.
 func (r *Runner) EvoLog(rev string) (string, error) {
 	return r.Run("evolog", "-r", rev, "--color=always", "-T", evoLogTemplate)
 }
 
-// OpShow returns details for a specific operation
+// OpShow returns details for a specific operation.
 func (r *Runner) OpShow(opID string) (string, error) {
 	return r.Run("op", "show", opID, "--color=always", "--patch")
 }
 
-// Describe updates the description (commit message) for a revision
+// Describe updates the description (commit message) for a revision.
 func (r *Runner) Describe(rev, message string) error {
 	_, err := r.Run("describe", "-r", rev, "-m", message)
 	return err
 }
 
-// Edit makes a revision the working copy, allowing it to be edited
+// Edit makes a revision the working copy, allowing it to be edited.
 func (r *Runner) Edit(rev string) error {
 	_, err := r.Run("edit", rev)
 	return err
 }
 
-// New creates a new empty change on top of the current working copy
+// New creates a new empty change on top of the current working copy.
 func (r *Runner) New() error {
 	_, err := r.Run("new")
 	return err
 }
 
-// Abandon removes a revision from the repository
+// Abandon removes a revision from the repository.
 func (r *Runner) Abandon(rev string) error {
 	_, err := r.Run("abandon", rev)
 	return err
 }
 
-// ShortestChangeID returns the shortest unique prefix for a change ID
+// ShortestChangeID returns the shortest unique prefix for a change ID.
 func (r *Runner) ShortestChangeID(rev string) (string, error) {
 	output, err := r.Run("log", "-r", rev, "-T", "change_id.shortest()", "--no-graph")
 	if err != nil {
@@ -140,13 +142,13 @@ func (r *Runner) ShortestChangeID(rev string) (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
-// LogStat returns log with file stats
+// LogStat returns log with file stats.
 func (r *Runner) LogStat(rev string) (string, error) {
 	return r.Run("log", "-r", rev, "--stat", "--color=always")
 }
 
-// ParseLogLines parses the raw log output into Change structs
-// For now, we keep the raw lines and just extract basic info
+// ParseLogLines parses the raw log output into Change structs.
+// For now, we keep the raw lines and just extract basic info.
 func (r *Runner) ParseLogLines(output string) []Change {
 	lines := strings.Split(output, "\n")
 
@@ -260,7 +262,7 @@ func (r *Runner) ParseOpLogLines(output string) []Operation {
 	return operations
 }
 
-// ParseFiles parses diff output to extract file list
+// ParseFiles parses diff output to extract file list.
 func (r *Runner) ParseFiles(diffOutput string) []File {
 	var files []File
 
@@ -326,8 +328,8 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 	return files
 }
 
-// FindHunks finds all hunk/section positions in diff output
-// Supports both git-style @@ hunks and jj-style file headers
+// FindHunks finds all hunk/section positions in diff output.
+// Supports both git-style @@ hunks and jj-style file headers.
 func FindHunks(diffOutput string) []Hunk {
 	var hunks []Hunk
 
@@ -368,19 +370,20 @@ func FindHunks(diffOutput string) []Hunk {
 	return hunks
 }
 
-// stripANSI removes ANSI escape codes from a string
+// stripANSI removes ANSI escape codes from a string.
 func stripANSI(s string) string {
 	ansiRe := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 	return ansiRe.ReplaceAllString(s, "")
 }
 
-// Error represents an error from running a jj command
+// Error represents an error from running a jj command.
 type Error struct {
 	Command string
 	Stderr  string
 	Err     error
 }
 
+// Error returns a human-readable description of the failed jj command.
 func (e *Error) Error() string {
 	return "jj " + e.Command + ": " + e.Stderr
 }

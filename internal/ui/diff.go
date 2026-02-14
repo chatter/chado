@@ -14,13 +14,13 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// noHunkSelected indicates viewport is in header area, before any hunk
+// noHunkSelected indicates viewport is in header area, before any hunk.
 const noHunkSelected = -1
 
-// mouseScrollLines is the number of lines to scroll per mouse wheel tick
+// mouseScrollLines is the number of lines to scroll per mouse wheel tick.
 const mouseScrollLines = 3
 
-// DiffPanel displays diff content with optional details header
+// DiffPanel displays diff content with optional details header.
 type DiffPanel struct {
 	viewport        viewport.Model
 	focused         bool
@@ -38,7 +38,7 @@ type DiffPanel struct {
 	borderAnimating bool     // true only while the one-shot wrap is running
 }
 
-// DetailsHeader contains the commit details shown above the diff
+// DetailsHeader contains the commit details shown above the diff.
 type DetailsHeader struct {
 	ChangeID    string
 	CommitID    string
@@ -47,7 +47,7 @@ type DetailsHeader struct {
 	Description string
 }
 
-// NewDiffPanel creates a new diff panel
+// NewDiffPanel creates a new diff panel.
 func NewDiffPanel() DiffPanel {
 	vp := viewport.New()
 
@@ -58,7 +58,7 @@ func NewDiffPanel() DiffPanel {
 	}
 }
 
-// SetSize sets the panel dimensions
+// SetSize sets the panel dimensions.
 func (p *DiffPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
@@ -66,7 +66,7 @@ func (p *DiffPanel) SetSize(width, height int) {
 	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
-// SetFocused sets the focus state
+// SetFocused sets the focus state.
 func (p *DiffPanel) SetFocused(focused bool) {
 	p.focused = focused
 }
@@ -81,17 +81,17 @@ func (p *DiffPanel) SetBorderAnimating(animating bool) {
 	p.borderAnimating = animating
 }
 
-// SetTitle sets the panel title
+// SetTitle sets the panel title.
 func (p *DiffPanel) SetTitle(title string) {
 	p.title = title
 }
 
-// SetShowDetails controls whether to show the details header
+// SetShowDetails controls whether to show the details header.
 func (p *DiffPanel) SetShowDetails(show bool) {
 	p.showDetails = show
 }
 
-// SetDetails sets the commit details header
+// SetDetails sets the commit details header.
 func (p *DiffPanel) SetDetails(details DetailsHeader) {
 	p.details = details
 	p.updateContent()
@@ -176,7 +176,7 @@ func (p *DiffPanel) updateContent() {
 	p.viewport.SetContent(content.String())
 }
 
-// NextHunk jumps to the next hunk/section
+// NextHunk jumps to the next hunk/section.
 func (p *DiffPanel) NextHunk() {
 	if len(p.hunks) == 0 || p.currentHunk >= len(p.hunks)-1 {
 		return
@@ -186,7 +186,7 @@ func (p *DiffPanel) NextHunk() {
 	p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
 }
 
-// PrevHunk jumps to start of current hunk, or previous hunk if already at start
+// PrevHunk jumps to start of current hunk, or previous hunk if already at start.
 func (p *DiffPanel) PrevHunk() {
 	if len(p.hunks) == 0 {
 		return
@@ -215,7 +215,7 @@ func (p *DiffPanel) PrevHunk() {
 	}
 }
 
-// syncCurrentHunk updates currentHunk based on viewport position
+// syncCurrentHunk updates currentHunk based on viewport position.
 func (p *DiffPanel) syncCurrentHunk() {
 	if len(p.hunks) == 0 {
 		p.currentHunk = noHunkSelected
@@ -234,13 +234,13 @@ func (p *DiffPanel) syncCurrentHunk() {
 	p.currentHunk = noHunkSelected
 }
 
-// GotoTop scrolls to the top
+// GotoTop scrolls to the top.
 func (p *DiffPanel) GotoTop() {
 	p.viewport.GotoTop()
 	p.currentHunk = noHunkSelected
 }
 
-// GotoBottom scrolls to the bottom
+// GotoBottom scrolls to the bottom.
 func (p *DiffPanel) GotoBottom() {
 	p.viewport.GotoBottom()
 
@@ -249,7 +249,7 @@ func (p *DiffPanel) GotoBottom() {
 	}
 }
 
-// HandleMouseScroll handles mouse wheel events
+// HandleMouseScroll handles mouse wheel events.
 func (p *DiffPanel) HandleMouseScroll(button tea.MouseButton) {
 	switch button {
 	case tea.MouseWheelUp:
@@ -261,7 +261,7 @@ func (p *DiffPanel) HandleMouseScroll(button tea.MouseButton) {
 	p.syncCurrentHunk()
 }
 
-// Update handles input
+// Update handles input.
 func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 	if !p.focused {
 		return nil
@@ -290,7 +290,7 @@ func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// View renders the panel
+// View renders the panel.
 func (p DiffPanel) View() string {
 	title := PanelTitle(0, p.title, p.focused)
 
@@ -312,7 +312,7 @@ func (p DiffPanel) View() string {
 	return style.Render(content)
 }
 
-// ParseDetailsFromShow parses jj show output to extract details
+// ParseDetailsFromShow parses jj show output to extract details.
 func ParseDetailsFromShow(showOutput string) DetailsHeader {
 	details := DetailsHeader{}
 	lines := strings.Split(showOutput, "\n")
@@ -386,13 +386,13 @@ func ParseDetailsFromShow(showOutput string) DetailsHeader {
 	return details
 }
 
-// stripANSI removes ANSI escape codes
+// stripANSI removes ANSI escape codes.
 func stripANSI(s string) string {
 	ansiRe := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 	return ansiRe.ReplaceAllString(s, "")
 }
 
-// HelpBindings returns the keybindings for this panel (display-only, for status bar)
+// HelpBindings returns the keybindings for this panel (display-only, for status bar).
 func (p DiffPanel) HelpBindings() []help.Binding {
 	return []help.Binding{
 		{

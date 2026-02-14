@@ -5,13 +5,16 @@ import (
 	"charm.land/bubbles/v2/key"
 )
 
-// Category represents a logical grouping of keybindings for help display
+// Category represents a logical grouping of keybindings for help display.
 type Category string
 
 const (
+	// CategoryNavigation groups pane-movement and scrolling bindings.
 	CategoryNavigation Category = "Navigation"
-	CategoryActions    Category = "Actions"
-	CategoryDiff       Category = "Diff"
+	// CategoryActions groups commands that mutate repository state.
+	CategoryActions Category = "Actions"
+	// CategoryDiff groups diff-specific navigation bindings.
+	CategoryDiff Category = "Diff"
 )
 
 // Binding contains display information for a keybinding.

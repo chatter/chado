@@ -12,10 +12,10 @@ import (
 	"github.com/chatter/chado/internal/logger"
 )
 
-// WatcherMsg is sent when the jj repo changes
+// WatcherMsg is sent when the jj repo changes.
 type WatcherMsg struct{}
 
-// Watcher watches the .jj directory for changes
+// Watcher watches the .jj directory for changes.
 type Watcher struct {
 	watcher  *fsnotify.Watcher
 	filtered chan fsnotify.Event
@@ -23,7 +23,7 @@ type Watcher struct {
 	log      *logger.Logger
 }
 
-// NewWatcher creates a new file watcher for the jj repo
+// NewWatcher creates a new file watcher for the jj repo.
 func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 	log.Debug("creating file watcher", "repo_path", repoPath)
 
@@ -127,12 +127,12 @@ func (w *Watcher) filterEvents() {
 	}
 }
 
-// Events returns the channel of filtered fsnotify events
+// Events returns the channel of filtered fsnotify events.
 func (w *Watcher) Events() <-chan fsnotify.Event {
 	return w.filtered
 }
 
-// Errors returns the channel of fsnotify errors
+// Errors returns the channel of fsnotify errors.
 func (w *Watcher) Errors() <-chan error {
 	return w.watcher.Errors
 }

@@ -14,10 +14,10 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// ansiRegex matches ANSI escape codes
+// ansiRegex matches ANSI escape codes.
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
-// LogPanel displays the jj log
+// LogPanel displays the jj log.
 type LogPanel struct {
 	viewport         viewport.Model
 	changes          []jj.Change
@@ -32,7 +32,7 @@ type LogPanel struct {
 	borderAnimating  bool    // true only while the one-shot wrap is running (explicit focus)
 }
 
-// NewLogPanel creates a new log panel
+// NewLogPanel creates a new log panel.
 func NewLogPanel() LogPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
@@ -44,7 +44,7 @@ func NewLogPanel() LogPanel {
 	}
 }
 
-// SetSize sets the panel dimensions
+// SetSize sets the panel dimensions.
 func (p *LogPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
@@ -53,7 +53,7 @@ func (p *LogPanel) SetSize(width, height int) {
 	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
-// SetFocused sets the focus state
+// SetFocused sets the focus state.
 func (p *LogPanel) SetFocused(focused bool) {
 	p.focused = focused
 }
@@ -73,7 +73,7 @@ func (p LogPanel) BorderAnimPhase() float64 {
 	return p.borderAnimPhase
 }
 
-// findChangeIndex returns the index of the change with the given ID, or -1 if not found
+// findChangeIndex returns the index of the change with the given ID, or -1 if not found.
 func findChangeIndex(changes []jj.Change, changeID string) int {
 	for i, c := range changes {
 		if c.ChangeID == changeID {
@@ -84,7 +84,7 @@ func findChangeIndex(changes []jj.Change, changeID string) int {
 	return -1
 }
 
-// SetContent sets the log content from raw jj output
+// SetContent sets the log content from raw jj output.
 func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
 	// Capture current selection before overwriting
 	var selectedID string
@@ -109,7 +109,7 @@ func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
 	p.updateViewport()
 }
 
-// computeChangeStartLines pre-computes the line number where each change starts
+// computeChangeStartLines pre-computes the line number where each change starts.
 func (p *LogPanel) computeChangeStartLines() {
 	p.changeStartLines = nil
 	p.totalLines = 0
@@ -129,7 +129,7 @@ func (p *LogPanel) computeChangeStartLines() {
 	}
 }
 
-// SelectedChange returns the currently selected change
+// SelectedChange returns the currently selected change.
 func (p *LogPanel) SelectedChange() *jj.Change {
 	if p.cursor >= 0 && p.cursor < len(p.changes) {
 		return &p.changes[p.cursor]
@@ -138,7 +138,7 @@ func (p *LogPanel) SelectedChange() *jj.Change {
 	return nil
 }
 
-// CursorUp moves the cursor up
+// CursorUp moves the cursor up.
 func (p *LogPanel) CursorUp() {
 	if p.cursor > 0 {
 		p.cursor--
@@ -146,7 +146,7 @@ func (p *LogPanel) CursorUp() {
 	}
 }
 
-// CursorDown moves the cursor down
+// CursorDown moves the cursor down.
 func (p *LogPanel) CursorDown() {
 	if p.cursor < len(p.changes)-1 {
 		p.cursor++
@@ -154,13 +154,13 @@ func (p *LogPanel) CursorDown() {
 	}
 }
 
-// GotoTop moves to the first item
+// GotoTop moves to the first item.
 func (p *LogPanel) GotoTop() {
 	p.cursor = 0
 	p.updateViewport()
 }
 
-// GotoBottom moves to the last item
+// GotoBottom moves to the last item.
 func (p *LogPanel) GotoBottom() {
 	if len(p.changes) > 0 {
 		p.cursor = len(p.changes) - 1
@@ -168,11 +168,11 @@ func (p *LogPanel) GotoBottom() {
 	}
 }
 
-// changeLineRe matches change lines - requires a graph symbol (not just whitespace)
-// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
+// changeLineRe matches change lines - requires a graph symbol (not just whitespace).
+// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict).
 var changeLineRe = regexp.MustCompile(`^[│├└\s]*[@○◆◇●×]\s*([a-z]{8,})\s`)
 
-// isChangeStart checks if a line starts a new change entry
+// isChangeStart checks if a line starts a new change entry.
 func isChangeStart(line string) bool {
 	stripped := ansiRegex.ReplaceAllString(line, "")
 	return changeLineRe.MatchString(stripped)
@@ -225,8 +225,8 @@ func (p *LogPanel) ensureCursorVisible() {
 	}
 }
 
-// lineToChangeIndex maps a visual line number to a change index
-// Returns -1 if the line is outside content bounds or before any change
+// lineToChangeIndex maps a visual line number to a change index.
+// Returns -1 if the line is outside content bounds or before any change.
 func (p *LogPanel) lineToChangeIndex(visualLine int) int {
 	if len(p.changeStartLines) == 0 || visualLine < 0 || visualLine >= p.totalLines {
 		return -1
@@ -246,8 +246,8 @@ func (p *LogPanel) lineToChangeIndex(visualLine int) int {
 	return changeIdx
 }
 
-// HandleClick selects the change at the given Y coordinate (relative to content area)
-// Returns true if the selection changed
+// HandleClick selects the change at the given Y coordinate (relative to content area).
+// Returns true if the selection changed.
 func (p *LogPanel) HandleClick(y int) bool {
 	// Account for viewport scroll offset
 	visualLine := y + p.viewport.YOffset()
@@ -263,7 +263,7 @@ func (p *LogPanel) HandleClick(y int) bool {
 	return false
 }
 
-// Update handles input
+// Update handles input.
 func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
 	if !p.focused {
 		return nil
@@ -287,7 +287,7 @@ func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// View renders the panel
+// View renders the panel.
 func (p LogPanel) View() string {
 	title := PanelTitle(1, "Change Log", p.focused)
 
@@ -305,7 +305,7 @@ func (p LogPanel) View() string {
 	return style.Render(content)
 }
 
-// HelpBindings returns the keybindings for this panel (display-only, for status bar)
+// HelpBindings returns the keybindings for this panel (display-only, for status bar).
 func (p LogPanel) HelpBindings() []help.Binding {
 	return []help.Binding{
 		{

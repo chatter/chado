@@ -1,3 +1,5 @@
+// Package ui provides shared panel components, styles, and layout.
+// constants for the TUI.
 package ui
 
 import (
@@ -25,9 +27,9 @@ const (
 	// in the perimeter formula: 2*width + 2*height).
 	borderSidesPerDimension = 2
 
-	// PanelOrderPrimary and PanelOrderSecondary are panel-level help binding
-	// display priorities (lower = shown first).
-	PanelOrderPrimary   = 1
+	// PanelOrderPrimary is the highest help binding display priority.
+	PanelOrderPrimary = 1
+	// PanelOrderSecondary is the next-highest display priority.
 	PanelOrderSecondary = 2
 
 	// ScrollPadding is the number of lines of context kept visible below the
@@ -60,7 +62,7 @@ func RotatedFocusedBorderBlend(phase float64) []color.Color {
 	}
 
 	out := make([]color.Color, blendCount)
-	for i := 0; i < blendCount; i++ {
+	for i := range blendCount {
 		out[i] = focusedBorderBlend[(offset+i)%blendCount]
 	}
 
@@ -75,14 +77,14 @@ func completeColor(hex string) color.Color {
 	return colorProfile.Convert(lipgloss.Color(hex))
 }
 
-// Color codes (ANSI 256)
+// Color codes (ANSI 256).
 const (
 	PrimaryColorCode   = "#808080" // Gray
 	SecondaryColorCode = "241"     // Gray
 	AccentColorCode    = "#30c9b0" // Cyan
 )
 
-// Colors (for lipgloss styles)
+// Colors (for lipgloss styles).
 var (
 	primaryColor   = completeColor(PrimaryColorCode)
 	secondaryColor = lipgloss.Color(SecondaryColorCode)
@@ -105,7 +107,7 @@ var (
 	}
 )
 
-// Styles for the application
+// Styles for the application.
 var (
 	PanelStyle = lipgloss.
 			NewStyle().
@@ -117,7 +119,7 @@ var (
 				BorderForegroundBlend(focusedBorderBlend...).
 				Inherit(PanelStyle)
 
-	// Title styles
+	// TitleStyle renders panel titles.
 	TitleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(primaryColor).
@@ -128,7 +130,7 @@ var (
 				Foreground(accentColor).
 				Padding(0, 1)
 
-	// Status bar
+	// StatusBarStyle renders the bottom status bar text.
 	StatusBarStyle = lipgloss.NewStyle().
 			Foreground(secondaryColor)
 
@@ -136,22 +138,22 @@ var (
 			Foreground(secondaryColor).
 			Align(lipgloss.Right)
 
-	// Selected item
+	// SelectedStyle highlights the currently selected item.
 	SelectedStyle = lipgloss.NewStyle().
 			Bold(true)
 
-	// Dim style for non-focused content
+	// DimStyle de-emphasises non-focused content.
 	DimStyle = lipgloss.NewStyle().
 			Foreground(secondaryColor)
 
-	// ShortCodeStyle for the unique prefix of change IDs (matches jj's default)
+	// ShortCodeStyle for the unique prefix of change IDs (matches jj's default).
 	ShortCodeStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("13")). // Bright magenta - matches jj
 			Bold(true).
 			Inline(true)
 )
 
-// PanelTitle returns a formatted panel title with optional focus indicator
+// PanelTitle returns a formatted panel title with optional focus indicator.
 func PanelTitle(num int, title string, focused bool) string {
 	prefix := ""
 	// if focused {

@@ -145,7 +145,7 @@ func preserveVersion(id string) (base, suffix string) {
 }
 
 // reverseHexToHex converts a reverse hex string [k-z] to hex [0-9a-f].
-// Mapping: k→0, l→1, m→2, ..., t→9, u→a, v→b, w→c, x→d, y→e, z→f
+// Mapping: k→0, l→1, m→2, ..., t→9, u→a, v→b, w→c, x→d, y→e, z→f.
 func reverseHexToHex(revHex string) string {
 	result := make([]byte, len(revHex))
 	for idx, char := range revHex {
@@ -226,19 +226,19 @@ func Timestamp() *rapid.Generator[string] {
 // RelativeTimestamp generates a relative timestamp like "4 minutes ago".
 func RelativeTimestamp() *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
-		n := rapid.IntRange(1, maxRelativeAmount).Draw(t, "n")
+		relativeAmount := rapid.IntRange(1, maxRelativeAmount).Draw(t, "n")
 		unit := rapid.SampledFrom([]string{"second", "minute", "hour", "day", "week", "month", "year"}).Draw(t, "unit")
 
-		if n > 1 {
+		if relativeAmount > 1 {
 			unit += "s"
 		}
 
-		return fmt.Sprintf("%d %s ago", n, unit)
+		return fmt.Sprintf("%d %s ago", relativeAmount, unit)
 	})
 }
 
 // GraphSymbol generates a jj log graph symbol.
-// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
+// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict).
 func GraphSymbol() *rapid.Generator[string] {
 	return rapid.SampledFrom([]string{"@", "○", "◆", "◇", "●", "×"})
 }

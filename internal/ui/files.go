@@ -13,7 +13,7 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// FilesPanel displays the list of files in a change
+// FilesPanel displays the list of files in a change.
 type FilesPanel struct {
 	viewport        viewport.Model
 	files           []jj.File
@@ -27,7 +27,7 @@ type FilesPanel struct {
 	borderAnimating bool    // true only while the one-shot wrap is running
 }
 
-// NewFilesPanel creates a new files panel
+// NewFilesPanel creates a new files panel.
 func NewFilesPanel() FilesPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
@@ -39,7 +39,7 @@ func NewFilesPanel() FilesPanel {
 	}
 }
 
-// SetSize sets the panel dimensions
+// SetSize sets the panel dimensions.
 func (p *FilesPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
@@ -48,7 +48,7 @@ func (p *FilesPanel) SetSize(width, height int) {
 	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
-// SetFocused sets the focus state
+// SetFocused sets the focus state.
 func (p *FilesPanel) SetFocused(focused bool) {
 	p.focused = focused
 }
@@ -63,7 +63,7 @@ func (p *FilesPanel) SetBorderAnimating(animating bool) {
 	p.borderAnimating = animating
 }
 
-// SetFiles sets the file list
+// SetFiles sets the file list.
 func (p *FilesPanel) SetFiles(changeID string, shortCode string, files []jj.File) {
 	p.changeID = changeID
 	p.shortCode = shortCode
@@ -72,7 +72,7 @@ func (p *FilesPanel) SetFiles(changeID string, shortCode string, files []jj.File
 	p.updateViewport()
 }
 
-// SelectedFile returns the currently selected file
+// SelectedFile returns the currently selected file.
 func (p *FilesPanel) SelectedFile() *jj.File {
 	if p.cursor >= 0 && p.cursor < len(p.files) {
 		return &p.files[p.cursor]
@@ -81,12 +81,12 @@ func (p *FilesPanel) SelectedFile() *jj.File {
 	return nil
 }
 
-// ChangeID returns the current change ID
+// ChangeID returns the current change ID.
 func (p *FilesPanel) ChangeID() string {
 	return p.changeID
 }
 
-// CursorUp moves the cursor up
+// CursorUp moves the cursor up.
 func (p *FilesPanel) CursorUp() {
 	if p.cursor > 0 {
 		p.cursor--
@@ -94,7 +94,7 @@ func (p *FilesPanel) CursorUp() {
 	}
 }
 
-// CursorDown moves the cursor down
+// CursorDown moves the cursor down.
 func (p *FilesPanel) CursorDown() {
 	if p.cursor < len(p.files)-1 {
 		p.cursor++
@@ -102,13 +102,13 @@ func (p *FilesPanel) CursorDown() {
 	}
 }
 
-// GotoTop moves to the first item
+// GotoTop moves to the first item.
 func (p *FilesPanel) GotoTop() {
 	p.cursor = 0
 	p.updateViewport()
 }
 
-// GotoBottom moves to the last item
+// GotoBottom moves to the last item.
 func (p *FilesPanel) GotoBottom() {
 	if len(p.files) > 0 {
 		p.cursor = len(p.files) - 1
@@ -158,7 +158,7 @@ func (p *FilesPanel) updateViewport() {
 	}
 }
 
-// HandleClick selects the file at the given Y coordinate (relative to content area)
+// HandleClick selects the file at the given Y coordinate (relative to content area).
 func (p *FilesPanel) HandleClick(y int) bool {
 	// Account for viewport scroll offset
 	visualLine := y + p.viewport.YOffset()
@@ -173,7 +173,7 @@ func (p *FilesPanel) HandleClick(y int) bool {
 	return false
 }
 
-// Update handles input
+// Update handles input.
 func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
 	if !p.focused {
 		return nil
@@ -196,7 +196,7 @@ func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// View renders the panel
+// View renders the panel.
 func (p FilesPanel) View() string {
 	// Build change ID with shortcode highlighted
 	coloredID := p.changeID
@@ -233,7 +233,7 @@ func (p FilesPanel) View() string {
 	return style.Render(content)
 }
 
-// HelpBindings returns the keybindings for this panel (display-only, for status bar)
+// HelpBindings returns the keybindings for this panel (display-only, for status bar).
 func (p FilesPanel) HelpBindings() []help.Binding {
 	return []help.Binding{
 		{
