@@ -54,6 +54,7 @@ const (
 	orderEdit       = 13
 	orderNew        = 14
 	orderAbandon    = 15
+	orderSquash     = 16
 	orderNextPane   = 20
 	orderPrevPane   = 21
 	orderFocusPane0 = 50
@@ -258,6 +259,10 @@ type abandonCompleteMsg struct {
 	changeID string
 }
 
+type squashCompleteMsg struct {
+	changeID string
+}
+
 // Update handles messages.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
@@ -420,6 +425,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case abandonCompleteMsg:
 		// Change abandoned, reload the log
+		cmds = append(cmds, m.loadLog(), m.loadOpLog())
+
+	case squashCompleteMsg:
+		// Change squashed into parent, reload the log
 		cmds = append(cmds, m.loadLog(), m.loadOpLog())
 
 	case borderAnimTickMsg:
@@ -604,6 +613,21 @@ func (m *Model) actionNew() (Model, tea.Cmd) {
 	return *m, m.runNew()
 }
 
+// actionSquash executes jj squash on the selected change.
+// Only allows squash when log panel is focused and in log view.
+func (m *Model) actionSquash() (Model, tea.Cmd) {
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	return *m, m.runSquash(selected.ChangeID)
+}
+
 func (m *Model) actionNextPane() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
 	m.focusedPane = (m.focusedPane + 1) % paneCount
@@ -771,6 +795,14 @@ func (m *Model) globalBindings() []ActionBinding {
 				Order:    orderAbandon,
 			},
 			Action: (*Model).actionAbandon,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.Squash,
+				Category: help.CategoryActions,
+				Order:    orderSquash,
+			},
+			Action: (*Model).actionSquash,
 		},
 		// Help toggle - pinned, always visible
 		{
@@ -1193,6 +1225,17 @@ func (m *Model) runNew() tea.Cmd {
 		}
 
 		return newCompleteMsg{}
+	}
+}
+
+// runSquash executes jj squash and returns a completion message.
+func (m *Model) runSquash(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.runner.Squash(changeID); err != nil {
+			return errMsg{err}
+		}
+
+		return squashCompleteMsg{changeID: changeID}
 	}
 }
 

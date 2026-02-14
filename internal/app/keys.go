@@ -64,6 +64,7 @@ type KeyMap struct {
 	Describe key.Binding
 	Edit     key.Binding
 	New      key.Binding
+	Squash   key.Binding
 	Quit     key.Binding
 	Help     key.Binding
 }
@@ -138,6 +139,10 @@ func DefaultKeyMap() KeyMap {
 		New: key.NewBinding(
 			key.WithKeys("n"),
 			key.WithHelp("n", "new"),
+		),
+		Squash: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "squash"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),

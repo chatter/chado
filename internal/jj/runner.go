@@ -136,6 +136,12 @@ func (r *Runner) Abandon(rev string) error {
 	return err
 }
 
+// Squash squashes a revision into its parent.
+func (r *Runner) Squash(rev string) error {
+	_, err := r.Run("squash", "-r", rev)
+	return err
+}
+
 // ShortestChangeID returns the shortest unique prefix for a change ID.
 func (r *Runner) ShortestChangeID(rev string) (string, error) {
 	output, err := r.Run("log", "-r", rev, "-T", "change_id.shortest()", "--no-graph")
