@@ -161,7 +161,7 @@ func (s *StatusBar) View() string {
 	}
 
 	// Combine regular and pinned parts
-	var allParts []string
+	allParts := make([]string, 0, len(regularParts)+len(pinnedParts))
 
 	allParts = append(allParts, regularParts...)
 	allParts = append(allParts, pinnedParts...)

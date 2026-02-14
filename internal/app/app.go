@@ -2,6 +2,7 @@
 package app
 
 import (
+	"context"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -146,8 +147,8 @@ type borderAnimTickMsg struct {
 }
 
 // New creates a new application model.
-func New(workDir string, version string, log *logger.Logger) Model {
-	runner := jj.NewRunner(workDir, log)
+func New(ctx context.Context, workDir string, version string, log *logger.Logger) Model {
+	runner := jj.NewRunner(ctx, workDir, log)
 
 	logPanel := ui.NewLogPanel()
 	opLogPanel := ui.NewOpLogPanel()

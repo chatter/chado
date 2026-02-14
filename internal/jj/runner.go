@@ -3,6 +3,7 @@ package jj
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -13,20 +14,21 @@ import (
 
 // Runner executes jj commands and returns output.
 type Runner struct {
+	ctx     context.Context
 	workDir string
 	log     *logger.Logger
 }
 
 // NewRunner creates a new jj command runner.
-func NewRunner(workDir string, log *logger.Logger) *Runner {
-	return &Runner{workDir: workDir, log: log}
+func NewRunner(ctx context.Context, workDir string, log *logger.Logger) *Runner {
+	return &Runner{ctx: ctx, workDir: workDir, log: log}
 }
 
 // Run executes a jj command and returns the output with colors preserved.
 func (r *Runner) Run(args ...string) (string, error) {
 	r.log.Debug("executing jj command", "args", args)
 
-	cmd := exec.Command("jj", args...)
+	cmd := exec.CommandContext(r.ctx, "jj", args...)
 	cmd.Dir = r.workDir
 
 	var stdout, stderr bytes.Buffer
@@ -242,8 +244,8 @@ func (r *Runner) ParseOpLogLines(output string) []Operation {
 			trimmed := strings.TrimSpace(strings.TrimPrefix(stripped, "│"))
 
 			// Check for args line
-			if strings.HasPrefix(trimmed, "args:") {
-				currentOp.Args = strings.TrimSpace(strings.TrimPrefix(trimmed, "args:"))
+			if after, found := strings.CutPrefix(trimmed, "args:"); found {
+				currentOp.Args = strings.TrimSpace(after)
 			} else if trimmed != "" {
 				descLines = append(descLines, trimmed)
 			}

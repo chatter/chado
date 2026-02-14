@@ -307,13 +307,8 @@ func (f *FloatingHelp) renderRow(row []column, gap string) (string, int, int) {
 	var paddedColumns []string
 
 	for _, col := range row {
-		lines := make([]string, len(col.lines))
+		lines := make([]string, maxHeight)
 		copy(lines, col.lines)
-
-		// Pad to max height
-		for len(lines) < maxHeight {
-			lines = append(lines, "")
-		}
 
 		// Pad each line to column width
 		for j, line := range lines {

@@ -1,6 +1,7 @@
 package jj
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -83,7 +84,7 @@ func TestStripANSI(t *testing.T) {
 }
 
 func TestParseFiles(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// Generate file paths for test cases
 	addedPath := testgen.FilePath().Example()
@@ -256,7 +257,7 @@ Modified regular file app.go:
 }
 
 func TestParseLogLines(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// Generate valid change IDs, commit IDs, emails, and timestamps using testgen
 	changeID1 := testgen.ChangeID().Example()
@@ -402,7 +403,7 @@ func TestFindHunks_NonOverlapping(t *testing.T) {
 
 // Property: ParseFiles should never return duplicate paths
 func TestParseFiles_NoDuplicatePaths(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	rapid.Check(t, func(t *rapid.T) {
 		// Generate a diff with unique filenames
@@ -432,7 +433,7 @@ func TestParseFiles_NoDuplicatePaths(t *testing.T) {
 
 // Property: File status should only be one of the valid values
 func TestParseFiles_ValidStatus(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	rapid.Check(t, func(t *rapid.T) {
 		status := testgen.FileStatus().Draw(t, "status")
@@ -456,7 +457,7 @@ func TestParseFiles_ValidStatus(t *testing.T) {
 // =============================================================================
 
 func TestParseOpLogLines(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// Generate operation IDs, email, and timestamps
 	opID1 := testgen.OperationID(testgen.WithShort).Example()
@@ -511,7 +512,7 @@ func TestParseOpLogLines(t *testing.T) {
 }
 
 func TestParseOpLogLines_ArgsExtraction(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	opID := testgen.OperationID(testgen.WithShort).Example()
 	email := testgen.Email().Example()
@@ -530,7 +531,7 @@ func TestParseOpLogLines_ArgsExtraction(t *testing.T) {
 
 // Property: All parsed operations should have non-empty OpID
 func TestParseOpLogLines_ValidOpID(t *testing.T) {
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	rapid.Check(t, func(t *rapid.T) {
 		// Generate valid op log format
@@ -568,7 +569,7 @@ func TestParseOpLogLines_ValidOpID(t *testing.T) {
 func TestEvoLog_MethodExists(t *testing.T) {
 	// This test verifies the EvoLog method exists and has the correct signature.
 	// It will fail to compile until EvoLog is implemented.
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// EvoLog should accept a revision and return (string, error)
 	_, err := runner.EvoLog("test-rev")
@@ -585,7 +586,7 @@ func TestEvoLog_MethodExists(t *testing.T) {
 func TestDescribe_MethodExists(t *testing.T) {
 	// This test verifies the Describe method exists and has the correct signature.
 	// It will fail to compile until Describe is implemented.
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// Describe should accept rev and message, return error
 	err := runner.Describe("test-rev", "test message")
@@ -598,7 +599,7 @@ func TestDescribe_MethodExists(t *testing.T) {
 func TestDescribe_CallsRun(t *testing.T) {
 	// This test verifies Describe calls Run with correct arguments.
 	// We can't easily mock Run, but we can verify the method signature.
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// Calling Describe should invoke jj describe -r REV -m MESSAGE
 	// The actual command will fail (not in jj repo), but we're testing the interface
@@ -616,7 +617,7 @@ func TestDescribe_CallsRun(t *testing.T) {
 
 func TestEdit_MethodExists(t *testing.T) {
 	// This test verifies the Edit method exists and has the correct signature.
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// Edit should accept rev, return error
 	err := runner.Edit("test-rev")
@@ -628,7 +629,7 @@ func TestEdit_MethodExists(t *testing.T) {
 
 func TestEdit_CallsRun(t *testing.T) {
 	// This test verifies Edit calls Run with correct arguments.
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// Calling Edit should invoke jj edit REV
 	err := runner.Edit("xsssnyux")
@@ -645,7 +646,7 @@ func TestEdit_CallsRun(t *testing.T) {
 
 func TestNew_MethodExists(t *testing.T) {
 	// This test verifies the New method exists and has the correct signature.
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// New should return error
 	err := runner.New()
@@ -657,7 +658,7 @@ func TestNew_MethodExists(t *testing.T) {
 
 func TestAbandon_MethodExists(t *testing.T) {
 	// This test verifies the Abandon method exists and has the correct signature.
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// Abandon should return error
 	err := runner.Abandon("abc123")
@@ -670,7 +671,7 @@ func TestAbandon_MethodExists(t *testing.T) {
 func TestEvoLog_ParsesAsOperations(t *testing.T) {
 	// Evolog output has the same format as op log - operations that affected a change.
 	// This test verifies ParseOpLogLines correctly parses evolog-style output.
-	runner := NewRunner(".", testLogger(t))
+	runner := NewRunner(context.Background(), ".", testLogger(t))
 
 	// Generate operation IDs, email, and timestamps
 	opID1 := testgen.OperationID(testgen.WithShort).Example()

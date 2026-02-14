@@ -136,7 +136,7 @@ func WithVersion(gen *rapid.Generator[string]) *rapid.Generator[string] {
 
 // preserveVersion splits a change ID into its base and optional /N version suffix.
 // This allows transformers to be order-independent by preserving the suffix through transformations.
-func preserveVersion(id string) (base, suffix string) {
+func preserveVersion(id string) (string, string) {
 	if idx := strings.LastIndex(id, "/"); idx != -1 {
 		return id[:idx], id[idx:]
 	}

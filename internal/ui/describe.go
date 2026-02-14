@@ -70,10 +70,7 @@ func (d *DescribeInput) SetSize(width, height int) {
 
 	// Set input width to fit within the modal
 	// Account for border (2) + padding (4) on each side
-	inputWidth := width - describeInputChrome
-	if inputWidth < minDescribeInputWidth {
-		inputWidth = minDescribeInputWidth
-	}
+	inputWidth := max(width-describeInputChrome, minDescribeInputWidth)
 
 	d.input.SetWidth(inputWidth)
 }
