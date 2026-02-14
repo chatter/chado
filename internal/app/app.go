@@ -840,15 +840,24 @@ func (m *Model) handleFocusChange(fromPane, toPane FocusedPane) tea.Cmd {
 
 	// When focusing log (from op log), show change diff in diff pane
 	if toPane == PaneLog && fromPane == PaneOpLog {
-		if m.viewMode == ViewLog {
-			if change := m.logPanel.SelectedChange(); change != nil {
-				return m.loadDiff(change.ChangeID)
-			}
-		} else {
-			if file := m.filesPanel.SelectedFile(); file != nil {
-				return m.loadFileDiff(m.filesPanel.ChangeID(), file.Path)
-			}
+		return m.loadSelectedDiff()
+	}
+
+	return nil
+}
+
+// loadSelectedDiff loads diff content for the currently selected item based on view mode.
+func (m *Model) loadSelectedDiff() tea.Cmd {
+	if m.viewMode == ViewLog {
+		if change := m.logPanel.SelectedChange(); change != nil {
+			return m.loadDiff(change.ChangeID)
 		}
+
+		return nil
+	}
+
+	if file := m.filesPanel.SelectedFile(); file != nil {
+		return m.loadFileDiff(m.filesPanel.ChangeID(), file.Path)
 	}
 
 	return nil
@@ -891,59 +900,71 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	if mouse.Button == tea.MouseLeft {
 		switch {
 		case inTopLeftPanel:
-			// Y relative to top panel content area
-			contentY := mouse.Y - contentYOffset
-
-			// Focus top-left panel
-			m.focusedPane = PaneLog
-			m.updatePanelFocus()
-
-			if m.viewMode == ViewLog {
-				var cmd tea.Cmd
-
-				if m.logPanel.HandleClick(contentY) {
-					if change := m.logPanel.SelectedChange(); change != nil {
-						cmd = m.loadDiff(change.ChangeID)
-					}
-				}
-
-				return tea.Batch(cmd, m.startLogPanelBorderAnim())
-			}
-
-			if m.filesPanel.HandleClick(contentY) {
-				if file := m.filesPanel.SelectedFile(); file != nil {
-					changeID := m.filesPanel.ChangeID()
-
-					return tea.Batch(m.loadFileDiff(changeID, file.Path), m.startLogPanelBorderAnim())
-				}
-			}
-
-			return m.startLogPanelBorderAnim()
+			return m.handleLogPanelClick(mouse.Y - contentYOffset)
 		case inBottomLeftPanel:
-			// Y relative to bottom panel content area
-			contentY := mouse.Y - leftTopHeight - contentYOffset
-
-			// Focus op log panel
-			m.focusedPane = PaneOpLog
-			m.updatePanelFocus()
-
-			if m.opLogPanel.HandleClick(contentY) {
-				if op := m.opLogPanel.SelectedOperation(); op != nil {
-					return tea.Batch(m.loadOpShow(op.OpID), m.startLogPanelBorderAnim())
-				}
-			}
-
-			return m.startLogPanelBorderAnim()
+			return m.handleOpLogPanelClick(mouse.Y - leftTopHeight - contentYOffset)
 		case inRightPanel:
-			// Focus right panel
-			m.focusedPane = PaneDiff
-			m.updatePanelFocus()
-
-			return m.startLogPanelBorderAnim()
+			return m.handleDiffPanelClick()
 		}
 	}
 
 	return nil
+}
+
+func (m *Model) handleLogPanelClick(contentY int) tea.Cmd {
+	m.focusedPane = PaneLog
+	m.updatePanelFocus()
+
+	var loadCmd tea.Cmd
+
+	if m.viewMode == ViewLog {
+		loadCmd = m.loadClickedChange(contentY)
+	} else {
+		loadCmd = m.loadClickedFile(contentY)
+	}
+
+	return tea.Batch(loadCmd, m.startLogPanelBorderAnim())
+}
+
+func (m *Model) handleOpLogPanelClick(contentY int) tea.Cmd {
+	m.focusedPane = PaneOpLog
+	m.updatePanelFocus()
+
+	return tea.Batch(m.loadClickedOp(contentY), m.startLogPanelBorderAnim())
+}
+
+// loadClickedChange processes a click in the log panel and loads the diff if a change was selected.
+func (m *Model) loadClickedChange(contentY int) tea.Cmd {
+	if !m.logPanel.HandleClick(contentY) || m.logPanel.SelectedChange() == nil {
+		return nil
+	}
+
+	return m.loadDiff(m.logPanel.SelectedChange().ChangeID)
+}
+
+// loadClickedFile processes a click in the files panel and loads the file diff if a file was selected.
+func (m *Model) loadClickedFile(contentY int) tea.Cmd {
+	if !m.filesPanel.HandleClick(contentY) || m.filesPanel.SelectedFile() == nil {
+		return nil
+	}
+
+	return m.loadFileDiff(m.filesPanel.ChangeID(), m.filesPanel.SelectedFile().Path)
+}
+
+// loadClickedOp processes a click in the op log panel and loads op details if an operation was selected.
+func (m *Model) loadClickedOp(contentY int) tea.Cmd {
+	if !m.opLogPanel.HandleClick(contentY) || m.opLogPanel.SelectedOperation() == nil {
+		return nil
+	}
+
+	return m.loadOpShow(m.opLogPanel.SelectedOperation().OpID)
+}
+
+func (m *Model) handleDiffPanelClick() tea.Cmd {
+	m.focusedPane = PaneDiff
+	m.updatePanelFocus()
+
+	return m.startLogPanelBorderAnim()
 }
 
 // loadDiff fetches the diff for a change.

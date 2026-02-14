@@ -3,6 +3,7 @@ package jj
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"os/exec"
@@ -155,11 +156,11 @@ func (r *Runner) LogStat(rev string) (string, error) {
 func (r *Runner) ParseLogLines(output string) []Change {
 	lines := strings.Split(output, "\n")
 
-	var changes []Change
-
-	var currentChange *Change
-
-	var descLines []string
+	var (
+		changes       []Change
+		currentChange *Change
+		descLines     []string
+	)
 
 	// Regex to detect change lines - requires a graph symbol (@○◆◇●), not just whitespace
 	// Matches lines like: "@ xsssnyux ..." or "○ nlkzwoyt/2 ..." or "◆ kyztkmnt ..."
@@ -167,42 +168,33 @@ func (r *Runner) ParseLogLines(output string) []Change {
 	// Change IDs use reverse-hex [k-z] and may have version suffix /N
 	changeLineRe := regexp.MustCompile(`^[│├└\s]*[@○◆◇●×]\s*([k-z]{8,}(?:/\d+)?)\s`)
 
+	finalizeChange := func() {
+		if currentChange == nil {
+			return
+		}
+
+		currentChange.Description = strings.TrimSpace(strings.Join(descLines, " "))
+		changes = append(changes, *currentChange)
+	}
+
 	for _, line := range lines {
 		stripped := stripANSI(line)
+
 		if match := changeLineRe.FindStringSubmatch(stripped); match != nil {
-			// Save previous change if exists
-			if currentChange != nil {
-				currentChange.Description = strings.TrimSpace(strings.Join(descLines, " "))
-				changes = append(changes, *currentChange)
-			}
+			finalizeChange()
 
-			// Start new change
-			changeID := match[1]
-
-			currentChange = &Change{
-				ChangeID: changeID,
-				Raw:      line,
-			}
+			currentChange = &Change{ChangeID: match[1], Raw: line}
 			descLines = nil
 		} else if currentChange != nil && strings.TrimSpace(line) != "" {
-			// This is a continuation line (description, etc.)
-			// Check if it's a description line (usually starts with │ and spaces)
-			if strings.HasPrefix(stripped, "│") || strings.HasPrefix(stripped, " ") {
-				desc := strings.TrimSpace(strings.TrimPrefix(stripped, "│"))
-				if desc != "" {
-					descLines = append(descLines, desc)
-				}
+			if desc := extractDesc(stripped); desc != "" {
+				descLines = append(descLines, desc)
 			}
-			// Keep appending raw lines for display
+
 			currentChange.Raw += "\n" + line
 		}
 	}
 
-	// Don't forget the last change
-	if currentChange != nil {
-		currentChange.Description = strings.TrimSpace(strings.Join(descLines, " "))
-		changes = append(changes, *currentChange)
-	}
+	finalizeChange()
 
 	return changes
 }
@@ -212,55 +204,45 @@ func (r *Runner) ParseLogLines(output string) []Change {
 func (r *Runner) ParseOpLogLines(output string) []Operation {
 	lines := strings.Split(output, "\n")
 
-	var operations []Operation
+	var (
+		operations []Operation
+		currentOp  *Operation
+		descLines  []string
+	)
 
-	var currentOp *Operation
+	finalizeOp := func() {
+		if currentOp == nil {
+			return
+		}
 
-	var descLines []string
+		currentOp.Description = strings.TrimSpace(strings.Join(descLines, " "))
+		operations = append(operations, *currentOp)
+	}
 
 	for _, line := range lines {
 		stripped := stripANSI(line)
-		if match := EntryLineRe.FindStringSubmatch(stripped); match != nil {
-			// Save previous operation if exists
-			if currentOp != nil {
-				currentOp.Description = strings.TrimSpace(strings.Join(descLines, " "))
-				operations = append(operations, *currentOp)
-			}
 
-			// Extract ID from named groups - one of opID or changeID will match
-			// match[1] is opID (if hex), match[2] is changeID (if letters)
-			opID := match[1]
-			if opID == "" {
-				opID = match[2]
-			}
+		if match := EntryLineRe.FindStringSubmatch(stripped); match != nil {
+			finalizeOp()
 
 			currentOp = &Operation{
-				OpID: opID,
+				OpID: cmp.Or(match[1], match[2]), // match[1] if opID is present, otherwise match[2] for changeID
 				Raw:  line,
 			}
 			descLines = nil
 		} else if currentOp != nil && strings.TrimSpace(line) != "" {
-			// This is a continuation line (description, args, etc.)
-			stripped := stripANSI(line)
 			trimmed := strings.TrimSpace(strings.TrimPrefix(stripped, "│"))
-
-			// Check for args line
 			if after, found := strings.CutPrefix(trimmed, "args:"); found {
 				currentOp.Args = strings.TrimSpace(after)
 			} else if trimmed != "" {
 				descLines = append(descLines, trimmed)
 			}
 
-			// Keep appending raw lines for display
 			currentOp.Raw += "\n" + line
 		}
 	}
 
-	// Don't forget the last operation
-	if currentOp != nil {
-		currentOp.Description = strings.TrimSpace(strings.Join(descLines, " "))
-		operations = append(operations, *currentOp)
-	}
+	finalizeOp()
 
 	return operations
 }
@@ -374,6 +356,16 @@ func FindHunks(diffOutput string) []Hunk {
 	}
 
 	return hunks
+}
+
+// extractDesc pulls description text from a graph-continuation or indented line.
+// Returns empty string if the line isn't a description line.
+func extractDesc(stripped string) string {
+	if !strings.HasPrefix(stripped, "│") && !strings.HasPrefix(stripped, " ") {
+		return ""
+	}
+
+	return strings.TrimSpace(strings.TrimPrefix(stripped, "│"))
 }
 
 // stripANSI removes ANSI escape codes from a string.

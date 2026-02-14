@@ -18,7 +18,7 @@ func ReplaceResetWithColor(s string, color string) string {
 	return strings.ReplaceAll(s, "\x1b[0m", colorCode)
 }
 
-// stripANSI removes ANSI escape codes.
+// StripANSI removes ANSI escape codes.
 func StripANSI(s string) string {
 	ansiRe := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 	return ansiRe.ReplaceAllString(s, "")
