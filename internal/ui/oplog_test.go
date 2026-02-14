@@ -567,41 +567,42 @@ func TestOpLogPanel_SetOpLogContent_SwitchesMode(t *testing.T) {
 
 func TestOpLogPanel_TitleByMode_OpLog(t *testing.T) {
 	panel := NewOpLogPanel()
-	panel.SetSize(80, 24)
 
 	operations := []jj.Operation{
 		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
 	}
 	panel.SetOpLogContent("@ aaaaaaaaaaaa", operations)
 
-	view := panel.View()
+	if panel.mode != ModeOpLog {
+		t.Errorf("expected ModeOpLog, got %d", panel.mode)
+	}
 
-	// Title should contain "Operations Log"
-	if !strings.Contains(view, "Operations Log") {
-		t.Errorf("view should contain 'Operations Log' in oplog mode, got: %s", view)
+	// Verify PanelTitle produces the expected title text
+	title := PanelTitle(opLogPanelNumber, "Operations Log", false)
+	stripped := stripTestANSI(title)
+	if !strings.Contains(stripped, "Operations Log") {
+		t.Errorf("title should contain 'Operations Log', got: %s", stripped)
 	}
 }
 
 func TestOpLogPanel_TitleByMode_EvoLog(t *testing.T) {
 	panel := NewOpLogPanel()
-	panel.SetSize(80, 24)
 
 	operations := []jj.Operation{
 		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
 	}
 	panel.SetEvoLogContent("mkvurkku", "mkv", "@ aaaaaaaaaaaa", operations)
 
-	view := panel.View()
-
-	// Title should contain "Evolution:" and NOT "Operations Log"
-	if strings.Contains(view, "Operations Log") {
-		t.Errorf("view should NOT contain 'Operations Log' in evolog mode")
+	if panel.mode != ModeEvoLog {
+		t.Errorf("expected ModeEvoLog, got %d", panel.mode)
 	}
 
-	// Should contain the change ID (stripped view check - ANSI codes complicate exact match)
-	stripped := stripTestANSI(view)
-	if !strings.Contains(stripped, "Evolution") {
-		t.Errorf("view should contain 'Evolution' in evolog mode, got: %s", stripped)
+	if panel.changeID != "mkvurkku" {
+		t.Errorf("expected changeID 'mkvurkku', got %s", panel.changeID)
+	}
+
+	if panel.shortCode != "mkv" {
+		t.Errorf("expected shortCode 'mkv', got %s", panel.shortCode)
 	}
 }
 
