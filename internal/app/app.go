@@ -265,197 +265,49 @@ type squashCompleteMsg struct {
 
 // Update handles messages.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// When edit mode is active, forward to describe input
-		if m.editMode {
-			cmd := m.describeInput.Update(msg)
-			return m, cmd
-		}
-
-		// When help modal is open, only handle ?, esc, and q
-		if m.showHelp {
-			if msg.String() == "?" || msg.String() == "esc" {
-				m.showHelp = false
-				return m, nil
-			}
-
-			if msg.String() == "q" {
-				if m.watcher != nil {
-					m.watcher.Close()
-				}
-
-				return m, tea.Quit
-			}
-			// Absorb all other keys
-			return m, nil
-		}
-
-		// Try active bindings first
-		if newModel, cmd := dispatchKey(m, msg, m.activeBindings()); newModel != nil {
-			m = newModel
-
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		} else {
-			// No binding matched, pass to focused panel
-			cmds = append(cmds, m.updateFocusedPanel(msg))
-		}
-
+		return m.handleKeyMsg(msg)
 	case tea.MouseMsg:
-		cmds = append(cmds, m.handleMouse(msg))
-
+		return m, m.handleMouse(msg)
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updatePanelSizes()
-
 	case logLoadedMsg:
-		m.changes = msg.changes
-		m.logPanel.SetContent(msg.raw, msg.changes)
-		// Only load diff if we're in log view AND log panel is focused
-		if m.viewMode == ViewLog && m.focusedPane == PaneLog {
-			if selected := m.logPanel.SelectedChange(); selected != nil {
-				cmds = append(cmds, m.loadDiff(selected.ChangeID))
-			}
-		}
-
+		return m, m.handleLogLoaded(msg)
 	case diffLoadedMsg:
-		m.currentDiff = msg.diffOutput
-		m.diffPanel.SetDiff(msg.diffOutput)
-
+		m.handleDiffLoaded(msg)
 	case filesLoadedMsg:
-		m.filesPanel.SetFiles(msg.changeID, msg.shortCode, msg.files)
-		m.currentDiff = msg.diffOutput
-		// Load evolog for this change (shows operations that affected it)
-		cmds = append(cmds, m.loadEvoLog(msg.changeID, msg.shortCode))
-		// If there are files, show diff for the first one
-		if len(msg.files) > 0 {
-			cmds = append(cmds, m.loadFileDiff(msg.changeID, msg.files[0].Path))
-		}
-
+		return m, m.handleFilesLoaded(msg)
 	case fileDiffLoadedMsg:
-		m.diffPanel.SetTitle("Patch")
-		m.diffPanel.SetDiff(msg.diffOutput)
-
+		m.handleFileDiffLoaded(msg)
 	case opLogLoadedMsg:
-		m.opLogPanel.SetOpLogContent(msg.raw, msg.operations)
-		// If op log panel is focused, load op show for selected operation
-		if m.focusedPane == PaneOpLog {
-			if selected := m.opLogPanel.SelectedOperation(); selected != nil {
-				cmds = append(cmds, m.loadOpShow(selected.OpID))
-			}
-		}
-
+		return m, m.handleOpLogLoaded(msg)
 	case evoLogLoadedMsg:
-		m.opLogPanel.SetEvoLogContent(msg.changeID, msg.shortCode, msg.raw, msg.operations)
-		// If op log panel is focused, load op show for selected operation
-		if m.focusedPane == PaneOpLog {
-			if selected := m.opLogPanel.SelectedOperation(); selected != nil {
-				cmds = append(cmds, m.loadOpShow(selected.OpID))
-			}
-		}
-
+		return m, m.handleEvoLogLoaded(msg)
 	case opShowLoadedMsg:
-		m.diffPanel.SetTitle("Operation")
-		m.diffPanel.SetDiff(msg.output)
-
+		m.handleOpShowLoaded(msg)
 	case watcherStartedMsg:
-		if msg.err != nil {
-			m.log.Warn("watcher failed to start", "err", msg.err)
-		}
-
-		if m.watcher = msg.watcher; m.watcher != nil {
-			cmds = append(cmds, m.waitForChange())
-		}
-
+		return m, m.handleWatcherStarted(msg)
 	case jj.WatcherMsg:
-		// Coalesce: schedule a single flush after a short delay.
-		// Do NOT refresh or re-arm waitForChange here.
-		if !m.watcherPending {
-			m.watcherPending = true
-
-			cmds = append(cmds, tea.Tick(watcherDebounceDelay, func(time.Time) tea.Msg {
-				return watcherFlushMsg{}
-			}))
-		}
-
+		return m, m.handleWatcherEvent(msg)
 	case watcherFlushMsg:
-		// One refresh per burst, then re-arm the watcher.
-		m.watcherPending = false
-		cmds = append(cmds, m.loadLog(), m.loadOpLog(), m.waitForChange())
-
-		// If drilled into files view, reload file list and current diff
-		if m.viewMode == ViewFiles {
-			if change := m.filesPanel.ChangeID(); change != "" {
-				cmds = append(cmds, m.loadFiles(change))
-				if file := m.filesPanel.SelectedFile(); file != nil {
-					cmds = append(cmds, m.loadFileDiff(change, file.Path))
-				}
-			}
-		}
-
+		return m, m.handleWatcherFlush(msg)
 	case errMsg:
-		m.log.Error("app error", "err", msg.err)
-		m.lastError = msg.err.Error()
-
+		m.handleErr(msg)
 	case ui.DescribeSubmitMsg:
-		// Run jj describe and reload
-		m.editMode = false
-		cmds = append(cmds, m.runDescribe(msg.ChangeID, msg.Description))
-
+		return m, m.handleDescribeSubmit(msg)
 	case ui.DescribeCancelMsg:
-		// Just close the edit mode
 		m.editMode = false
-
-	case describeCompleteMsg:
-		// Description updated, reload the log
-		cmds = append(cmds, m.loadLog(), m.loadOpLog())
-
-	case editCompleteMsg:
-		// Edit complete, reload the log
-		cmds = append(cmds, m.loadLog(), m.loadOpLog())
-
-	case newCompleteMsg:
-		// New change created, reload the log
-		cmds = append(cmds, m.loadLog(), m.loadOpLog())
-
-	case abandonCompleteMsg:
-		// Change abandoned, reload the log
-		cmds = append(cmds, m.loadLog(), m.loadOpLog())
-
-	case squashCompleteMsg:
-		// Change squashed into parent, reload the log
-		cmds = append(cmds, m.loadLog(), m.loadOpLog())
-
+	case describeCompleteMsg, editCompleteMsg, newCompleteMsg,
+		abandonCompleteMsg, squashCompleteMsg:
+		return m, m.reloadAfterMutation()
 	case borderAnimTickMsg:
-		if msg.Generation != m.borderAnimGeneration {
-			break // stale tick from a previous focus; ignore
-		}
-
-		const animSteps = 120
-
-		nextPhase := msg.Phase + 1.0/animSteps
-		if nextPhase > 1 {
-			nextPhase = 1
-		}
-
-		m.logPanelBorderPhase = nextPhase
-		m.setFocusBorderAnimPhase(nextPhase)
-
-		if nextPhase >= 1 {
-			m.setFocusBorderAnimating(false) // animation complete; show static focus border
-		}
-
-		if nextPhase < 1 {
-			cmds = append(cmds, m.startLogPanelBorderAnimWithPhase(nextPhase, m.borderAnimGeneration))
-		}
+		return m, m.handleBorderAnimTick(msg)
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
 }
 
 // View renders the application.
@@ -1375,4 +1227,199 @@ func (m *Model) waitForChange() tea.Cmd {
 		<-m.watcher.Events() // Block until valid event
 		return jj.WatcherMsg{}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Message handlers
+// ---------------------------------------------------------------------------
+
+func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// When edit mode is active, forward to describe input
+	if m.editMode {
+		return m, m.describeInput.Update(msg)
+	}
+
+	// When help modal is open, only handle ?, esc, and q
+	if m.showHelp {
+		if msg.String() == "?" || msg.String() == "esc" {
+			m.showHelp = false
+			return m, nil
+		}
+
+		if msg.String() == "q" {
+			if m.watcher != nil {
+				m.watcher.Close()
+			}
+
+			return m, tea.Quit
+		}
+
+		return m, nil
+	}
+
+	// Try active bindings first
+	if newModel, cmd := dispatchKey(m, msg, m.activeBindings()); newModel != nil {
+		return newModel, cmd
+	}
+
+	// No binding matched, pass to focused panel
+	return m, m.updateFocusedPanel(msg)
+}
+
+func (m *Model) handleLogLoaded(msg logLoadedMsg) tea.Cmd {
+	m.changes = msg.changes
+	m.logPanel.SetContent(msg.raw, msg.changes)
+
+	// Only load diff if we're in log view AND log panel is focused
+	if m.viewMode == ViewLog && m.focusedPane == PaneLog {
+		if selected := m.logPanel.SelectedChange(); selected != nil {
+			return m.loadDiff(selected.ChangeID)
+		}
+	}
+
+	return nil
+}
+
+func (m *Model) handleDiffLoaded(msg diffLoadedMsg) {
+	m.currentDiff = msg.diffOutput
+	m.diffPanel.SetDiff(msg.diffOutput)
+}
+
+func (m *Model) handleFilesLoaded(msg filesLoadedMsg) tea.Cmd {
+	m.filesPanel.SetFiles(msg.changeID, msg.shortCode, msg.files)
+	m.currentDiff = msg.diffOutput
+
+	// Load evolog for this change (shows operations that affected it)
+	cmds := []tea.Cmd{m.loadEvoLog(msg.changeID, msg.shortCode)}
+
+	// If there are files, show diff for the first one
+	if len(msg.files) > 0 {
+		cmds = append(cmds, m.loadFileDiff(msg.changeID, msg.files[0].Path))
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (m *Model) handleFileDiffLoaded(msg fileDiffLoadedMsg) {
+	m.diffPanel.SetTitle("Patch")
+	m.diffPanel.SetDiff(msg.diffOutput)
+}
+
+func (m *Model) handleOpLogLoaded(msg opLogLoadedMsg) tea.Cmd {
+	m.opLogPanel.SetOpLogContent(msg.raw, msg.operations)
+
+	// If op log panel is focused, load op show for selected operation
+	if m.focusedPane == PaneOpLog {
+		if selected := m.opLogPanel.SelectedOperation(); selected != nil {
+			return m.loadOpShow(selected.OpID)
+		}
+	}
+
+	return nil
+}
+
+func (m *Model) handleEvoLogLoaded(msg evoLogLoadedMsg) tea.Cmd {
+	m.opLogPanel.SetEvoLogContent(msg.changeID, msg.shortCode, msg.raw, msg.operations)
+
+	// If op log panel is focused, load op show for selected operation
+	if m.focusedPane == PaneOpLog {
+		if selected := m.opLogPanel.SelectedOperation(); selected != nil {
+			return m.loadOpShow(selected.OpID)
+		}
+	}
+
+	return nil
+}
+
+func (m *Model) handleOpShowLoaded(msg opShowLoadedMsg) {
+	m.diffPanel.SetTitle("Operation")
+	m.diffPanel.SetDiff(msg.output)
+}
+
+func (m *Model) handleWatcherStarted(msg watcherStartedMsg) tea.Cmd {
+	if msg.err != nil {
+		m.log.Warn("watcher failed to start", "err", msg.err)
+	}
+
+	if m.watcher = msg.watcher; m.watcher != nil {
+		return m.waitForChange()
+	}
+
+	return nil
+}
+
+func (m *Model) handleWatcherEvent(_ jj.WatcherMsg) tea.Cmd {
+	// Coalesce: schedule a single flush after a short delay.
+	// Do NOT refresh or re-arm waitForChange here.
+	if m.watcherPending {
+		return nil
+	}
+
+	m.watcherPending = true
+
+	return tea.Tick(watcherDebounceDelay, func(time.Time) tea.Msg {
+		return watcherFlushMsg{}
+	})
+}
+
+func (m *Model) handleWatcherFlush(_ watcherFlushMsg) tea.Cmd {
+	// One refresh per burst, then re-arm the watcher.
+	m.watcherPending = false
+
+	cmds := []tea.Cmd{m.loadLog(), m.loadOpLog(), m.waitForChange()}
+
+	// If drilled into files view, reload file list and current diff
+	if m.viewMode == ViewFiles {
+		if change := m.filesPanel.ChangeID(); change != "" {
+			cmds = append(cmds, m.loadFiles(change))
+
+			if file := m.filesPanel.SelectedFile(); file != nil {
+				cmds = append(cmds, m.loadFileDiff(change, file.Path))
+			}
+		}
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (m *Model) handleErr(msg errMsg) {
+	m.log.Error("app error", "err", msg.err)
+	m.lastError = msg.err.Error()
+}
+
+func (m *Model) handleDescribeSubmit(msg ui.DescribeSubmitMsg) tea.Cmd {
+	m.editMode = false
+
+	return m.runDescribe(msg.ChangeID, msg.Description)
+}
+
+// reloadAfterMutation reloads the log and op log after a state-changing jj command.
+func (m *Model) reloadAfterMutation() tea.Cmd {
+	return tea.Batch(m.loadLog(), m.loadOpLog())
+}
+
+func (m *Model) handleBorderAnimTick(msg borderAnimTickMsg) tea.Cmd {
+	if msg.Generation != m.borderAnimGeneration {
+		return nil
+	}
+
+	const animSteps = 120
+
+	nextPhase := msg.Phase + 1.0/animSteps
+	if nextPhase > 1 {
+		nextPhase = 1
+	}
+
+	m.logPanelBorderPhase = nextPhase
+	m.setFocusBorderAnimPhase(nextPhase)
+
+	if nextPhase >= 1 {
+		m.setFocusBorderAnimating(false) // animation complete; show static focus border
+	}
+
+	if nextPhase < 1 {
+		return m.startLogPanelBorderAnimWithPhase(nextPhase, m.borderAnimGeneration)
+	}
+
+	return nil
 }
