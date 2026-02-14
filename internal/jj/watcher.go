@@ -79,6 +79,27 @@ func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 	return self, nil
 }
 
+// Events returns the channel of filtered fsnotify events.
+func (w *Watcher) Events() <-chan fsnotify.Event {
+	return w.filtered
+}
+
+// Errors returns the channel of fsnotify errors.
+func (w *Watcher) Errors() <-chan error {
+	return w.watcher.Errors
+}
+
+// Close stops the watcher.
+func (w *Watcher) Close() error {
+	close(w.done)
+
+	if err := w.watcher.Close(); err != nil {
+		return fmt.Errorf("closing fsnotify watcher: %w", err)
+	}
+
+	return nil
+}
+
 func (w *Watcher) filterEvents() {
 	defer close(w.filtered)
 
@@ -99,7 +120,9 @@ func (w *Watcher) filterEvents() {
 
 				info, err := os.Stat(event.Name)
 				if err == nil && info.IsDir() {
-					w.watcher.Add(event.Name)
+					if err := w.watcher.Add(event.Name); err != nil {
+						w.log.Debug("failed to watch new directory", "path", event.Name, "err", err)
+					}
 				}
 			}
 
@@ -125,25 +148,4 @@ func (w *Watcher) filterEvents() {
 			}
 		}
 	}
-}
-
-// Events returns the channel of filtered fsnotify events.
-func (w *Watcher) Events() <-chan fsnotify.Event {
-	return w.filtered
-}
-
-// Errors returns the channel of fsnotify errors.
-func (w *Watcher) Errors() <-chan error {
-	return w.watcher.Errors
-}
-
-// Close stops the watcher.
-func (w *Watcher) Close() error {
-	close(w.done)
-
-	if err := w.watcher.Close(); err != nil {
-		return fmt.Errorf("closing fsnotify watcher: %w", err)
-	}
-
-	return nil
 }

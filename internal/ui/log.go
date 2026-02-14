@@ -109,26 +109,6 @@ func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
 	p.updateViewport()
 }
 
-// computeChangeStartLines pre-computes the line number where each change starts.
-func (p *LogPanel) computeChangeStartLines() {
-	p.changeStartLines = nil
-	p.totalLines = 0
-
-	if p.rawLog == "" {
-		return
-	}
-
-	// Count actual lines (newlines), not split elements (which includes trailing empty)
-	p.totalLines = strings.Count(p.rawLog, "\n")
-
-	lines := strings.Split(p.rawLog, "\n")
-	for i, line := range lines {
-		if isChangeStart(line) {
-			p.changeStartLines = append(p.changeStartLines, i)
-		}
-	}
-}
-
 // SelectedChange returns the currently selected change.
 func (p *LogPanel) SelectedChange() *jj.Change {
 	if p.cursor >= 0 && p.cursor < len(p.changes) {
@@ -178,35 +158,100 @@ func isChangeStart(line string) bool {
 	return changeLineRe.MatchString(stripped)
 }
 
-func (p *LogPanel) updateViewport() {
+// HandleClick selects the change at the given Y coordinate (relative to content area).
+// Returns true if the selection changed.
+func (p *LogPanel) HandleClick(y int) bool {
+	// Account for viewport scroll offset
+	visualLine := y + p.viewport.YOffset()
+
+	changeIdx := p.lineToChangeIndex(visualLine)
+	if changeIdx >= 0 && changeIdx < len(p.changes) && changeIdx != p.cursor {
+		p.cursor = changeIdx
+		p.updateViewport()
+
+		return true
+	}
+
+	return false
+}
+
+// Update handles input.
+func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
+	if !p.focused {
+		return nil
+	}
+
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		switch msg.String() {
+		case "j", "down":
+			p.CursorDown()
+		case "k", "up":
+			p.CursorUp()
+		case "g":
+			// Check for gg
+			p.GotoTop()
+		case "G":
+			p.GotoBottom()
+		}
+	}
+
+	return nil
+}
+
+// View renders the panel.
+func (p LogPanel) View() string {
+	title := PanelTitle(1, "Change Log", p.focused)
+
+	var style lipgloss.Style
+
+	switch {
+	case p.focused && p.borderAnimating:
+		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+	case p.focused:
+		style = FocusedPanelStyle
+	default:
+		style = PanelStyle
+	}
+
+	content := title + "\n" + p.viewport.View()
+
+	return style.Render(content)
+}
+
+// HelpBindings returns the keybindings for this panel (display-only, for status bar).
+func (p LogPanel) HelpBindings() []help.Binding {
+	return []help.Binding{
+		{
+			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Category: help.CategoryNavigation,
+			Order:    PanelOrderPrimary,
+		},
+		{
+			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Category: help.CategoryNavigation,
+			Order:    PanelOrderSecondary,
+		},
+	}
+}
+
+// computeChangeStartLines pre-computes the line number where each change starts.
+func (p *LogPanel) computeChangeStartLines() {
+	p.changeStartLines = nil
+	p.totalLines = 0
+
 	if p.rawLog == "" {
-		p.viewport.SetContent("No changes")
 		return
 	}
 
-	var result strings.Builder
-
-	nextChangeIdx := 0
+	// Count actual lines (newlines), not split elements (which includes trailing empty)
+	p.totalLines = strings.Count(p.rawLog, "\n")
 
 	lines := strings.Split(p.rawLog, "\n")
 	for i, line := range lines {
-		// Check if this line starts a change (using pre-computed array)
-		isStart := nextChangeIdx < len(p.changeStartLines) && i == p.changeStartLines[nextChangeIdx]
-
-		// Add selection indicator on the start line of the selected change
-		if isStart && nextChangeIdx == p.cursor {
-			fmt.Fprintf(&result, "→ %s\n", line)
-		} else {
-			fmt.Fprintf(&result, "  %s\n", line)
-		}
-
-		if isStart {
-			nextChangeIdx++
+		if isChangeStart(line) {
+			p.changeStartLines = append(p.changeStartLines, i)
 		}
 	}
-
-	p.viewport.SetContent(result.String())
-	p.ensureCursorVisible()
 }
 
 func (p *LogPanel) ensureCursorVisible() {
@@ -246,77 +291,33 @@ func (p *LogPanel) lineToChangeIndex(visualLine int) int {
 	return changeIdx
 }
 
-// HandleClick selects the change at the given Y coordinate (relative to content area).
-// Returns true if the selection changed.
-func (p *LogPanel) HandleClick(y int) bool {
-	// Account for viewport scroll offset
-	visualLine := y + p.viewport.YOffset()
-
-	changeIdx := p.lineToChangeIndex(visualLine)
-	if changeIdx >= 0 && changeIdx < len(p.changes) && changeIdx != p.cursor {
-		p.cursor = changeIdx
-		p.updateViewport()
-
-		return true
+func (p *LogPanel) updateViewport() {
+	if p.rawLog == "" {
+		p.viewport.SetContent("No changes")
+		return
 	}
 
-	return false
-}
+	var result strings.Builder
 
-// Update handles input.
-func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
-	if !p.focused {
-		return nil
-	}
+	nextChangeIdx := 0
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "j", "down":
-			p.CursorDown()
-		case "k", "up":
-			p.CursorUp()
-		case "g":
-			// Check for gg
-			p.GotoTop()
-		case "G":
-			p.GotoBottom()
+	lines := strings.Split(p.rawLog, "\n")
+	for i, line := range lines {
+		// Check if this line starts a change (using pre-computed array)
+		isStart := nextChangeIdx < len(p.changeStartLines) && i == p.changeStartLines[nextChangeIdx]
+
+		// Add selection indicator on the start line of the selected change
+		if isStart && nextChangeIdx == p.cursor {
+			fmt.Fprintf(&result, "→ %s\n", line)
+		} else {
+			fmt.Fprintf(&result, "  %s\n", line)
+		}
+
+		if isStart {
+			nextChangeIdx++
 		}
 	}
 
-	return nil
-}
-
-// View renders the panel.
-func (p LogPanel) View() string {
-	title := PanelTitle(1, "Change Log", p.focused)
-
-	var style lipgloss.Style
-	if p.focused && p.borderAnimating {
-		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
-	} else if p.focused {
-		style = FocusedPanelStyle
-	} else {
-		style = PanelStyle
-	}
-
-	content := title + "\n" + p.viewport.View()
-
-	return style.Render(content)
-}
-
-// HelpBindings returns the keybindings for this panel (display-only, for status bar).
-func (p LogPanel) HelpBindings() []help.Binding {
-	return []help.Binding{
-		{
-			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
-			Category: help.CategoryNavigation,
-			Order:    PanelOrderPrimary,
-		},
-		{
-			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
-			Category: help.CategoryNavigation,
-			Order:    PanelOrderSecondary,
-		},
-	}
+	p.viewport.SetContent(result.String())
+	p.ensureCursorVisible()
 }

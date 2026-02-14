@@ -113,8 +113,7 @@ type DescribeCancelMsg struct{}
 
 // Update handles input messages.
 func (d *DescribeInput) Update(msg tea.Msg) tea.Cmd {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		if key.Matches(msg, d.submit) {
 			return func() tea.Msg {
 				return DescribeSubmitMsg{

@@ -116,6 +116,98 @@ func (p *FilesPanel) GotoBottom() {
 	}
 }
 
+// HandleClick selects the file at the given Y coordinate (relative to content area).
+func (p *FilesPanel) HandleClick(y int) bool {
+	// Account for viewport scroll offset
+	visualLine := y + p.viewport.YOffset()
+
+	if visualLine >= 0 && visualLine < len(p.files) && visualLine != p.cursor {
+		p.cursor = visualLine
+		p.updateViewport()
+
+		return true
+	}
+
+	return false
+}
+
+// Update handles input.
+func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
+	if !p.focused {
+		return nil
+	}
+
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		switch msg.String() {
+		case "j", "down":
+			p.CursorDown()
+		case "k", "up":
+			p.CursorUp()
+		case "g":
+			p.GotoTop()
+		case "G":
+			p.GotoBottom()
+		}
+	}
+
+	return nil
+}
+
+// View renders the panel.
+func (p FilesPanel) View() string {
+	// Build change ID with shortcode highlighted
+	coloredID := p.changeID
+	if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
+		rest := p.changeID[len(p.shortCode):]
+		// Replace the reset with the outer title color so styling continues
+		var outerColorCode string
+		if p.focused {
+			outerColorCode = AccentColorCode
+		} else {
+			outerColorCode = PrimaryColorCode
+		}
+
+		coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
+	}
+
+	title := PanelTitle(1, coloredID+" / files", p.focused)
+
+	// Get the appropriate border style
+	var style lipgloss.Style
+
+	switch {
+	case p.focused && p.borderAnimating:
+		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+	case p.focused:
+		style = FocusedPanelStyle
+	default:
+		style = PanelStyle
+	}
+
+	style = style.Height(p.height - PanelBorderHeight)
+
+	// Build content with title
+	content := title + "\n" + p.viewport.View()
+
+	return style.Render(content)
+}
+
+// HelpBindings returns the keybindings for this panel (display-only, for status bar).
+func (p FilesPanel) HelpBindings() []help.Binding {
+	return []help.Binding{
+		{
+			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Category: help.CategoryNavigation,
+			Order:    PanelOrderPrimary,
+		},
+		{
+			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Category: help.CategoryNavigation,
+			Order:    PanelOrderSecondary,
+		},
+	}
+}
+
 func (p *FilesPanel) updateViewport() {
 	if len(p.files) == 0 {
 		p.viewport.SetContent("No files changed")
@@ -155,96 +247,5 @@ func (p *FilesPanel) updateViewport() {
 		p.viewport.SetYOffset(p.cursor)
 	} else if p.cursor >= p.viewport.YOffset()+p.viewport.Height() {
 		p.viewport.SetYOffset(p.cursor - p.viewport.Height() + 1)
-	}
-}
-
-// HandleClick selects the file at the given Y coordinate (relative to content area).
-func (p *FilesPanel) HandleClick(y int) bool {
-	// Account for viewport scroll offset
-	visualLine := y + p.viewport.YOffset()
-
-	if visualLine >= 0 && visualLine < len(p.files) && visualLine != p.cursor {
-		p.cursor = visualLine
-		p.updateViewport()
-
-		return true
-	}
-
-	return false
-}
-
-// Update handles input.
-func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
-	if !p.focused {
-		return nil
-	}
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "j", "down":
-			p.CursorDown()
-		case "k", "up":
-			p.CursorUp()
-		case "g":
-			p.GotoTop()
-		case "G":
-			p.GotoBottom()
-		}
-	}
-
-	return nil
-}
-
-// View renders the panel.
-func (p FilesPanel) View() string {
-	// Build change ID with shortcode highlighted
-	coloredID := p.changeID
-	if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
-		rest := p.changeID[len(p.shortCode):]
-		// Replace the reset with the outer title color so styling continues
-		var outerColorCode string
-		if p.focused {
-			outerColorCode = AccentColorCode
-		} else {
-			outerColorCode = PrimaryColorCode
-		}
-
-		coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
-	}
-
-	title := PanelTitle(1, coloredID+" / files", p.focused)
-
-	// Get the appropriate border style
-	var style lipgloss.Style
-	if p.focused && p.borderAnimating {
-		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
-	} else if p.focused {
-		style = FocusedPanelStyle
-	} else {
-		style = PanelStyle
-	}
-
-	style = style.Height(p.height - PanelBorderHeight)
-
-	// Build content with title
-	content := title + "\n" + p.viewport.View()
-
-	return style.Render(content)
-}
-
-// HelpBindings returns the keybindings for this panel (display-only, for status bar).
-func (p FilesPanel) HelpBindings() []help.Binding {
-	return []help.Binding{
-		{
-			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
-			Category: help.CategoryNavigation,
-			Order:    PanelOrderPrimary,
-		},
-		{
-			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
-			Category: help.CategoryNavigation,
-			Order:    PanelOrderSecondary,
-		},
 	}
 }

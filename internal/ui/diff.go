@@ -113,69 +113,6 @@ func (p *DiffPanel) SetDiff(diff string) {
 	p.viewport.GotoTop()
 }
 
-func (p *DiffPanel) updateContent() {
-	var content strings.Builder
-
-	p.headerLines = 0
-
-	// Add details header if enabled
-	if p.showDetails && p.details.ChangeID != "" {
-		// Description first
-		if p.details.Description != "" {
-			content.WriteString(p.details.Description)
-			content.WriteString("\n\n")
-			// Count lines in description
-			// +1 for the description line itself, +1 for the trailing blank line
-			descriptionChrome := 2
-			p.headerLines += strings.Count(p.details.Description, "\n") + descriptionChrome
-		}
-
-		// Metadata line
-		content.WriteString("Change: ")
-		content.WriteString(p.details.ChangeID)
-
-		if p.details.CommitID != "" {
-			content.WriteString("  Commit: ")
-			content.WriteString(p.details.CommitID)
-		}
-
-		content.WriteString("\n")
-
-		p.headerLines++
-
-		if p.details.Author != "" {
-			content.WriteString("Author: ")
-			content.WriteString(p.details.Author)
-		}
-
-		if p.details.Date != "" {
-			content.WriteString("  ")
-			content.WriteString(p.details.Date)
-		}
-
-		content.WriteString("\n")
-
-		p.headerLines++
-
-		// Separator
-		content.WriteString(strings.Repeat("─", p.viewport.Width()))
-		content.WriteString("\n")
-
-		p.headerLines++
-	}
-
-	// Add diff content - apply word wrap to fit viewport width
-	viewportWidth := p.viewport.Width()
-	if viewportWidth > 0 {
-		wrapped := lipgloss.NewStyle().Width(viewportWidth).Render(p.diffContent)
-		content.WriteString(wrapped)
-	} else {
-		content.WriteString(p.diffContent)
-	}
-
-	p.viewport.SetContent(content.String())
-}
-
 // NextHunk jumps to the next hunk/section.
 func (p *DiffPanel) NextHunk() {
 	if len(p.hunks) == 0 || p.currentHunk >= len(p.hunks)-1 {
@@ -215,25 +152,6 @@ func (p *DiffPanel) PrevHunk() {
 	}
 }
 
-// syncCurrentHunk updates currentHunk based on viewport position.
-func (p *DiffPanel) syncCurrentHunk() {
-	if len(p.hunks) == 0 {
-		p.currentHunk = noHunkSelected
-		return
-	}
-
-	pos := p.viewport.YOffset() - p.headerLines
-
-	for i := len(p.hunks) - 1; i >= 0; i-- {
-		if pos >= p.hunks[i].StartLine {
-			p.currentHunk = i
-			return
-		}
-	}
-
-	p.currentHunk = noHunkSelected
-}
-
 // GotoTop scrolls to the top.
 func (p *DiffPanel) GotoTop() {
 	p.viewport.GotoTop()
@@ -267,8 +185,7 @@ func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.String() {
 		case "j", "down":
 			p.viewport.ScrollDown(1)
@@ -296,11 +213,13 @@ func (p DiffPanel) View() string {
 
 	// Get the appropriate border style
 	var style lipgloss.Style
-	if p.focused && p.borderAnimating {
+
+	switch {
+	case p.focused && p.borderAnimating:
 		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
-	} else if p.focused {
+	case p.focused:
 		style = FocusedPanelStyle
-	} else {
+	default:
 		style = PanelStyle
 	}
 
@@ -411,4 +330,86 @@ func (p DiffPanel) HelpBindings() []help.Binding {
 			Order:    PanelOrderSecondary,
 		},
 	}
+}
+
+// syncCurrentHunk updates currentHunk based on viewport position.
+func (p *DiffPanel) syncCurrentHunk() {
+	if len(p.hunks) == 0 {
+		p.currentHunk = noHunkSelected
+		return
+	}
+
+	pos := p.viewport.YOffset() - p.headerLines
+
+	for i := len(p.hunks) - 1; i >= 0; i-- {
+		if pos >= p.hunks[i].StartLine {
+			p.currentHunk = i
+			return
+		}
+	}
+
+	p.currentHunk = noHunkSelected
+}
+
+func (p *DiffPanel) updateContent() {
+	var content strings.Builder
+
+	p.headerLines = 0
+
+	// Add details header if enabled
+	if p.showDetails && p.details.ChangeID != "" {
+		// Description first
+		if p.details.Description != "" {
+			content.WriteString(p.details.Description)
+			content.WriteString("\n\n")
+			// Count lines in description
+			// +1 for the description line itself, +1 for the trailing blank line
+			descriptionChrome := 2
+			p.headerLines += strings.Count(p.details.Description, "\n") + descriptionChrome
+		}
+
+		// Metadata line
+		content.WriteString("Change: ")
+		content.WriteString(p.details.ChangeID)
+
+		if p.details.CommitID != "" {
+			content.WriteString("  Commit: ")
+			content.WriteString(p.details.CommitID)
+		}
+
+		content.WriteString("\n")
+
+		p.headerLines++
+
+		if p.details.Author != "" {
+			content.WriteString("Author: ")
+			content.WriteString(p.details.Author)
+		}
+
+		if p.details.Date != "" {
+			content.WriteString("  ")
+			content.WriteString(p.details.Date)
+		}
+
+		content.WriteString("\n")
+
+		p.headerLines++
+
+		// Separator
+		content.WriteString(strings.Repeat("─", p.viewport.Width()))
+		content.WriteString("\n")
+
+		p.headerLines++
+	}
+
+	// Add diff content - apply word wrap to fit viewport width
+	viewportWidth := p.viewport.Width()
+	if viewportWidth > 0 {
+		wrapped := lipgloss.NewStyle().Width(viewportWidth).Render(p.diffContent)
+		content.WriteString(wrapped)
+	} else {
+		content.WriteString(p.diffContent)
+	}
+
+	p.viewport.SetContent(content.String())
 }

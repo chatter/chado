@@ -310,16 +310,19 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 			}
 
 			// Check next few lines for status
+		statusCheck:
 			for j := lineIdx + 1; j < len(lines) && j < lineIdx+5; j++ {
 				nextLine := stripANSI(lines[j])
-				if newFileRe.MatchString(nextLine) {
+
+				switch {
+				case newFileRe.MatchString(nextLine):
 					file.Status = FileAdded
-					break
-				} else if deletedFileRe.MatchString(nextLine) {
+					break statusCheck
+				case deletedFileRe.MatchString(nextLine):
 					file.Status = FileDeleted
-					break
-				} else if strings.HasPrefix(nextLine, "diff --git") {
-					break
+					break statusCheck
+				case strings.HasPrefix(nextLine, "diff --git"):
+					break statusCheck
 				}
 			}
 

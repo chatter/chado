@@ -82,17 +82,6 @@ func (p *OpLogPanel) SetBorderAnimating(animating bool) {
 	p.borderAnimating = animating
 }
 
-// findOpIndex returns the index of the operation with the given ID, or -1 if not found.
-func findOpIndex(operations []jj.Operation, opID string) int {
-	for i, op := range operations {
-		if op.OpID == opID {
-			return i
-		}
-	}
-
-	return -1
-}
-
 // SetContent sets the op log content from raw jj output.
 func (p *OpLogPanel) SetContent(rawLog string, operations []jj.Operation) {
 	// Capture current selection before overwriting
@@ -118,6 +107,17 @@ func (p *OpLogPanel) SetContent(rawLog string, operations []jj.Operation) {
 	p.updateViewport()
 }
 
+// findOpIndex returns the index of the operation with the given ID, or -1 if not found.
+func findOpIndex(operations []jj.Operation, opID string) int {
+	for i, op := range operations {
+		if op.OpID == opID {
+			return i
+		}
+	}
+
+	return -1
+}
+
 // SetOpLogContent switches to global op log mode and sets content.
 func (p *OpLogPanel) SetOpLogContent(rawLog string, operations []jj.Operation) {
 	p.mode = ModeOpLog
@@ -138,26 +138,6 @@ func (p *OpLogPanel) SetEvoLogContent(changeID, shortCode, rawLog string, operat
 func isEntryStart(line string) bool {
 	stripped := ansiRegex.ReplaceAllString(line, "")
 	return jj.EntryLineRe.MatchString(stripped)
-}
-
-// computeOpStartLines pre-computes the line number where each operation starts.
-func (p *OpLogPanel) computeOpStartLines() {
-	p.opStartLines = nil
-	p.totalLines = 0
-
-	if p.rawLog == "" {
-		return
-	}
-
-	// Count actual lines (newlines), not split elements (which includes trailing empty)
-	p.totalLines = strings.Count(p.rawLog, "\n")
-
-	lines := strings.Split(p.rawLog, "\n")
-	for i, line := range lines {
-		if isEntryStart(line) {
-			p.opStartLines = append(p.opStartLines, i)
-		}
-	}
 }
 
 // SelectedOperation returns the currently selected operation.
@@ -199,74 +179,6 @@ func (p *OpLogPanel) GotoBottom() {
 	}
 }
 
-func (p *OpLogPanel) updateViewport() {
-	if p.rawLog == "" {
-		p.viewport.SetContent("No operations")
-		return
-	}
-
-	var result strings.Builder
-
-	nextOpIdx := 0
-
-	lines := strings.Split(p.rawLog, "\n")
-	for i, line := range lines {
-		// Check if this line starts an operation (using pre-computed array)
-		isStart := nextOpIdx < len(p.opStartLines) && i == p.opStartLines[nextOpIdx]
-
-		// Add selection indicator on the start line of the selected operation
-		if isStart && nextOpIdx == p.cursor {
-			fmt.Fprintf(&result, "→ %s\n", line)
-		} else {
-			fmt.Fprintf(&result, "  %s\n", line)
-		}
-
-		if isStart {
-			nextOpIdx++
-		}
-	}
-
-	p.viewport.SetContent(result.String())
-	p.ensureCursorVisible()
-}
-
-func (p *OpLogPanel) ensureCursorVisible() {
-	if p.cursor < 0 || p.cursor >= len(p.opStartLines) {
-		return
-	}
-
-	cursorLine := p.opStartLines[p.cursor]
-	viewTop := p.viewport.YOffset()
-	viewBottom := viewTop + p.viewport.Height()
-
-	if cursorLine < viewTop {
-		p.viewport.SetYOffset(cursorLine)
-	} else if cursorLine >= viewBottom {
-		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + ScrollPadding)
-	}
-}
-
-// lineToOpIndex maps a visual line number to an operation index.
-// Returns -1 if the line is outside content bounds or before any operation.
-func (p *OpLogPanel) lineToOpIndex(visualLine int) int {
-	if len(p.opStartLines) == 0 || visualLine < 0 || visualLine >= p.totalLines {
-		return -1
-	}
-
-	// Find the largest operation index where opStartLines[i] <= visualLine
-	opIdx := -1
-
-	for i, startLine := range p.opStartLines {
-		if startLine <= visualLine {
-			opIdx = i
-		} else {
-			break
-		}
-	}
-
-	return opIdx
-}
-
 // HandleClick selects the operation at the given Y coordinate (relative to content area).
 // Returns true if the selection changed.
 func (p *OpLogPanel) HandleClick(y int) bool {
@@ -290,8 +202,7 @@ func (p *OpLogPanel) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.String() {
 		case "j", "down":
 			p.CursorDown()
@@ -336,11 +247,13 @@ func (p OpLogPanel) View() string {
 
 	// Get the appropriate border style
 	var style lipgloss.Style
-	if p.focused && p.borderAnimating {
+
+	switch {
+	case p.focused && p.borderAnimating:
 		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
-	} else if p.focused {
+	case p.focused:
 		style = FocusedPanelStyle
-	} else {
+	default:
 		style = PanelStyle
 	}
 
@@ -364,4 +277,92 @@ func (p OpLogPanel) HelpBindings() []help.Binding {
 			Order:    PanelOrderSecondary,
 		},
 	}
+}
+
+// computeOpStartLines pre-computes the line number where each operation starts.
+func (p *OpLogPanel) computeOpStartLines() {
+	p.opStartLines = nil
+	p.totalLines = 0
+
+	if p.rawLog == "" {
+		return
+	}
+
+	// Count actual lines (newlines), not split elements (which includes trailing empty)
+	p.totalLines = strings.Count(p.rawLog, "\n")
+
+	lines := strings.Split(p.rawLog, "\n")
+	for i, line := range lines {
+		if isEntryStart(line) {
+			p.opStartLines = append(p.opStartLines, i)
+		}
+	}
+}
+
+func (p *OpLogPanel) ensureCursorVisible() {
+	if p.cursor < 0 || p.cursor >= len(p.opStartLines) {
+		return
+	}
+
+	cursorLine := p.opStartLines[p.cursor]
+	viewTop := p.viewport.YOffset()
+	viewBottom := viewTop + p.viewport.Height()
+
+	if cursorLine < viewTop {
+		p.viewport.SetYOffset(cursorLine)
+	} else if cursorLine >= viewBottom {
+		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + ScrollPadding)
+	}
+}
+
+// lineToOpIndex maps a visual line number to an operation index.
+// Returns -1 if the line is outside content bounds or before any operation.
+func (p *OpLogPanel) lineToOpIndex(visualLine int) int {
+	if len(p.opStartLines) == 0 || visualLine < 0 || visualLine >= p.totalLines {
+		return -1
+	}
+
+	// Find the largest operation index where opStartLines[i] <= visualLine
+	opIdx := -1
+
+	for i, startLine := range p.opStartLines {
+		if startLine <= visualLine {
+			opIdx = i
+		} else {
+			break
+		}
+	}
+
+	return opIdx
+}
+
+func (p *OpLogPanel) updateViewport() {
+	if p.rawLog == "" {
+		p.viewport.SetContent("No operations")
+		return
+	}
+
+	var result strings.Builder
+
+	nextOpIdx := 0
+
+	lines := strings.Split(p.rawLog, "\n")
+	for i, line := range lines {
+		// Check if this line starts an operation (using pre-computed array)
+		isStart := nextOpIdx < len(p.opStartLines) && i == p.opStartLines[nextOpIdx]
+
+		// Add selection indicator on the start line of the selected operation
+		if isStart && nextOpIdx == p.cursor {
+			fmt.Fprintf(&result, "→ %s\n", line)
+		} else {
+			fmt.Fprintf(&result, "  %s\n", line)
+		}
+
+		if isStart {
+			nextOpIdx++
+		}
+	}
+
+	p.viewport.SetContent(result.String())
+	p.ensureCursorVisible()
 }

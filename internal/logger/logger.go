@@ -3,6 +3,7 @@
 package logger
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+// ErrInvalidLogLevel is returned when an unrecognised log level is provided.
+var ErrInvalidLogLevel = errors.New("invalid log level")
 
 const (
 	// dirPermissions is the mode for the log directory (owner rwx, group/other rx).
@@ -136,6 +140,6 @@ func parseLogLevel(level string) (slog.Level, error) {
 	case "error":
 		return slog.LevelError, nil
 	default:
-		return -1, fmt.Errorf("invalid log level: %s (use debug, info, warn, error)", level)
+		return -1, fmt.Errorf("%w: %s (use debug, info, warn, error)", ErrInvalidLogLevel, level)
 	}
 }
