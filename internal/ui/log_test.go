@@ -83,7 +83,7 @@ func TestIsChangeStart(t *testing.T) {
 }
 
 func TestLogPanel_CursorBounds(t *testing.T) {
-	panel := NewLogPanel()
+	panel := NewLogPanel(NewStyles())
 
 	// Set up with some changes
 	changes := []jj.Change{
@@ -128,7 +128,7 @@ func TestLogPanel_CursorBounds(t *testing.T) {
 }
 
 func TestLogPanel_SelectedChange(t *testing.T) {
-	panel := NewLogPanel()
+	panel := NewLogPanel(NewStyles())
 
 	// Empty panel
 	if panel.SelectedChange() != nil {
@@ -159,7 +159,7 @@ func TestLogPanel_SelectedChange(t *testing.T) {
 }
 
 func TestLogPanel_Focus(t *testing.T) {
-	panel := NewLogPanel()
+	panel := NewLogPanel(NewStyles())
 
 	if panel.focused {
 		t.Error("panel should not be focused initially")
@@ -177,7 +177,7 @@ func TestLogPanel_Focus(t *testing.T) {
 }
 
 func TestLogPanel_SetSize(t *testing.T) {
-	panel := NewLogPanel()
+	panel := NewLogPanel(NewStyles())
 	panel.SetSize(100, 50)
 
 	if panel.width != 100 {
@@ -196,7 +196,7 @@ func TestLogPanel_SetSize(t *testing.T) {
 }
 
 func TestLogPanel_SetContent_PreservesSelectionByID(t *testing.T) {
-	panel := NewLogPanel()
+	panel := NewLogPanel(NewStyles())
 	panel.SetSize(80, 24)
 
 	// Initial content: A[0], B[1], C[2], D[3], E[4]
@@ -236,7 +236,7 @@ func TestLogPanel_SetContent_PreservesSelectionByID(t *testing.T) {
 }
 
 func TestLogPanel_SetContent_SelectionRemovedDefaultsToFirst(t *testing.T) {
-	panel := NewLogPanel()
+	panel := NewLogPanel(NewStyles())
 	panel.SetSize(80, 24)
 
 	// Initial content: A[0], B[1], C[2]
@@ -272,7 +272,7 @@ func TestLogPanel_SetContent_SelectionRemovedDefaultsToFirst(t *testing.T) {
 }
 
 func TestLogPanel_SetContent_EmptyChanges(t *testing.T) {
-	panel := NewLogPanel()
+	panel := NewLogPanel(NewStyles())
 	panel.SetSize(80, 24)
 
 	// Set some initial content
@@ -299,7 +299,7 @@ func TestLogPanel_SetContent_EmptyChanges(t *testing.T) {
 // Property: Cursor should always be within valid bounds
 func TestLogPanel_CursorAlwaysInBounds(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewLogPanel()
+		panel := NewLogPanel(NewStyles())
 
 		// Generate random number of changes
 		numChanges := rapid.IntRange(0, 100).Draw(t, "numChanges")
@@ -344,7 +344,7 @@ func TestLogPanel_CursorAlwaysInBounds(t *testing.T) {
 // Property: SelectedChange should match cursor position
 func TestLogPanel_SelectedChangeMatchesCursor(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewLogPanel()
+		panel := NewLogPanel(NewStyles())
 
 		numChanges := rapid.IntRange(1, 50).Draw(t, "numChanges")
 		changes := make([]jj.Change, numChanges)
@@ -374,7 +374,7 @@ func TestLogPanel_SelectedChangeMatchesCursor(t *testing.T) {
 // Property: GotoTop always results in cursor=0
 func TestLogPanel_GotoTopAlwaysZero(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewLogPanel()
+		panel := NewLogPanel(NewStyles())
 
 		numChanges := rapid.IntRange(1, 100).Draw(t, "numChanges")
 		changes := make([]jj.Change, numChanges)
@@ -399,7 +399,7 @@ func TestLogPanel_GotoTopAlwaysZero(t *testing.T) {
 // Property: GotoBottom always results in cursor at last item
 func TestLogPanel_GotoBottomAlwaysLast(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewLogPanel()
+		panel := NewLogPanel(NewStyles())
 
 		numChanges := rapid.IntRange(1, 100).Draw(t, "numChanges")
 		changes := make([]jj.Change, numChanges)
@@ -443,7 +443,7 @@ func TestIsChangeStart_ANSIInvariant(t *testing.T) {
 // Property: After any click, cursor stays in valid range [0, len(changes)-1]
 func TestLogPanel_Click_CursorInBounds(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewLogPanel()
+		panel := NewLogPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)
@@ -475,7 +475,7 @@ func TestLogPanel_Click_CursorInBounds(t *testing.T) {
 // Property: Click at visual line selects correct change (multi-line entries)
 func TestLogPanel_Click_SelectsCorrectChange(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewLogPanel()
+		panel := NewLogPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)
@@ -518,7 +518,7 @@ func TestLogPanel_Click_SelectsCorrectChange(t *testing.T) {
 // Property: Click outside bounds doesn't change cursor
 func TestLogPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewLogPanel()
+		panel := NewLogPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)
@@ -553,7 +553,7 @@ func TestLogPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 // Property: Clicking past all changes does nothing (consistent with files panel)
 func TestLogPanel_Click_PastEnd_NoChange(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewLogPanel()
+		panel := NewLogPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)
@@ -596,7 +596,7 @@ func TestLogPanel_Click_PastEnd_NoChange(t *testing.T) {
 // Property: Clicking same position returns false
 func TestLogPanel_Click_SamePosition_ReturnsFalse(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewLogPanel()
+		panel := NewLogPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)

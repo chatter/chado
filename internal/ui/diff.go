@@ -22,6 +22,7 @@ const mouseScrollLines = 3
 // DiffPanel displays diff content with optional details header.
 type DiffPanel struct {
 	viewport        viewport.Model
+	styles          *Styles
 	focused         bool
 	width           int
 	height          int
@@ -35,11 +36,12 @@ type DiffPanel struct {
 }
 
 // NewDiffPanel creates a new diff panel.
-func NewDiffPanel() DiffPanel {
+func NewDiffPanel(styles *Styles) DiffPanel {
 	vp := viewport.New()
 
 	return DiffPanel{
 		viewport: vp,
+		styles:   styles,
 		title:    "Diff",
 	}
 }
@@ -183,18 +185,18 @@ func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 
 // View renders the panel.
 func (p *DiffPanel) View() string {
-	title := PanelTitle(0, p.title, p.focused)
+	title := p.styles.PanelTitle(0, p.title, p.focused)
 
 	// Get the appropriate border style
 	var style lipgloss.Style
 
 	switch {
 	case p.focused && p.borderAnimating:
-		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+		style = p.styles.AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
 	case p.focused:
-		style = FocusedPanelStyle
+		style = p.styles.FocusedPanel
 	default:
-		style = PanelStyle
+		style = p.styles.Panel
 	}
 
 	style = style.Height(p.height - PanelBorderHeight)

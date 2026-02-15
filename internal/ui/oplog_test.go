@@ -112,7 +112,7 @@ func TestIsEntryStart(t *testing.T) {
 }
 
 func TestOpLogPanel_CursorBounds(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 
 	// Set up with some operations
 	operations := []jj.Operation{
@@ -157,7 +157,7 @@ func TestOpLogPanel_CursorBounds(t *testing.T) {
 }
 
 func TestOpLogPanel_SelectedOperation(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 
 	// Empty panel
 	if panel.SelectedOperation() != nil {
@@ -188,7 +188,7 @@ func TestOpLogPanel_SelectedOperation(t *testing.T) {
 }
 
 func TestOpLogPanel_Focus(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 
 	if panel.focused {
 		t.Error("panel should not be focused initially")
@@ -206,7 +206,7 @@ func TestOpLogPanel_Focus(t *testing.T) {
 }
 
 func TestOpLogPanel_SetSize(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 	panel.SetSize(100, 50)
 
 	if panel.width != 100 {
@@ -225,7 +225,7 @@ func TestOpLogPanel_SetSize(t *testing.T) {
 }
 
 func TestOpLogPanel_SetContent_PreservesSelectionByID(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 	panel.SetSize(80, 24)
 
 	initial_op_count := 5
@@ -252,7 +252,7 @@ func TestOpLogPanel_SetContent_PreservesSelectionByID(t *testing.T) {
 }
 
 func TestOpLogPanel_SetContent_SelectionRemovedDefaultsToFirst(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 	panel.SetSize(80, 24)
 
 	// Initial content: 3 operations
@@ -290,7 +290,7 @@ func TestOpLogPanel_SetContent_SelectionRemovedDefaultsToFirst(t *testing.T) {
 // Property: Cursor should always be within valid bounds
 func TestOpLogPanel_CursorAlwaysInBounds(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewOpLogPanel()
+		panel := NewOpLogPanel(NewStyles())
 
 		// Generate random number of operations
 		numOps := rapid.IntRange(0, 100).Draw(t, "numOps")
@@ -335,7 +335,7 @@ func TestOpLogPanel_CursorAlwaysInBounds(t *testing.T) {
 // Property: SelectedOperation should match cursor position
 func TestOpLogPanel_SelectedOperationMatchesCursor(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewOpLogPanel()
+		panel := NewOpLogPanel(NewStyles())
 
 		numOps := rapid.IntRange(1, 50).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
@@ -365,7 +365,7 @@ func TestOpLogPanel_SelectedOperationMatchesCursor(t *testing.T) {
 // Property: GotoTop always results in cursor=0
 func TestOpLogPanel_GotoTopAlwaysZero(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewOpLogPanel()
+		panel := NewOpLogPanel(NewStyles())
 
 		numOps := rapid.IntRange(1, 100).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
@@ -390,7 +390,7 @@ func TestOpLogPanel_GotoTopAlwaysZero(t *testing.T) {
 // Property: GotoBottom always results in cursor at last item
 func TestOpLogPanel_GotoBottomAlwaysLast(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewOpLogPanel()
+		panel := NewOpLogPanel(NewStyles())
 
 		numOps := rapid.IntRange(1, 100).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
@@ -451,7 +451,7 @@ func TestIsEntryStart_ANSIInvariant_ChangeID(t *testing.T) {
 // Property: SelectedOperation returns nil iff operations empty
 func TestOpLogPanel_SelectionConsistency(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewOpLogPanel()
+		panel := NewOpLogPanel(NewStyles())
 
 		numOps := rapid.IntRange(0, 50).Draw(t, "numOps")
 		operations := make([]jj.Operation, numOps)
@@ -481,7 +481,7 @@ func TestOpLogPanel_SelectionConsistency(t *testing.T) {
 // Property: After any click, cursor stays in valid range [0, len(operations)-1]
 func TestOpLogPanel_Click_CursorInBounds(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewOpLogPanel()
+		panel := NewOpLogPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)
@@ -515,7 +515,7 @@ func TestOpLogPanel_Click_CursorInBounds(t *testing.T) {
 // =============================================================================
 
 func TestOpLogPanel_DefaultModeIsOpLog(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 
 	if panel.mode != ModeOpLog {
 		t.Errorf("default mode should be ModeOpLog, got %v", panel.mode)
@@ -523,7 +523,7 @@ func TestOpLogPanel_DefaultModeIsOpLog(t *testing.T) {
 }
 
 func TestOpLogPanel_SetEvoLogContent_SwitchesMode(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 
 	operations := []jj.Operation{
 		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
@@ -543,7 +543,7 @@ func TestOpLogPanel_SetEvoLogContent_SwitchesMode(t *testing.T) {
 }
 
 func TestOpLogPanel_SetOpLogContent_SwitchesMode(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 
 	// First switch to evolog mode
 	operations := []jj.Operation{
@@ -566,7 +566,7 @@ func TestOpLogPanel_SetOpLogContent_SwitchesMode(t *testing.T) {
 }
 
 func TestOpLogPanel_TitleByMode_OpLog(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 
 	operations := []jj.Operation{
 		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},
@@ -578,7 +578,7 @@ func TestOpLogPanel_TitleByMode_OpLog(t *testing.T) {
 	}
 
 	// Verify PanelTitle produces the expected title text
-	title := PanelTitle(opLogPanelNumber, "Operations Log", false)
+	title := NewStyles().PanelTitle(opLogPanelNumber, "Operations Log", false)
 	stripped := stripTestANSI(title)
 	if !strings.Contains(stripped, "Operations Log") {
 		t.Errorf("title should contain 'Operations Log', got: %s", stripped)
@@ -586,7 +586,7 @@ func TestOpLogPanel_TitleByMode_OpLog(t *testing.T) {
 }
 
 func TestOpLogPanel_TitleByMode_EvoLog(t *testing.T) {
-	panel := NewOpLogPanel()
+	panel := NewOpLogPanel(NewStyles())
 
 	operations := []jj.Operation{
 		{OpID: "aaaaaaaaaaaa", Raw: "@ aaaaaaaaaaaa"},

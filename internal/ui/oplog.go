@@ -29,6 +29,7 @@ const (
 // OpLogPanel displays the jj operation log or evolution log.
 type OpLogPanel struct {
 	viewport        viewport.Model
+	styles          *Styles
 	operations      []jj.Operation
 	cursor          int
 	focused         bool
@@ -47,12 +48,13 @@ type OpLogPanel struct {
 }
 
 // NewOpLogPanel creates a new operation log panel.
-func NewOpLogPanel() OpLogPanel {
+func NewOpLogPanel(styles *Styles) OpLogPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 
 	return OpLogPanel{
 		viewport:   vp,
+		styles:     styles,
 		operations: []jj.Operation{},
 		cursor:     0,
 	}
@@ -237,12 +239,12 @@ func (p *OpLogPanel) View() string {
 				outerColorCode = PrimaryColorCode
 			}
 
-			coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
+			coloredID = ReplaceResetWithColor(p.styles.ShortCode.Render(p.shortCode), outerColorCode) + rest
 		}
 
-		title = PanelTitle(opLogPanelNumber, "Evolution: "+coloredID, p.focused)
+		title = p.styles.PanelTitle(opLogPanelNumber, "Evolution: "+coloredID, p.focused)
 	default:
-		title = PanelTitle(opLogPanelNumber, "Operations Log", p.focused)
+		title = p.styles.PanelTitle(opLogPanelNumber, "Operations Log", p.focused)
 	}
 
 	// Get the appropriate border style
@@ -250,11 +252,11 @@ func (p *OpLogPanel) View() string {
 
 	switch {
 	case p.focused && p.borderAnimating:
-		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+		style = p.styles.AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
 	case p.focused:
-		style = FocusedPanelStyle
+		style = p.styles.FocusedPanel
 	default:
-		style = PanelStyle
+		style = p.styles.Panel
 	}
 
 	// Build content with title

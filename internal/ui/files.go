@@ -16,6 +16,7 @@ import (
 // FilesPanel displays the list of files in a change.
 type FilesPanel struct {
 	viewport        viewport.Model
+	styles          *Styles
 	files           []jj.File
 	cursor          int
 	focused         bool
@@ -28,12 +29,13 @@ type FilesPanel struct {
 }
 
 // NewFilesPanel creates a new files panel.
-func NewFilesPanel() FilesPanel {
+func NewFilesPanel(styles *Styles) FilesPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 
 	return FilesPanel{
 		viewport: vp,
+		styles:   styles,
 		files:    []jj.File{},
 		cursor:   0,
 	}
@@ -167,21 +169,21 @@ func (p *FilesPanel) View() string {
 			outerColorCode = PrimaryColorCode
 		}
 
-		coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
+		coloredID = ReplaceResetWithColor(p.styles.ShortCode.Render(p.shortCode), outerColorCode) + rest
 	}
 
-	title := PanelTitle(1, coloredID+" / files", p.focused)
+	title := p.styles.PanelTitle(1, coloredID+" / files", p.focused)
 
 	// Get the appropriate border style
 	var style lipgloss.Style
 
 	switch {
 	case p.focused && p.borderAnimating:
-		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+		style = p.styles.AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
 	case p.focused:
-		style = FocusedPanelStyle
+		style = p.styles.FocusedPanel
 	default:
-		style = PanelStyle
+		style = p.styles.Panel
 	}
 
 	style = style.Height(p.height - PanelBorderHeight)

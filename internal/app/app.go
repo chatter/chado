@@ -113,6 +113,7 @@ type Model struct {
 	describeInput *ui.DescribeInput
 
 	// Panels
+	styles     *ui.Styles
 	logPanel   ui.LogPanel
 	opLogPanel ui.OpLogPanel
 	filesPanel ui.FilesPanel
@@ -150,11 +151,12 @@ type borderAnimTickMsg struct {
 // New creates a new application model.
 func New(ctx context.Context, workDir string, version string, log *logger.Logger) Model {
 	runner := jj.NewRunner(ctx, workDir, log)
+	styles := ui.NewStyles()
 
-	logPanel := ui.NewLogPanel()
-	opLogPanel := ui.NewOpLogPanel()
-	filesPanel := ui.NewFilesPanel()
-	diffPanel := ui.NewDiffPanel()
+	logPanel := ui.NewLogPanel(styles)
+	opLogPanel := ui.NewOpLogPanel(styles)
+	filesPanel := ui.NewFilesPanel(styles)
+	diffPanel := ui.NewDiffPanel(styles)
 	statusBar := help.NewStatusBar("chado " + version)
 	floatingHelp := help.NewFloatingHelp()
 	describeInput := ui.NewDescribeInput()
@@ -171,6 +173,7 @@ func New(ctx context.Context, workDir string, version string, log *logger.Logger
 		keys:          DefaultKeyMap(),
 		log:           log,
 		runner:        runner,
+		styles:        styles,
 		viewMode:      ViewLog,
 		focusedPane:   PaneLog,
 		logPanel:      logPanel,
@@ -1004,7 +1007,7 @@ func (m *Model) renderStatusBar() string {
 	m.statusBar.SetWidth(m.width)
 	m.statusBar.SetBindings(m.activeHelpBindings())
 
-	return ui.StatusBarStyle.Render(m.statusBar.View())
+	return m.styles.StatusBar.Render(m.statusBar.View())
 }
 
 // renderWithDescribeOverlay composites the describe input on top of the base view

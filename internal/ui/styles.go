@@ -37,23 +37,115 @@ const (
 	ScrollPadding = 2
 )
 
+// Color codes (ANSI 256).
+const (
+	PrimaryColorCode   = "#808080" // Gray
+	SecondaryColorCode = "241"     // Gray
+	AccentColorCode    = "#30c9b0" // Cyan
+)
+
+// Styles holds all lipgloss styles for the application, constructed from a detected color profile.
+type Styles struct {
+	Panel        lipgloss.Style
+	FocusedPanel lipgloss.Style
+	Title        lipgloss.Style
+	FocusedTitle lipgloss.Style
+	StatusBar    lipgloss.Style
+	Version      lipgloss.Style
+	Selected     lipgloss.Style
+	Dim          lipgloss.Style
+	ShortCode    lipgloss.Style
+
+	// Border color blends for panel focus animation.
+	unfocusedBorderBlend []color.Color
+	focusedBorderBlend   []color.Color
+}
+
+// NewStyles creates the application styles using the detected terminal color profile.
+func NewStyles() *Styles {
+	profile := colorprofile.Detect(os.Stdout, os.Environ())
+
+	complete := func(hex string) color.Color {
+		return profile.Convert(lipgloss.Color(hex))
+	}
+
+	primary := complete(PrimaryColorCode)
+	secondary := lipgloss.Color(SecondaryColorCode)
+	accent := complete(AccentColorCode)
+
+	unfocusedBlend := []color.Color{
+		primary,
+		complete("#454545"),
+		primary,
+		complete("#3d3d3d"),
+		primary,
+	}
+
+	focusedBlend := []color.Color{
+		accent,
+		complete("#0d4d44"),
+		accent,
+		complete("#1e1e1e"),
+		accent,
+	}
+
+	panel := lipgloss.
+		NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForegroundBlend(unfocusedBlend...)
+
+	return &Styles{
+		Panel: panel,
+		FocusedPanel: lipgloss.
+			NewStyle().
+			BorderForegroundBlend(focusedBlend...).
+			Inherit(panel),
+
+		Title: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(primary).
+			Padding(0, 1),
+		FocusedTitle: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(accent).
+			Padding(0, 1),
+
+		StatusBar: lipgloss.NewStyle().
+			Foreground(secondary),
+		Version: lipgloss.NewStyle().
+			Foreground(secondary).
+			Align(lipgloss.Right),
+
+		Selected: lipgloss.NewStyle().
+			Bold(true),
+		Dim: lipgloss.NewStyle().
+			Foreground(secondary),
+		ShortCode: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("13")). // Bright magenta - matches jj
+			Bold(true).
+			Inline(true),
+
+		unfocusedBorderBlend: unfocusedBlend,
+		focusedBorderBlend:   focusedBlend,
+	}
+}
+
 // AnimatedFocusBorderStyle returns the panel style with the focus border animation at the given phase.
-// Use when a panel is focused and the border wrap animation is running.
-func AnimatedFocusBorderStyle(phase float64, width, height int) lipgloss.Style {
+func (s *Styles) AnimatedFocusBorderStyle(phase float64, width, height int) lipgloss.Style {
 	perimeter := borderSidesPerDimension*width + borderSidesPerDimension*height
 	offset := int(phase * float64(perimeter))
 
 	return lipgloss.NewStyle().
-		Inherit(PanelStyle).
-		BorderForegroundBlend(RotatedFocusedBorderBlend(0)...).
+		Inherit(s.Panel).
+		BorderForegroundBlend(s.RotatedFocusedBorderBlend(0)...).
 		BorderForegroundBlendOffset(offset)
 }
 
 // RotatedFocusedBorderBlend returns focusedBorderBlend rotated by phase (0..1 = one full wrap).
-func RotatedFocusedBorderBlend(phase float64) []color.Color {
+func (s *Styles) RotatedFocusedBorderBlend(phase float64) []color.Color {
 	const blendCount = 5
 	if blendCount == 0 {
-		return focusedBorderBlend
+		return s.focusedBorderBlend
 	}
 
 	offset := int(phase*float64(blendCount)) % blendCount
@@ -63,107 +155,19 @@ func RotatedFocusedBorderBlend(phase float64) []color.Color {
 
 	out := make([]color.Color, blendCount)
 	for i := range blendCount {
-		out[i] = focusedBorderBlend[(offset+i)%blendCount]
+		out[i] = s.focusedBorderBlend[(offset+i)%blendCount]
 	}
 
 	return out
 }
 
-// colorProfile is detected once for terminal color capability (ANSI/256/truecolor).
-var colorProfile = colorprofile.Detect(os.Stdout, os.Environ())
-
-// completeColor converts a hex color to a terminal-appropriate color (profile-aware, lipgloss v2 Complete).
-func completeColor(hex string) color.Color {
-	return colorProfile.Convert(lipgloss.Color(hex))
-}
-
-// Color codes (ANSI 256).
-const (
-	PrimaryColorCode   = "#808080" // Gray
-	SecondaryColorCode = "241"     // Gray
-	AccentColorCode    = "#30c9b0" // Cyan
-)
-
-// Colors (for lipgloss styles).
-var (
-	primaryColor   = completeColor(PrimaryColorCode)
-	secondaryColor = lipgloss.Color(SecondaryColorCode)
-	accentColor    = completeColor(AccentColorCode)
-
-	unfocusedBorderBlend = []color.Color{
-		primaryColor,
-		completeColor("#454545"),
-		primaryColor,
-		completeColor("#3d3d3d"),
-		primaryColor,
-	}
-
-	focusedBorderBlend = []color.Color{
-		accentColor,
-		completeColor("#0d4d44"),
-		accentColor,
-		completeColor("#1e1e1e"),
-		accentColor,
-	}
-)
-
-// Styles for the application.
-var (
-	PanelStyle = lipgloss.
-			NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForegroundBlend(unfocusedBorderBlend...)
-
-	FocusedPanelStyle = lipgloss.
-				NewStyle().
-				BorderForegroundBlend(focusedBorderBlend...).
-				Inherit(PanelStyle)
-
-	// TitleStyle renders panel titles.
-	TitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(primaryColor).
-			Padding(0, 1)
-
-	FocusedTitleStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(accentColor).
-				Padding(0, 1)
-
-	// StatusBarStyle renders the bottom status bar text.
-	StatusBarStyle = lipgloss.NewStyle().
-			Foreground(secondaryColor)
-
-	VersionStyle = lipgloss.NewStyle().
-			Foreground(secondaryColor).
-			Align(lipgloss.Right)
-
-	// SelectedStyle highlights the currently selected item.
-	SelectedStyle = lipgloss.NewStyle().
-			Bold(true)
-
-	// DimStyle de-emphasises non-focused content.
-	DimStyle = lipgloss.NewStyle().
-			Foreground(secondaryColor)
-
-	// ShortCodeStyle for the unique prefix of change IDs (matches jj's default).
-	ShortCodeStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("13")). // Bright magenta - matches jj
-			Bold(true).
-			Inline(true)
-)
-
 // PanelTitle returns a formatted panel title with optional focus indicator.
-func PanelTitle(num int, title string, focused bool) string {
-	prefix := ""
-	// if focused {
-	// 	prefix = "●"
-	// }
-	titleText := prefix + "[" + string(rune('0'+num)) + "] " + title
+func (s *Styles) PanelTitle(num int, title string, focused bool) string {
+	titleText := "[" + string(rune('0'+num)) + "] " + title
 
 	if focused {
-		return FocusedTitleStyle.Render(titleText)
+		return s.FocusedTitle.Render(titleText)
 	}
 
-	return TitleStyle.Render(titleText)
+	return s.Title.Render(titleText)
 }

@@ -35,7 +35,7 @@ func generateHunks(t *rapid.T, count int) []jj.Hunk {
 // Hunks use absolute positions with a random gap before the first hunk
 // (simulating header lines from the template).
 func setupPanelWithHunks(t *rapid.T) (*DiffPanel, int) {
-	panel := NewDiffPanel()
+	panel := NewDiffPanel(NewStyles())
 	panel.SetSize(80, 24)
 
 	numHunks := rapid.IntRange(1, 10).Draw(t, "numHunks")
@@ -66,7 +66,7 @@ func setupPanelWithHunks(t *rapid.T) (*DiffPanel, int) {
 // =============================================================================
 
 func TestDiffPanel_SetSize(t *testing.T) {
-	panel := NewDiffPanel()
+	panel := NewDiffPanel(NewStyles())
 	panel.SetSize(120, 40)
 
 	if panel.width != 120 {
@@ -78,7 +78,7 @@ func TestDiffPanel_SetSize(t *testing.T) {
 }
 
 func TestDiffPanel_Focus(t *testing.T) {
-	panel := NewDiffPanel()
+	panel := NewDiffPanel(NewStyles())
 
 	if panel.focused {
 		t.Error("panel should not be focused initially")
@@ -91,7 +91,7 @@ func TestDiffPanel_Focus(t *testing.T) {
 }
 
 func TestDiffPanel_SetTitle(t *testing.T) {
-	panel := NewDiffPanel()
+	panel := NewDiffPanel(NewStyles())
 
 	if panel.title != "Diff" {
 		t.Errorf("default title should be 'Diff', got %s", panel.title)
@@ -104,7 +104,7 @@ func TestDiffPanel_SetTitle(t *testing.T) {
 }
 
 func TestDiffPanel_HunkNavigation(t *testing.T) {
-	panel := NewDiffPanel()
+	panel := NewDiffPanel(NewStyles())
 	panel.SetSize(80, 40) // Taller to allow scrolling
 
 	// Set diff with multiple sections (more lines so viewport can scroll)
@@ -188,7 +188,7 @@ Added regular file test.go:
 }
 
 func TestDiffPanel_EmptyDiff(t *testing.T) {
-	panel := NewDiffPanel()
+	panel := NewDiffPanel(NewStyles())
 	panel.SetSize(80, 24)
 	panel.SetDiff("")
 
@@ -210,7 +210,7 @@ func TestDiffPanel_EmptyDiff(t *testing.T) {
 // Property: currentHunk should always be within bounds
 func TestDiffPanel_HunkBounds(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewDiffPanel()
+		panel := NewDiffPanel(NewStyles())
 		panel.SetSize(80, 24)
 
 		// Generate random diff with sections
@@ -254,7 +254,7 @@ func TestDiffPanel_HunkBounds(t *testing.T) {
 // Property: GotoTop always resets currentHunk to 0
 func TestDiffPanel_GotoTopResetsHunk(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewDiffPanel()
+		panel := NewDiffPanel(NewStyles())
 		panel.SetSize(80, 24)
 
 		// Generate diff with some hunks
@@ -282,7 +282,7 @@ func TestDiffPanel_GotoTopResetsHunk(t *testing.T) {
 // Property: SetDiff resets viewport to top and currentHunk to noHunkSelected
 func TestDiffPanel_SetDiffResetsHunk(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewDiffPanel()
+		panel := NewDiffPanel(NewStyles())
 		panel.SetSize(80, 24)
 
 		// Set initial state
@@ -306,7 +306,7 @@ func TestDiffPanel_SetDiffResetsHunk(t *testing.T) {
 // Property: SetDiff with same content preserves scroll position and hunk
 func TestDiffPanel_SetDiffSameContentPreservesScroll(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewDiffPanel()
+		panel := NewDiffPanel(NewStyles())
 		panel.SetSize(80, 24)
 
 		// Generate diff content with enough lines to scroll
@@ -591,7 +591,7 @@ func TestHunkNavigation_ViewportMatchesHunkStart(t *testing.T) {
 
 // setupScrollablePanel creates a panel with enough content to scroll
 func setupScrollablePanel(t *rapid.T) (*DiffPanel, int, int) {
-	panel := NewDiffPanel()
+	panel := NewDiffPanel(NewStyles())
 
 	viewportHeight := rapid.IntRange(10, 50).Draw(t, "viewportHeight")
 	// Ensure at least 10 lines more than viewport so there's room to scroll

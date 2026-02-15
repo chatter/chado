@@ -112,11 +112,13 @@ func (f *FloatingHelp) View() string {
 	return f.borderStyle.Render(fullContent)
 }
 
-// categoryOrder defines the display order of categories.
-var categoryOrder = []Category{
-	CategoryNavigation,
-	CategoryActions,
-	CategoryDiff,
+// categoryOrder returns the display order of categories.
+func categoryOrder() []Category {
+	return []Category{
+		CategoryNavigation,
+		CategoryActions,
+		CategoryDiff,
+	}
 }
 
 // groupByCategory groups enabled bindings by category, deduping by description.
@@ -240,7 +242,7 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]Binding) []column {
 
 	var columns []column
 
-	for _, cat := range categoryOrder {
+	for _, cat := range categoryOrder() {
 		bindings, ok := groups[cat]
 		if !ok || len(bindings) == 0 {
 			continue

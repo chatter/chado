@@ -20,6 +20,7 @@ var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 // LogPanel displays the jj log.
 type LogPanel struct {
 	viewport         viewport.Model
+	styles           *Styles
 	changes          []jj.Change
 	cursor           int
 	focused          bool
@@ -33,12 +34,13 @@ type LogPanel struct {
 }
 
 // NewLogPanel creates a new log panel.
-func NewLogPanel() LogPanel {
+func NewLogPanel(styles *Styles) LogPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 
 	return LogPanel{
 		viewport: vp,
+		styles:   styles,
 		changes:  []jj.Change{},
 		cursor:   0,
 	}
@@ -200,17 +202,17 @@ func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
 
 // View renders the panel.
 func (p *LogPanel) View() string {
-	title := PanelTitle(1, "Change Log", p.focused)
+	title := p.styles.PanelTitle(1, "Change Log", p.focused)
 
 	var style lipgloss.Style
 
 	switch {
 	case p.focused && p.borderAnimating:
-		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+		style = p.styles.AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
 	case p.focused:
-		style = FocusedPanelStyle
+		style = p.styles.FocusedPanel
 	default:
-		style = PanelStyle
+		style = p.styles.Panel
 	}
 
 	content := title + "\n" + p.viewport.View()
