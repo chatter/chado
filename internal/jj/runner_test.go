@@ -93,10 +93,6 @@ func TestParseFiles(t *testing.T) {
 	multiPath1 := testgen.FilePath().Example()
 	multiPath2 := testgen.FilePath().Example()
 	multiPath3 := testgen.FilePath().Example()
-	gitAddedPath := testgen.FilePath().Example()
-	gitDeletedPath := testgen.FilePath().Example()
-	gitModifiedPath := testgen.FilePath().Example()
-
 	tests := []struct {
 		name     string
 		input    string
@@ -137,27 +133,6 @@ func TestParseFiles(t *testing.T) {
 				{Path: multiPath3, Status: FileDeleted},
 			},
 		},
-		{
-			name:  "git format - added file",
-			input: fmt.Sprintf("diff --git a/%s b/%s\nnew file mode 100644\nindex 0000000..1234567\n--- /dev/null\n+++ b/%s", gitAddedPath, gitAddedPath, gitAddedPath),
-			expected: []File{
-				{Path: gitAddedPath, Status: FileAdded},
-			},
-		},
-		{
-			name:  "git format - deleted file",
-			input: fmt.Sprintf("diff --git a/%s b/%s\ndeleted file mode 100644\nindex 1234567..0000000\n--- a/%s\n+++ /dev/null", gitDeletedPath, gitDeletedPath, gitDeletedPath),
-			expected: []File{
-				{Path: gitDeletedPath, Status: FileDeleted},
-			},
-		},
-		{
-			name:  "git format - modified file",
-			input: fmt.Sprintf("diff --git a/%s b/%s\nindex 1234567..abcdefg 100644\n--- a/%s\n+++ b/%s", gitModifiedPath, gitModifiedPath, gitModifiedPath, gitModifiedPath),
-			expected: []File{
-				{Path: gitModifiedPath, Status: FileModified},
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -191,31 +166,11 @@ func TestFindHunks(t *testing.T) {
 			expectedCount: 0,
 		},
 		{
-			name: "git style hunks",
-			input: `diff --git a/main.go b/main.go
-@@ -1,5 +1,6 @@
- package main
-+import "fmt"
-@@ -10,3 +11,5 @@
- func main() {}
-+fmt.Println("hi")`,
-			expectedCount: 2,
-		},
-		{
 			name: "jj style file sections",
 			input: `Added regular file main.go:
         1: package main
 Modified regular file app.go:
    1    1: package app`,
-			expectedCount: 2,
-		},
-		{
-			name: "mixed format",
-			input: `Added regular file new.go:
-        1: package new
-diff --git a/old.go b/old.go
-@@ -1,3 +1,4 @@
- package old`,
 			expectedCount: 2,
 		},
 	}

@@ -259,23 +259,17 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 
 	lines := strings.Split(diffOutput, "\n")
 
-	// jj uses format like:
-	// "Added regular file path/to/file:"
-	// "Modified regular file path/to/file:"
-	// "Removed regular file path/to/file:"
+	// jj diff format:
+	//   "Added regular file path/to/file:"
+	//   "Modified regular file path/to/file:"
+	//   "Removed regular file path/to/file:"
 	addedRe := regexp.MustCompile(`^Added regular file (.+):$`)
 	modifiedRe := regexp.MustCompile(`^Modified regular file (.+):$`)
 	removedRe := regexp.MustCompile(`^Removed regular file (.+):$`)
 
-	// Also support git-style diff format (if using git backend with certain configs)
-	gitDiffRe := regexp.MustCompile(`^diff --git a/(.+) b/(.+)$`)
-	newFileRe := regexp.MustCompile(`^new file mode`)
-	deletedFileRe := regexp.MustCompile(`^deleted file mode`)
-
-	for lineIdx, line := range lines {
+	for _, line := range lines {
 		stripped := stripANSI(line)
 
-		// Check jj native format first
 		if match := addedRe.FindStringSubmatch(stripped); match != nil {
 			files = append(files, File{Path: match[1], Status: FileAdded})
 			continue
@@ -290,47 +284,17 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 			files = append(files, File{Path: match[1], Status: FileDeleted})
 			continue
 		}
-
-		// Fall back to git-style diff format
-		if match := gitDiffRe.FindStringSubmatch(stripped); match != nil {
-			file := File{
-				Path:   match[2],
-				Status: FileModified,
-			}
-
-			// Check next few lines for status
-		statusCheck:
-			for j := lineIdx + 1; j < len(lines) && j < lineIdx+5; j++ {
-				nextLine := stripANSI(lines[j])
-
-				switch {
-				case newFileRe.MatchString(nextLine):
-					file.Status = FileAdded
-					break statusCheck
-				case deletedFileRe.MatchString(nextLine):
-					file.Status = FileDeleted
-					break statusCheck
-				case strings.HasPrefix(nextLine, "diff --git"):
-					break statusCheck
-				}
-			}
-
-			files = append(files, file)
-		}
 	}
 
 	return files
 }
 
 // FindHunks finds all hunk/section positions in diff output.
-// Supports both git-style @@ hunks and jj-style file headers.
 func FindHunks(diffOutput string) []Hunk {
 	var hunks []Hunk
 
 	lines := strings.Split(diffOutput, "\n")
 
-	// Git-style hunk header
-	gitHunkRe := regexp.MustCompile(`^@@.*@@`)
 	// jj-style file headers
 	jjFileRe := regexp.MustCompile(`^(Added|Modified|Removed) regular file .+:\s*$`)
 
@@ -339,7 +303,7 @@ func FindHunks(diffOutput string) []Hunk {
 	for lineIdx, line := range lines {
 		stripped := stripANSI(line)
 
-		isSection := gitHunkRe.MatchString(stripped) || jjFileRe.MatchString(stripped)
+		isSection := jjFileRe.MatchString(stripped)
 
 		if isSection {
 			// Close previous hunk
