@@ -109,32 +109,17 @@ func (w *Watcher) filterEvents() {
 			return
 		case event, ok := <-w.watcher.Events:
 			if !ok {
-				return // Channel closed
+				return
 			}
 
-			// Add new directories to the watcher
-			if event.Has(fsnotify.Create) {
-				if strings.Contains(event.Name, ".jj") || strings.Contains(event.Name, ".git") {
-					continue // Ignore .jj and .git directories
-				}
+			w.trackNewDirectory(event)
 
-				info, err := os.Stat(event.Name)
-				if err == nil && info.IsDir() {
-					if err := w.watcher.Add(event.Name); err != nil {
-						w.log.Debug("failed to watch new directory", "path", event.Name, "err", err)
-					}
-				}
-			}
-
-			if strings.HasSuffix(event.Name, ".lock") {
-				continue // Ignore lock files
-			}
-
-			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) == 0 {
-				continue // Ignore other operations
+			if !w.shouldForward(event) {
+				continue
 			}
 
 			w.log.Debug("file change detected", "path", event.Name, "op", event.Op.String())
+
 			// Non-blocking send: drop event when channel is full so the
 			// watcher goroutine never blocks during event bursts.
 			select {
@@ -148,4 +133,39 @@ func (w *Watcher) filterEvents() {
 			}
 		}
 	}
+}
+
+// trackNewDirectory adds newly created directories to the watcher so that
+// file changes in them are picked up. Directories inside .jj or .git are
+// intentionally skipped to avoid watching VCS internals.
+func (w *Watcher) trackNewDirectory(event fsnotify.Event) {
+	if !event.Has(fsnotify.Create) {
+		return
+	}
+
+	if strings.Contains(event.Name, ".jj") || strings.Contains(event.Name, ".git") {
+		return
+	}
+
+	info, err := os.Stat(event.Name)
+	if err != nil || !info.IsDir() {
+		return
+	}
+
+	if err := w.watcher.Add(event.Name); err != nil {
+		w.log.Debug("failed to watch new directory", "path", event.Name, "err", err)
+	}
+}
+
+// shouldForward reports whether an event should be sent to consumers.
+func (w *Watcher) shouldForward(event fsnotify.Event) bool {
+	if strings.HasSuffix(event.Name, ".lock") {
+		return false
+	}
+
+	if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) == 0 {
+		return false
+	}
+
+	return true
 }
