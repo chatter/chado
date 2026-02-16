@@ -1005,7 +1005,6 @@ func (m *Model) renderWithOverlay(base string) string {
 
 func (m *Model) renderStatusBar() string {
 	m.statusBar.SetWidth(m.width)
-	m.statusBar.SetBindings(m.activeHelpBindings())
 
 	return m.styles.StatusBar.Render(m.statusBar.View())
 }

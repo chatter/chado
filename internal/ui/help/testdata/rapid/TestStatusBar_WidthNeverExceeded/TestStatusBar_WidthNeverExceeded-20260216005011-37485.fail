@@ -1,0 +1,7 @@
+# 2026/02/16 00:50:11.509711 [TestStatusBar_WidthNeverExceeded] [rapid] draw width: 20
+# 2026/02/16 00:50:11.509724 [TestStatusBar_WidthNeverExceeded] view width 22 exceeds specified width 20: "\x1b[38;2;153;153;153m?\x1b[m \x1b[38;2;119;119;119mhelp\x1b[m\x1b[38;2;85;85;85m • \x1b[m\x1b[38;2;153;153;153mq\x1b[m \x1b[38;2;119;119;119mquit\x1b[m v1.0.0"
+# 
+v0.4.8#9686076360377170451
+0x0
+0x0
+0x0
