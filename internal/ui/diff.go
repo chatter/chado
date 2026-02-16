@@ -163,7 +163,7 @@ func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.String() {
-		case "j", "down":
+		case "j", "down": //nolint:goconst // key name literals are clearest inline
 			p.viewport.ScrollDown(1)
 			p.syncCurrentHunk()
 		case "k", "up":
