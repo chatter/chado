@@ -21,17 +21,19 @@ const mouseScrollLines = 3
 
 // DiffPanel displays diff content with optional details header
 type DiffPanel struct {
-	viewport    viewport.Model
-	focused     bool
-	width       int
-	height      int
-	title       string
-	showDetails bool
-	details     DetailsHeader
-	diffContent string
-	hunks       []jj.Hunk
-	currentHunk int
-	headerLines int // Number of lines in the header (offset for hunk positions)
+	viewport        viewport.Model
+	focused         bool
+	width           int
+	height          int
+	title           string
+	showDetails     bool
+	details         DetailsHeader
+	diffContent     string
+	hunks           []jj.Hunk
+	currentHunk     int
+	headerLines     int     // Number of lines in the header (offset for hunk positions)
+	borderAnimPhase float64 // 0..1 for focus border animation
+	borderAnimating bool    // true only while the one-shot wrap is running
 }
 
 // DetailsHeader contains the commit details shown above the diff
@@ -64,6 +66,16 @@ func (p *DiffPanel) SetSize(width, height int) {
 // SetFocused sets the focus state
 func (p *DiffPanel) SetFocused(focused bool) {
 	p.focused = focused
+}
+
+// SetBorderAnimPhase sets the border animation phase (0..1) for the focus wrap effect.
+func (p *DiffPanel) SetBorderAnimPhase(phase float64) {
+	p.borderAnimPhase = phase
+}
+
+// SetBorderAnimating sets whether the focus border animation is running.
+func (p *DiffPanel) SetBorderAnimating(animating bool) {
+	p.borderAnimating = animating
 }
 
 // SetTitle sets the panel title
@@ -258,13 +270,13 @@ func (p DiffPanel) View() string {
 
 	// Get the appropriate border style
 	var style lipgloss.Style
-	if p.focused {
+	if p.focused && p.borderAnimating {
+		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+	} else if p.focused {
 		style = FocusedPanelStyle
 	} else {
 		style = PanelStyle
 	}
-
-	// Set height only - Width causes text wrapping in lipgloss v2
 	style = style.Height(p.height - 2)
 
 	// Build content with title

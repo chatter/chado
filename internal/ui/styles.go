@@ -1,35 +1,90 @@
 package ui
 
 import (
+	"image/color"
+	"os"
+
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 )
+
+// AnimatedFocusBorderStyle returns the panel style with the focus border animation at the given phase.
+// Use when a panel is focused and the border wrap animation is running.
+func AnimatedFocusBorderStyle(phase float64, width, height int) lipgloss.Style {
+	perimeter := 2*width + 2*height
+	offset := int(phase * float64(perimeter))
+	return lipgloss.NewStyle().
+		Inherit(PanelStyle).
+		BorderForegroundBlend(RotatedFocusedBorderBlend(0)...).
+		BorderForegroundBlendOffset(offset)
+}
+
+// RotatedFocusedBorderBlend returns focusedBorderBlend rotated by phase (0..1 = one full wrap).
+func RotatedFocusedBorderBlend(phase float64) []color.Color {
+	const n = 5
+	if n == 0 {
+		return focusedBorderBlend
+	}
+	offset := int(phase*float64(n)) % n
+	if offset < 0 {
+		offset += n
+	}
+	out := make([]color.Color, n)
+	for i := 0; i < n; i++ {
+		out[i] = focusedBorderBlend[(offset+i)%n]
+	}
+	return out
+}
+
+// colorProfile is detected once for terminal color capability (ANSI/256/truecolor).
+var colorProfile = colorprofile.Detect(os.Stdout, os.Environ())
+
+// completeColor converts a hex color to a terminal-appropriate color (profile-aware, lipgloss v2 Complete).
+func completeColor(hex string) color.Color {
+	return colorProfile.Convert(lipgloss.Color(hex))
+}
 
 // Color codes (ANSI 256)
 const (
-	PrimaryColorCode   = "62"  // Purple
-	SecondaryColorCode = "241" // Gray
-	AccentColorCode    = "86"  // Cyan
+	PrimaryColorCode   = "#808080" // Gray
+	SecondaryColorCode = "241"     // Gray
+	AccentColorCode    = "#30c9b0" // Cyan
 )
 
 // Colors (for lipgloss styles)
 var (
-	primaryColor   = lipgloss.Color(PrimaryColorCode)
+	primaryColor   = completeColor(PrimaryColorCode)
 	secondaryColor = lipgloss.Color(SecondaryColorCode)
-	accentColor    = lipgloss.Color(AccentColorCode)
-	borderColor    = lipgloss.Color("240") // Dark gray
-	focusBorder    = lipgloss.Color("62")  // Purple for focused
+	accentColor    = completeColor(AccentColorCode)
+
+	unfocusedBorderBlend = []color.Color{
+		primaryColor,
+		completeColor("#454545"),
+		primaryColor,
+		completeColor("#3d3d3d"),
+		primaryColor,
+	}
+
+	focusedBorderBlend = []color.Color{
+		accentColor,
+		completeColor("#0d4d44"),
+		accentColor,
+		completeColor("#1e1e1e"),
+		accentColor,
+	}
 )
 
 // Styles for the application
 var (
-	// Panel styles
-	PanelStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(borderColor)
+	PanelStyle = lipgloss.
+			NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForegroundBlend(unfocusedBorderBlend...)
 
-	FocusedPanelStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(focusBorder)
+	FocusedPanelStyle = lipgloss.
+				NewStyle().
+				BorderForegroundBlend(focusedBorderBlend...).
+				Inherit(PanelStyle)
 
 	// Title styles
 	TitleStyle = lipgloss.NewStyle().
@@ -68,9 +123,9 @@ var (
 // PanelTitle returns a formatted panel title with optional focus indicator
 func PanelTitle(num int, title string, focused bool) string {
 	prefix := ""
-	if focused {
-		prefix = "● "
-	}
+	// if focused {
+	// 	prefix = "●"
+	// }
 	titleText := prefix + "[" + string(rune('0'+num)) + "] " + title
 
 	if focused {

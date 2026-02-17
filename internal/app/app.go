@@ -68,6 +68,16 @@ type Model struct {
 
 	// Error state
 	lastError string
+
+	// Focus border animation (one wrap when any panel is focused)
+	logPanelBorderPhase  float64
+	borderAnimGeneration int // incremented on each focus change so stale ticks are ignored
+}
+
+// borderAnimTickMsg is sent each frame during the focus border wrap animation.
+type borderAnimTickMsg struct {
+	Phase      float64
+	Generation int // must match Model.borderAnimGeneration or tick is ignored (stale)
 }
 
 // New creates a new application model
@@ -461,6 +471,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case abandonCompleteMsg:
 		// Change abandoned, reload the log
 		cmds = append(cmds, m.loadLog(), m.loadOpLog())
+
+	case borderAnimTickMsg:
+		if msg.Generation != m.borderAnimGeneration {
+			break // stale tick from a previous focus; ignore
+		}
+		const animSteps = 120
+		nextPhase := msg.Phase + 1.0/animSteps
+		if nextPhase > 1 {
+			nextPhase = 1
+		}
+		m.logPanelBorderPhase = nextPhase
+		m.setFocusBorderAnimPhase(nextPhase)
+		if nextPhase >= 1 {
+			m.setFocusBorderAnimating(false) // animation complete; show static focus border
+		}
+		if nextPhase < 1 {
+			cmds = append(cmds, m.startLogPanelBorderAnimWithPhase(nextPhase, m.borderAnimGeneration))
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -474,7 +502,7 @@ func (m *Model) handleEnter() tea.Cmd {
 			m.log.Debug("drilling into files view", "change_id", change.ChangeID)
 			m.viewMode = ViewFiles
 			m.focusedPane = PaneLog
-			m.updatePanelFocus()
+			m.updatePanelFocus() // files now visible in left slot; focused, not animated
 			return m.loadFiles(change.ChangeID)
 		}
 	case ViewFiles:
@@ -492,6 +520,7 @@ func (m *Model) handleBack() tea.Cmd {
 	case ViewFiles:
 		// Go back to log view
 		m.viewMode = ViewLog
+		m.updatePanelFocus() // log now visible in left slot; focused, not animated
 		m.diffPanel.SetShowDetails(true)
 		m.diffPanel.SetTitle("Diff")
 		// Restore full diff for selected change
@@ -538,23 +567,16 @@ func (m *Model) updateFocusedPanel(msg tea.Msg) tea.Cmd {
 }
 
 func (m *Model) updatePanelFocus() {
-	switch m.focusedPane {
-	case PaneLog:
-		m.logPanel.SetFocused(true)
-		m.opLogPanel.SetFocused(false)
-		m.filesPanel.SetFocused(true)
-		m.diffPanel.SetFocused(false)
-	case PaneOpLog:
-		m.logPanel.SetFocused(false)
-		m.opLogPanel.SetFocused(true)
-		m.filesPanel.SetFocused(false)
-		m.diffPanel.SetFocused(false)
-	case PaneDiff:
-		m.logPanel.SetFocused(false)
-		m.opLogPanel.SetFocused(false)
-		m.filesPanel.SetFocused(false)
-		m.diffPanel.SetFocused(true)
-	}
+	// Only the panel visible in the left slot gets focused when PaneLog is active
+	m.logPanel.SetFocused(m.focusedPane == PaneLog && m.viewMode == ViewLog)
+	m.filesPanel.SetFocused(m.focusedPane == PaneLog && m.viewMode == ViewFiles)
+	m.opLogPanel.SetFocused(m.focusedPane == PaneOpLog)
+	m.diffPanel.SetFocused(m.focusedPane == PaneDiff)
+	// Clear animating so focus-without-animation (e.g. back from files) shows static border
+	m.logPanel.SetBorderAnimating(false)
+	m.filesPanel.SetBorderAnimating(false)
+	m.diffPanel.SetBorderAnimating(false)
+	m.opLogPanel.SetBorderAnimating(false)
 }
 
 // Action methods for keybindings
@@ -570,35 +592,86 @@ func (m *Model) actionFocusPane0() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
 	m.focusedPane = PaneDiff
 	m.updatePanelFocus()
-	return *m, m.handleFocusChange(prevPane, m.focusedPane)
+	return *m, tea.Batch(m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim())
 }
 
 func (m *Model) actionFocusPane1() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
 	m.focusedPane = PaneLog
 	m.updatePanelFocus()
-	return *m, m.handleFocusChange(prevPane, m.focusedPane)
+	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
+	return *m, tea.Batch(cmds...)
 }
 
 func (m *Model) actionFocusPane2() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
 	m.focusedPane = PaneOpLog
 	m.updatePanelFocus()
-	return *m, m.handleFocusChange(prevPane, m.focusedPane)
+	return *m, tea.Batch(m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim())
 }
 
 func (m *Model) actionNextPane() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
 	m.focusedPane = (m.focusedPane + 1) % 3
 	m.updatePanelFocus()
-	return *m, m.handleFocusChange(prevPane, m.focusedPane)
+	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
+	return *m, tea.Batch(cmds...)
 }
 
 func (m *Model) actionPrevPane() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
 	m.focusedPane = (m.focusedPane + 2) % 3 // +2 is same as -1 mod 3
 	m.updatePanelFocus()
-	return *m, m.handleFocusChange(prevPane, m.focusedPane)
+	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
+	return *m, tea.Batch(cmds...)
+}
+
+// startLogPanelBorderAnim starts the one-shot border wrap animation for the focused panel.
+func (m *Model) startLogPanelBorderAnim() tea.Cmd {
+	m.borderAnimGeneration++
+	m.logPanelBorderPhase = 0
+	m.setFocusBorderAnimPhase(0)
+	m.setFocusBorderAnimating(true) // only explicit focus (key/mouse) runs the animation
+	return m.startLogPanelBorderAnimWithPhase(0, m.borderAnimGeneration)
+}
+
+// setFocusBorderAnimPhase sets the border anim phase on whichever panel currently has focus.
+func (m *Model) setFocusBorderAnimPhase(phase float64) {
+	switch m.focusedPane {
+	case PaneLog:
+		if m.viewMode == ViewLog {
+			m.logPanel.SetBorderAnimPhase(phase)
+		} else {
+			m.filesPanel.SetBorderAnimPhase(phase)
+		}
+	case PaneDiff:
+		m.diffPanel.SetBorderAnimPhase(phase)
+	case PaneOpLog:
+		m.opLogPanel.SetBorderAnimPhase(phase)
+	}
+}
+
+// setFocusBorderAnimating sets the border animating flag on whichever panel currently has focus.
+func (m *Model) setFocusBorderAnimating(animating bool) {
+	switch m.focusedPane {
+	case PaneLog:
+		if m.viewMode == ViewLog {
+			m.logPanel.SetBorderAnimating(animating)
+		} else {
+			m.filesPanel.SetBorderAnimating(animating)
+		}
+	case PaneDiff:
+		m.diffPanel.SetBorderAnimating(animating)
+	case PaneOpLog:
+		m.opLogPanel.SetBorderAnimating(animating)
+	}
+}
+
+// startLogPanelBorderAnimWithPhase schedules the next tick with phase and generation.
+func (m *Model) startLogPanelBorderAnimWithPhase(phase float64, generation int) tea.Cmd {
+	return tea.Tick(15*time.Millisecond, func(t time.Time) tea.Msg {
+		return borderAnimTickMsg{Phase: phase, Generation: generation}
+	})
 }
 
 // handleFocusChange loads appropriate content when focus changes between panes
@@ -944,21 +1017,22 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 			m.focusedPane = PaneLog
 			m.updatePanelFocus()
 
-			// Dispatch to appropriate panel, only reload if selection changed
 			if m.viewMode == ViewLog {
+				var cmd tea.Cmd
 				if m.logPanel.HandleClick(contentY) {
 					if change := m.logPanel.SelectedChange(); change != nil {
-						return m.loadDiff(change.ChangeID)
+						cmd = m.loadDiff(change.ChangeID)
 					}
 				}
-			} else {
-				if m.filesPanel.HandleClick(contentY) {
-					if file := m.filesPanel.SelectedFile(); file != nil {
-						changeID := m.filesPanel.ChangeID()
-						return m.loadFileDiff(changeID, file.Path)
-					}
+				return tea.Batch(cmd, m.startLogPanelBorderAnim())
+			}
+			if m.filesPanel.HandleClick(contentY) {
+				if file := m.filesPanel.SelectedFile(); file != nil {
+					changeID := m.filesPanel.ChangeID()
+					return tea.Batch(m.loadFileDiff(changeID, file.Path), m.startLogPanelBorderAnim())
 				}
 			}
+			return m.startLogPanelBorderAnim()
 		} else if inBottomLeftPanel {
 			// Y relative to bottom panel content area
 			contentY := mouse.Y - leftTopHeight - contentYOffset
@@ -969,13 +1043,15 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 			if m.opLogPanel.HandleClick(contentY) {
 				if op := m.opLogPanel.SelectedOperation(); op != nil {
-					return m.loadOpShow(op.OpID)
+					return tea.Batch(m.loadOpShow(op.OpID), m.startLogPanelBorderAnim())
 				}
 			}
+			return m.startLogPanelBorderAnim()
 		} else if inRightPanel {
 			// Focus right panel
 			m.focusedPane = PaneDiff
 			m.updatePanelFocus()
+			return m.startLogPanelBorderAnim()
 		}
 	}
 

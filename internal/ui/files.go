@@ -15,14 +15,16 @@ import (
 
 // FilesPanel displays the list of files in a change
 type FilesPanel struct {
-	viewport  viewport.Model
-	files     []jj.File
-	cursor    int
-	focused   bool
-	width     int
-	height    int
-	changeID  string
-	shortCode string // shortest unique prefix for coloring
+	viewport        viewport.Model
+	files           []jj.File
+	cursor          int
+	focused         bool
+	width           int
+	height          int
+	changeID        string
+	shortCode       string  // shortest unique prefix for coloring
+	borderAnimPhase float64 // 0..1 for focus border animation
+	borderAnimating bool    // true only while the one-shot wrap is running
 }
 
 // NewFilesPanel creates a new files panel
@@ -48,6 +50,16 @@ func (p *FilesPanel) SetSize(width, height int) {
 // SetFocused sets the focus state
 func (p *FilesPanel) SetFocused(focused bool) {
 	p.focused = focused
+}
+
+// SetBorderAnimPhase sets the border animation phase (0..1) for the focus wrap effect.
+func (p *FilesPanel) SetBorderAnimPhase(phase float64) {
+	p.borderAnimPhase = phase
+}
+
+// SetBorderAnimating sets whether the focus border animation is running.
+func (p *FilesPanel) SetBorderAnimating(animating bool) {
+	p.borderAnimating = animating
 }
 
 // SetFiles sets the file list
@@ -197,13 +209,13 @@ func (p FilesPanel) View() string {
 
 	// Get the appropriate border style
 	var style lipgloss.Style
-	if p.focused {
+	if p.focused && p.borderAnimating {
+		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+	} else if p.focused {
 		style = FocusedPanelStyle
 	} else {
 		style = PanelStyle
 	}
-
-	// Set height only - Width causes text wrapping in lipgloss v2
 	style = style.Height(p.height - 2)
 
 	// Build content with title
