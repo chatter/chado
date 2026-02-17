@@ -263,6 +263,86 @@ func TestWatcher_IgnoresGitDirectory(t *testing.T) {
 	}
 }
 
+func TestWatcher_IgnoresGitignorePatterns(t *testing.T) {
+	dir := t.TempDir()
+	setupFakeJJDir(t, dir)
+
+	// Create a .gitignore that ignores *.log files
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*.log\n"), 0o644); err != nil {
+		t.Fatalf("failed to create .gitignore: %v", err)
+	}
+
+	w, err := NewWatcher(dir, testLogger(t))
+	if err != nil {
+		t.Fatalf("NewWatcher failed: %v", err)
+	}
+	defer w.Close()
+
+	// Create a .log file - should NOT trigger an event
+	logFile := filepath.Join(dir, "debug.log")
+	if err := os.WriteFile(logFile, []byte("log"), 0o644); err != nil {
+		t.Fatalf("failed to create log file: %v", err)
+	}
+
+	// Create a regular file - SHOULD trigger an event
+	regularFile := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(regularFile, []byte("package main"), 0o644); err != nil {
+		t.Fatalf("failed to create regular file: %v", err)
+	}
+
+	select {
+	case event := <-w.Events():
+		if event.Name == logFile {
+			t.Error("gitignored .log file should be filtered out")
+		}
+		if event.Name != regularFile {
+			t.Errorf("expected event for %s, got %s", regularFile, event.Name)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Error("expected event for regular file, got none")
+	}
+}
+
+func TestWatcher_IgnoresNodeModulesDirectory(t *testing.T) {
+	dir := t.TempDir()
+	setupFakeJJDir(t, dir)
+
+	w, err := NewWatcher(dir, testLogger(t))
+	if err != nil {
+		t.Fatalf("NewWatcher failed: %v", err)
+	}
+	defer w.Close()
+
+	// Create node_modules directory and a file in it
+	nmDir := filepath.Join(dir, "node_modules")
+	if err := os.MkdirAll(nmDir, 0o755); err != nil {
+		t.Fatalf("failed to create node_modules: %v", err)
+	}
+
+	// Give watcher a moment to process the directory create
+	time.Sleep(50 * time.Millisecond)
+
+	nmFile := filepath.Join(nmDir, "package.json")
+	if err := os.WriteFile(nmFile, []byte("{}"), 0o644); err != nil {
+		t.Fatalf("failed to create file in node_modules: %v", err)
+	}
+
+	// Create a regular file - SHOULD trigger an event
+	regularFile := filepath.Join(dir, "index.js")
+	if err := os.WriteFile(regularFile, []byte("hello"), 0o644); err != nil {
+		t.Fatalf("failed to create regular file: %v", err)
+	}
+
+	select {
+	case event := <-w.Events():
+		if event.Name == nmFile {
+			t.Error("node_modules files should be filtered out")
+		}
+	case <-time.After(500 * time.Millisecond):
+		// No event from node_modules is the expected outcome
+	}
+}
+
 func TestWatcher_Close(t *testing.T) {
 	dir := t.TempDir()
 	setupFakeJJDir(t, dir)
