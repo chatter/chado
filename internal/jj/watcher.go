@@ -9,6 +9,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/chatter/chado/internal/ignore"
 	"github.com/chatter/chado/internal/logger"
 )
 
@@ -21,6 +22,7 @@ type Watcher struct {
 	filtered chan fsnotify.Event
 	done     chan struct{}
 	log      *logger.Logger
+	ignore   *ignore.Matcher
 }
 
 // NewWatcher creates a new file watcher for the jj repo.
@@ -34,7 +36,7 @@ func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 		return nil, fmt.Errorf("creating fsnotify watcher: %w", err)
 	}
 
-	// Watch the .jj/repo/op_heads/heads directory for changes
+	// Watch the .jj/repo/op_heads/heads directory for changes.
 	jjPath := filepath.Join(repoPath, ".jj", "repo", "op_heads", "heads")
 	if err := watcher.Add(jjPath); err != nil {
 		log.Error("failed to watch .jj directory", "path", jjPath, "err", err)
@@ -43,7 +45,9 @@ func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 		return nil, fmt.Errorf("watching .jj directory: %w", err)
 	}
 
-	// Walk the repo directory and add all subdirectories to the watcher
+	ignoreMatcher := ignore.NewMatcher(repoPath)
+
+	// Walk the repo directory and add all non-ignored subdirectories.
 	watchCount := 0
 	_ = filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -51,7 +55,7 @@ func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 		}
 
 		if d.IsDir() {
-			if strings.Contains(path, ".jj") || strings.Contains(path, ".git") {
+			if ignoreMatcher.Match(path, true) {
 				return filepath.SkipDir
 			}
 
@@ -72,6 +76,7 @@ func NewWatcher(repoPath string, log *logger.Logger) (*Watcher, error) {
 		filtered: make(chan fsnotify.Event, 1),
 		done:     make(chan struct{}),
 		log:      log,
+		ignore:   ignoreMatcher,
 	}
 
 	go self.filterEvents()
@@ -136,19 +141,18 @@ func (w *Watcher) filterEvents() {
 }
 
 // trackNewDirectory adds newly created directories to the watcher so that
-// file changes in them are picked up. Directories inside .jj or .git are
-// intentionally skipped to avoid watching VCS internals.
+// file changes in them are picked up. Ignored directories are skipped.
 func (w *Watcher) trackNewDirectory(event fsnotify.Event) {
 	if !event.Has(fsnotify.Create) {
 		return
 	}
 
-	if strings.Contains(event.Name, ".jj") || strings.Contains(event.Name, ".git") {
+	info, err := os.Stat(event.Name)
+	if err != nil || !info.IsDir() {
 		return
 	}
 
-	info, err := os.Stat(event.Name)
-	if err != nil || !info.IsDir() {
+	if w.ignore.Match(event.Name, true) {
 		return
 	}
 
@@ -164,6 +168,10 @@ func (w *Watcher) shouldForward(event fsnotify.Event) bool {
 	}
 
 	if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) == 0 {
+		return false
+	}
+
+	if w.ignore.Match(event.Name, false) {
 		return false
 	}
 
