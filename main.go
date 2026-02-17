@@ -1,3 +1,4 @@
+// Package main is the entry point for chado, a TUI for jj repositories.
 package main
 
 import (
@@ -12,19 +13,22 @@ import (
 	"github.com/chatter/chado/internal/logger"
 )
 
-// version is set from build info or falls back to "dev"
-var version string
+// maxRealVersionLen is the upper bound for a "real" semver tag.
+// Pseudo-versions are very long (40+ chars); real versions are short.
+const maxRealVersionLen = 20
 
-func init() {
-	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
-		v := info.Main.Version
-		// Pseudo-versions are very long (40+ chars); real versions are short
-		if len(v) > 20 {
-			version = "(devel)"
-		} else {
-			version = v
-		}
+// resolveVersion returns the module version from build info, or "".
+func resolveVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info.Main.Version == "" {
+		return ""
 	}
+
+	if len(info.Main.Version) > maxRealVersionLen {
+		return "(devel)"
+	}
+
+	return info.Main.Version
 }
 
 func run(ctx context.Context, args []string) error {
@@ -34,7 +38,7 @@ func run(ctx context.Context, args []string) error {
 	fs.StringVar(logLevel, "l", "", "log level (shorthand)")
 
 	if err := fs.Parse(args); err != nil {
-		return err
+		return fmt.Errorf("parsing flags: %w", err)
 	}
 
 	// Initialize logger
@@ -48,15 +52,16 @@ func run(ctx context.Context, args []string) error {
 
 	if _, err := os.Stat(".jj"); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "error: not a jj repository (or any parent up to mount point /)")
-		return err
+		return fmt.Errorf("checking jj repository: %w", err)
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: could not get current directory: %v\n", err)
-		return err
+		return fmt.Errorf("getting working directory: %w", err)
 	}
 
+	version := resolveVersion()
 	model := app.New(cwd, version, log)
 
 	p := tea.NewProgram(
@@ -66,7 +71,7 @@ func run(ctx context.Context, args []string) error {
 
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		return err
+		return fmt.Errorf("running program: %w", err)
 	}
 
 	return nil

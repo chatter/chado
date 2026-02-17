@@ -2,6 +2,7 @@ package jj
 
 import (
 	"bytes"
+	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -28,6 +29,7 @@ func (r *Runner) Run(args ...string) (string, error) {
 	cmd.Dir = r.workDir
 
 	var stdout, stderr bytes.Buffer
+
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -35,19 +37,23 @@ func (r *Runner) Run(args ...string) (string, error) {
 	if err != nil {
 		// Return stderr content for debugging
 		if stderr.Len() > 0 {
-			jjErr := &JJError{
+			jjErr := &Error{
 				Command: strings.Join(args, " "),
 				Stderr:  stderr.String(),
 				Err:     err,
 			}
 			r.log.Error("jj command failed", "args", args, "err", jjErr)
+
 			return "", jjErr
 		}
+
 		r.log.Error("jj command failed", "args", args, "err", err)
-		return "", err
+
+		return "", fmt.Errorf("jj command failed: %w", err)
 	}
 
 	r.log.Debug("jj command completed", "args", args, "output_len", len(stdout.String()))
+
 	return stdout.String(), nil
 }
 
@@ -130,6 +136,7 @@ func (r *Runner) ShortestChangeID(rev string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return strings.TrimSpace(output), nil
 }
 
@@ -142,8 +149,11 @@ func (r *Runner) LogStat(rev string) (string, error) {
 // For now, we keep the raw lines and just extract basic info
 func (r *Runner) ParseLogLines(output string) []Change {
 	lines := strings.Split(output, "\n")
+
 	var changes []Change
+
 	var currentChange *Change
+
 	var descLines []string
 
 	// Regex to detect change lines - requires a graph symbol (@○◆◇●), not just whitespace
@@ -196,8 +206,11 @@ func (r *Runner) ParseLogLines(output string) []Change {
 // Works with both operation IDs (12 hex chars) and change IDs (8+ letters).
 func (r *Runner) ParseOpLogLines(output string) []Operation {
 	lines := strings.Split(output, "\n")
+
 	var operations []Operation
+
 	var currentOp *Operation
+
 	var descLines []string
 
 	for _, line := range lines {
@@ -250,6 +263,7 @@ func (r *Runner) ParseOpLogLines(output string) []Operation {
 // ParseFiles parses diff output to extract file list
 func (r *Runner) ParseFiles(diffOutput string) []File {
 	var files []File
+
 	lines := strings.Split(diffOutput, "\n")
 
 	// jj uses format like:
@@ -265,7 +279,7 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 	newFileRe := regexp.MustCompile(`^new file mode`)
 	deletedFileRe := regexp.MustCompile(`^deleted file mode`)
 
-	for i, line := range lines {
+	for lineIdx, line := range lines {
 		stripped := stripANSI(line)
 
 		// Check jj native format first
@@ -273,10 +287,12 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 			files = append(files, File{Path: match[1], Status: FileAdded})
 			continue
 		}
+
 		if match := modifiedRe.FindStringSubmatch(stripped); match != nil {
 			files = append(files, File{Path: match[1], Status: FileModified})
 			continue
 		}
+
 		if match := removedRe.FindStringSubmatch(stripped); match != nil {
 			files = append(files, File{Path: match[1], Status: FileDeleted})
 			continue
@@ -290,7 +306,7 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 			}
 
 			// Check next few lines for status
-			for j := i + 1; j < len(lines) && j < i+5; j++ {
+			for j := lineIdx + 1; j < len(lines) && j < lineIdx+5; j++ {
 				nextLine := stripANSI(lines[j])
 				if newFileRe.MatchString(nextLine) {
 					file.Status = FileAdded
@@ -314,6 +330,7 @@ func (r *Runner) ParseFiles(diffOutput string) []File {
 // Supports both git-style @@ hunks and jj-style file headers
 func FindHunks(diffOutput string) []Hunk {
 	var hunks []Hunk
+
 	lines := strings.Split(diffOutput, "\n")
 
 	// Git-style hunk header
@@ -322,7 +339,8 @@ func FindHunks(diffOutput string) []Hunk {
 	jjFileRe := regexp.MustCompile(`^(Added|Modified|Removed) regular file .+:$`)
 
 	var currentHunk *Hunk
-	for i, line := range lines {
+
+	for lineIdx, line := range lines {
 		stripped := stripANSI(line)
 
 		isSection := gitHunkRe.MatchString(stripped) || jjFileRe.MatchString(stripped)
@@ -330,13 +348,13 @@ func FindHunks(diffOutput string) []Hunk {
 		if isSection {
 			// Close previous hunk
 			if currentHunk != nil {
-				currentHunk.EndLine = i - 1
+				currentHunk.EndLine = lineIdx - 1
 				hunks = append(hunks, *currentHunk)
 			}
 			// Start new hunk/section
 			currentHunk = &Hunk{
 				Header:    stripped,
-				StartLine: i,
+				StartLine: lineIdx,
 			}
 		}
 	}
@@ -356,13 +374,13 @@ func stripANSI(s string) string {
 	return ansiRe.ReplaceAllString(s, "")
 }
 
-// JJError represents an error from running a jj command
-type JJError struct {
+// Error represents an error from running a jj command
+type Error struct {
 	Command string
 	Stderr  string
 	Err     error
 }
 
-func (e *JJError) Error() string {
+func (e *Error) Error() string {
 	return "jj " + e.Command + ": " + e.Stderr
 }

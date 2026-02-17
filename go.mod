@@ -1,6 +1,6 @@
 module github.com/chatter/chado
 
-go 1.25.0
+go 1.25.7
 
 require (
 	charm.land/bubbles/v2 v2.0.0-rc.1

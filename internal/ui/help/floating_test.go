@@ -18,9 +18,9 @@ func stripANSI(s string) string {
 	return ansiRegex.ReplaceAllString(s, "")
 }
 
-func generateFloatingBindings(t *rapid.T) []HelpBinding {
+func generateFloatingBindings(t *rapid.T) []Binding {
 	numBindings := rapid.IntRange(0, 30).Draw(t, "numBindings")
-	bindings := make([]HelpBinding, numBindings)
+	bindings := make([]Binding, numBindings)
 	for i := 0; i < numBindings; i++ {
 		keyStr := string(rune('a' + i%26))
 		desc := rapid.StringMatching(`[a-z]{3,12}`).Draw(t, "desc")
@@ -32,8 +32,8 @@ func generateFloatingBindings(t *rapid.T) []HelpBinding {
 			binding.SetEnabled(false)
 		}
 
-		bindings[i] = HelpBinding{
-			Binding:  binding,
+		bindings[i] = Binding{
+			Key:      binding,
 			Category: category,
 			Order:    i,
 		}
@@ -47,12 +47,12 @@ func TestFloating_AllEnabledBindingsAppear_WhenEnoughSpace(t *testing.T) {
 
 		// Create a small number of bindings so they all fit
 		numBindings := rapid.IntRange(1, 5).Draw(t, "numBindings")
-		bindings := make([]HelpBinding, numBindings)
+		bindings := make([]Binding, numBindings)
 		for i := 0; i < numBindings; i++ {
 			keyStr := string(rune('a' + i))
 			desc := "desc" + string(rune('0'+i))
-			bindings[i] = HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys(keyStr), key.WithHelp(keyStr, desc)),
+			bindings[i] = Binding{
+				Key:      key.NewBinding(key.WithKeys(keyStr), key.WithHelp(keyStr, desc)),
 				Category: CategoryNavigation,
 				Order:    i,
 			}
@@ -69,7 +69,7 @@ func TestFloating_AllEnabledBindingsAppear_WhenEnoughSpace(t *testing.T) {
 		plainView := stripANSI(view)
 
 		for _, hb := range bindings {
-			desc := hb.Binding.Help().Desc
+			desc := hb.Key.Help().Desc
 			if !strings.Contains(plainView, desc) {
 				t.Errorf("enabled binding %q not found in view with sufficient space", desc)
 			}
@@ -84,13 +84,13 @@ func TestFloating_DisabledBindingsNeverAppear(t *testing.T) {
 
 		// Create only disabled bindings with unique descriptions
 		numBindings := rapid.IntRange(1, 10).Draw(t, "numBindings")
-		bindings := make([]HelpBinding, numBindings)
+		bindings := make([]Binding, numBindings)
 		for i := 0; i < numBindings; i++ {
 			desc := "disabled" + string(rune('0'+i))
 			binding := key.NewBinding(key.WithKeys("x"), key.WithHelp("x", desc))
 			binding.SetEnabled(false)
-			bindings[i] = HelpBinding{
-				Binding:  binding,
+			bindings[i] = Binding{
+				Key:      binding,
 				Category: CategoryActions,
 				Order:    i,
 			}
@@ -118,19 +118,19 @@ func TestFloating_CategoriesAppearAsHeaders(t *testing.T) {
 		height := rapid.IntRange(20, 40).Draw(t, "height")
 
 		// Create bindings in each category
-		bindings := []HelpBinding{
+		bindings := []Binding{
 			{
-				Binding:  key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "nav action")),
+				Key:      key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "nav action")),
 				Category: CategoryNavigation,
 				Order:    1,
 			},
 			{
-				Binding:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "action action")),
+				Key:      key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "action action")),
 				Category: CategoryActions,
 				Order:    2,
 			},
 			{
-				Binding:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "diff action")),
+				Key:      key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "diff action")),
 				Category: CategoryDiff,
 				Order:    3,
 			},
@@ -162,11 +162,11 @@ func TestFloating_BindingsGroupedByCategory(t *testing.T) {
 		height := rapid.IntRange(30, 50).Draw(t, "height")
 
 		// Create multiple bindings per category
-		bindings := []HelpBinding{
-			{Binding: key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "nav1")), Category: CategoryNavigation, Order: 1},
-			{Binding: key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "nav2")), Category: CategoryNavigation, Order: 2},
-			{Binding: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "act1")), Category: CategoryActions, Order: 3},
-			{Binding: key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "act2")), Category: CategoryActions, Order: 4},
+		bindings := []Binding{
+			{Key: key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "nav1")), Category: CategoryNavigation, Order: 1},
+			{Key: key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "nav2")), Category: CategoryNavigation, Order: 2},
+			{Key: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "act1")), Category: CategoryActions, Order: 3},
+			{Key: key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "act2")), Category: CategoryActions, Order: 4},
 		}
 
 		fh := NewFloatingHelp()

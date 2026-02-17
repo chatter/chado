@@ -72,6 +72,9 @@ type Model struct {
 	// Focus border animation (one wrap when any panel is focused)
 	logPanelBorderPhase  float64
 	borderAnimGeneration int // incremented on each focus change so stale ticks are ignored
+
+	// Watcher coalescing: one refresh per burst of file-system events
+	watcherPending bool // true while a watcherFlushMsg tick is in flight
 }
 
 // borderAnimTickMsg is sent each frame during the focus border wrap animation.
@@ -119,6 +122,7 @@ func New(workDir string, version string, log *logger.Logger) Model {
 // Init initializes the application
 func (m Model) Init() tea.Cmd {
 	m.log.Info("initializing app", "workdir", m.workDir, "version", m.version)
+
 	return tea.Batch(
 		m.loadLog(),
 		m.loadOpLog(),
@@ -133,7 +137,9 @@ func (m Model) loadLog() tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+
 		changes := m.runner.ParseLogLines(output)
+
 		return logLoadedMsg{raw: output, changes: changes}
 	}
 }
@@ -165,6 +171,7 @@ func (m Model) loadFileDiff(changeID, filePath string) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+
 		return fileDiffLoadedMsg{diffOutput: diffOutput}
 	}
 }
@@ -176,13 +183,14 @@ func (m Model) loadFiles(changeID string) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
-		files := m.runner.ParseFiles(diffOutput)
 
 		// Get the shortest unique prefix for coloring
 		shortCode, _ := m.runner.ShortestChangeID(changeID)
 		if shortCode == "" {
 			shortCode = changeID // Fallback to full ID if call fails
 		}
+
+		files := m.runner.ParseFiles(diffOutput)
 
 		return filesLoadedMsg{changeID: changeID, shortCode: shortCode, files: files, diffOutput: diffOutput}
 	}
@@ -195,7 +203,9 @@ func (m Model) loadOpLog() tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+
 		operations := m.runner.ParseOpLogLines(output)
+
 		return opLogLoadedMsg{raw: output, operations: operations}
 	}
 }
@@ -207,6 +217,7 @@ func (m Model) loadOpShow(opID string) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+
 		return opShowLoadedMsg{opID: opID, output: output}
 	}
 }
@@ -218,7 +229,9 @@ func (m Model) loadEvoLog(changeID, shortCode string) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+
 		operations := m.runner.ParseOpLogLines(output)
+
 		return evoLogLoadedMsg{
 			changeID:   changeID,
 			shortCode:  shortCode,
@@ -236,6 +249,7 @@ func (m Model) startWatcher() tea.Cmd {
 			// Don't fail if watcher can't start, just disable auto-refresh
 			return watcherStartedMsg{watcher: nil, err: err}
 		}
+
 		return watcherStartedMsg{watcher: watcher, err: nil}
 	}
 }
@@ -247,8 +261,7 @@ func (m Model) waitForChange() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		<-m.watcher.Events()               // Block until valid event
-		time.Sleep(100 * time.Millisecond) // Debounce
+		<-m.watcher.Events() // Block until valid event
 		return jj.WatcherMsg{}
 	}
 }
@@ -298,6 +311,9 @@ type watcherStartedMsg struct {
 	err     error
 }
 
+// watcherFlushMsg fires after the coalescing delay; triggers one refresh.
+type watcherFlushMsg struct{}
+
 type errMsg struct {
 	err error
 }
@@ -334,10 +350,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showHelp = false
 				return m, nil
 			}
+
 			if msg.String() == "q" {
 				if m.watcher != nil {
 					m.watcher.Close()
 				}
+
 				return m, tea.Quit
 			}
 			// Absorb all other keys
@@ -347,6 +365,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Try active bindings first
 		if newModel, cmd := dispatchKey(&m, msg, m.activeBindings()); newModel != nil {
 			m = *newModel
+
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -375,10 +394,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case diffLoadedMsg:
 		m.currentDiff = msg.diffOutput
+
 		details := ui.ParseDetailsFromShow(msg.showOutput)
 		if details.ChangeID == "" {
 			details.ChangeID = msg.changeID
 		}
+
 		m.diffPanel.SetDetails(details)
 		m.diffPanel.SetDiff(msg.diffOutput)
 
@@ -421,16 +442,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diffPanel.SetDiff(msg.output)
 
 	case watcherStartedMsg:
-		m.watcher = msg.watcher
 		if msg.err != nil {
 			m.log.Warn("watcher failed to start", "err", msg.err)
 		}
-		if msg.watcher != nil {
+
+		if m.watcher = msg.watcher; m.watcher != nil {
 			cmds = append(cmds, m.waitForChange())
 		}
 
 	case jj.WatcherMsg:
-		// Refresh on file system changes
+		// Coalesce: schedule a single flush after a short delay.
+		// Do NOT refresh or re-arm waitForChange here.
+		if !m.watcherPending {
+			m.watcherPending = true
+			cmds = append(cmds, tea.Tick(300*time.Millisecond, func(time.Time) tea.Msg {
+				return watcherFlushMsg{}
+			}))
+		}
+
+	case watcherFlushMsg:
+		// One refresh per burst, then re-arm the watcher.
+		m.watcherPending = false
 		cmds = append(cmds, m.loadLog(), m.loadOpLog(), m.waitForChange())
 
 		// If drilled into files view, reload file list and current diff
@@ -476,16 +508,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Generation != m.borderAnimGeneration {
 			break // stale tick from a previous focus; ignore
 		}
+
 		const animSteps = 120
+
 		nextPhase := msg.Phase + 1.0/animSteps
 		if nextPhase > 1 {
 			nextPhase = 1
 		}
+
 		m.logPanelBorderPhase = nextPhase
 		m.setFocusBorderAnimPhase(nextPhase)
+
 		if nextPhase >= 1 {
 			m.setFocusBorderAnimating(false) // animation complete; show static focus border
 		}
+
 		if nextPhase < 1 {
 			cmds = append(cmds, m.startLogPanelBorderAnimWithPhase(nextPhase, m.borderAnimGeneration))
 		}
@@ -503,6 +540,7 @@ func (m *Model) handleEnter() tea.Cmd {
 			m.viewMode = ViewFiles
 			m.focusedPane = PaneLog
 			m.updatePanelFocus() // files now visible in left slot; focused, not animated
+
 			return m.loadFiles(change.ChangeID)
 		}
 	case ViewFiles:
@@ -512,6 +550,7 @@ func (m *Model) handleEnter() tea.Cmd {
 			return m.loadFileDiff(changeID, file.Path)
 		}
 	}
+
 	return nil
 }
 
@@ -530,6 +569,7 @@ func (m *Model) handleBack() tea.Cmd {
 		// Restore global op log (switch back from evolog mode)
 		return m.loadOpLog()
 	}
+
 	return nil
 }
 
@@ -585,6 +625,7 @@ func (m *Model) actionQuit() (Model, tea.Cmd) {
 	if m.watcher != nil {
 		m.watcher.Close()
 	}
+
 	return *m, tea.Quit
 }
 
@@ -592,6 +633,7 @@ func (m *Model) actionFocusPane0() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
 	m.focusedPane = PaneDiff
 	m.updatePanelFocus()
+
 	return *m, tea.Batch(m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim())
 }
 
@@ -600,6 +642,7 @@ func (m *Model) actionFocusPane1() (Model, tea.Cmd) {
 	m.focusedPane = PaneLog
 	m.updatePanelFocus()
 	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
+
 	return *m, tea.Batch(cmds...)
 }
 
@@ -607,6 +650,7 @@ func (m *Model) actionFocusPane2() (Model, tea.Cmd) {
 	prevPane := m.focusedPane
 	m.focusedPane = PaneOpLog
 	m.updatePanelFocus()
+
 	return *m, tea.Batch(m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim())
 }
 
@@ -615,6 +659,7 @@ func (m *Model) actionNextPane() (Model, tea.Cmd) {
 	m.focusedPane = (m.focusedPane + 1) % 3
 	m.updatePanelFocus()
 	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
+
 	return *m, tea.Batch(cmds...)
 }
 
@@ -623,6 +668,7 @@ func (m *Model) actionPrevPane() (Model, tea.Cmd) {
 	m.focusedPane = (m.focusedPane + 2) % 3 // +2 is same as -1 mod 3
 	m.updatePanelFocus()
 	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
+
 	return *m, tea.Batch(cmds...)
 }
 
@@ -632,6 +678,7 @@ func (m *Model) startLogPanelBorderAnim() tea.Cmd {
 	m.logPanelBorderPhase = 0
 	m.setFocusBorderAnimPhase(0)
 	m.setFocusBorderAnimating(true) // only explicit focus (key/mouse) runs the animation
+
 	return m.startLogPanelBorderAnimWithPhase(0, m.borderAnimGeneration)
 }
 
@@ -669,7 +716,7 @@ func (m *Model) setFocusBorderAnimating(animating bool) {
 
 // startLogPanelBorderAnimWithPhase schedules the next tick with phase and generation.
 func (m *Model) startLogPanelBorderAnimWithPhase(phase float64, generation int) tea.Cmd {
-	return tea.Tick(15*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(15*time.Millisecond, func(_ time.Time) tea.Msg {
 		return borderAnimTickMsg{Phase: phase, Generation: generation}
 	})
 }
@@ -714,6 +761,7 @@ func (m *Model) actionBack() (Model, tea.Cmd) {
 		cmd := m.handleBack()
 		return *m, cmd
 	}
+
 	return *m, nil
 }
 
@@ -740,6 +788,7 @@ func (m *Model) actionDescribe() (Model, tea.Cmd) {
 	if desc == "" || desc == "(no description set)" {
 		desc = ""
 	}
+
 	m.describeInput.SetValue(desc)
 	m.describeInput.SetSize(60, 10) // Fixed size for the overlay
 	m.editMode = true
@@ -750,10 +799,10 @@ func (m *Model) actionDescribe() (Model, tea.Cmd) {
 // runDescribe executes jj describe and returns a completion message
 func (m *Model) runDescribe(changeID, message string) tea.Cmd {
 	return func() tea.Msg {
-		err := m.runner.Describe(changeID, message)
-		if err != nil {
+		if err := m.runner.Describe(changeID, message); err != nil {
 			return errMsg{err}
 		}
+
 		return describeCompleteMsg{changeID: changeID}
 	}
 }
@@ -775,10 +824,10 @@ func (m *Model) actionEdit() (Model, tea.Cmd) {
 // runEdit executes jj edit and returns a completion message
 func (m *Model) runEdit(changeID string) tea.Cmd {
 	return func() tea.Msg {
-		err := m.runner.Edit(changeID)
-		if err != nil {
+		if err := m.runner.Edit(changeID); err != nil {
 			return errMsg{err}
 		}
+
 		return editCompleteMsg{changeID: changeID}
 	}
 }
@@ -792,10 +841,10 @@ func (m *Model) actionNew() (Model, tea.Cmd) {
 // runNew executes jj new and returns a completion message
 func (m *Model) runNew() tea.Cmd {
 	return func() tea.Msg {
-		err := m.runner.New()
-		if err != nil {
+		if err := m.runner.New(); err != nil {
 			return errMsg{err}
 		}
+
 		return newCompleteMsg{}
 	}
 }
@@ -821,6 +870,7 @@ func (m *Model) runAbandon(changeID string) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+
 		return abandonCompleteMsg{changeID: changeID}
 	}
 }
@@ -836,7 +886,7 @@ func (m *Model) activeBindings() []ActionBinding {
 
 // activeHelpBindings returns all display bindings for the current context.
 // Used by the status bar to show context-sensitive help.
-func (m *Model) activeHelpBindings() []help.HelpBinding {
+func (m *Model) activeHelpBindings() []help.Binding {
 	// Start with global bindings
 	bindings := ToHelpBindings(m.globalBindings())
 
@@ -862,8 +912,8 @@ func (m *Model) globalBindings() []ActionBinding {
 	return []ActionBinding{
 		// Quit - pinned, always visible
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Quit,
+			Binding: help.Binding{
+				Key:      m.keys.Quit,
 				Category: help.CategoryActions,
 				Order:    100,
 				Pinned:   true,
@@ -872,24 +922,24 @@ func (m *Model) globalBindings() []ActionBinding {
 		},
 		// Pane focus - "#" represents 0/1 (deduped by description)
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.FocusPane0,
+			Binding: help.Binding{
+				Key:      m.keys.FocusPane0,
 				Category: help.CategoryNavigation,
 				Order:    50,
 			},
 			Action: (*Model).actionFocusPane0,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.FocusPane1,
+			Binding: help.Binding{
+				Key:      m.keys.FocusPane1,
 				Category: help.CategoryNavigation,
 				Order:    51,
 			},
 			Action: (*Model).actionFocusPane1,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.FocusPane2,
+			Binding: help.Binding{
+				Key:      m.keys.FocusPane2,
 				Category: help.CategoryNavigation,
 				Order:    52,
 			},
@@ -897,16 +947,16 @@ func (m *Model) globalBindings() []ActionBinding {
 		},
 		// Next/prev pane - combined keys
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.NextPane,
+			Binding: help.Binding{
+				Key:      m.keys.NextPane,
 				Category: help.CategoryNavigation,
 				Order:    20,
 			},
 			Action: (*Model).actionNextPane,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.PrevPane,
+			Binding: help.Binding{
+				Key:      m.keys.PrevPane,
 				Category: help.CategoryNavigation,
 				Order:    21,
 			},
@@ -914,48 +964,48 @@ func (m *Model) globalBindings() []ActionBinding {
 		},
 		// Actions
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Enter,
+			Binding: help.Binding{
+				Key:      m.keys.Enter,
 				Category: help.CategoryActions,
 				Order:    10,
 			},
 			Action: (*Model).actionEnter,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Back,
+			Binding: help.Binding{
+				Key:      m.keys.Back,
 				Category: help.CategoryActions,
 				Order:    11,
 			},
 			Action: (*Model).actionBack,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Describe,
+			Binding: help.Binding{
+				Key:      m.keys.Describe,
 				Category: help.CategoryActions,
 				Order:    12,
 			},
 			Action: (*Model).actionDescribe,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Edit,
+			Binding: help.Binding{
+				Key:      m.keys.Edit,
 				Category: help.CategoryActions,
 				Order:    13,
 			},
 			Action: (*Model).actionEdit,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.New,
+			Binding: help.Binding{
+				Key:      m.keys.New,
 				Category: help.CategoryActions,
 				Order:    14,
 			},
 			Action: (*Model).actionNew,
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Abandon,
+			Binding: help.Binding{
+				Key:      m.keys.Abandon,
 				Category: help.CategoryActions,
 				Order:    15,
 			},
@@ -963,8 +1013,8 @@ func (m *Model) globalBindings() []ActionBinding {
 		},
 		// Help toggle - pinned, always visible
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  m.keys.Help,
+			Binding: help.Binding{
+				Key:      m.keys.Help,
 				Category: help.CategoryActions,
 				Order:    99,
 				Pinned:   true,
@@ -1004,6 +1054,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		if inRightPanel {
 			m.diffPanel.HandleMouseScroll(mouse.Button)
 		}
+
 		return nil
 	}
 
@@ -1019,19 +1070,24 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 			if m.viewMode == ViewLog {
 				var cmd tea.Cmd
+
 				if m.logPanel.HandleClick(contentY) {
 					if change := m.logPanel.SelectedChange(); change != nil {
 						cmd = m.loadDiff(change.ChangeID)
 					}
 				}
+
 				return tea.Batch(cmd, m.startLogPanelBorderAnim())
 			}
+
 			if m.filesPanel.HandleClick(contentY) {
 				if file := m.filesPanel.SelectedFile(); file != nil {
 					changeID := m.filesPanel.ChangeID()
+
 					return tea.Batch(m.loadFileDiff(changeID, file.Path), m.startLogPanelBorderAnim())
 				}
 			}
+
 			return m.startLogPanelBorderAnim()
 		} else if inBottomLeftPanel {
 			// Y relative to bottom panel content area
@@ -1046,11 +1102,13 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 					return tea.Batch(m.loadOpShow(op.OpID), m.startLogPanelBorderAnim())
 				}
 			}
+
 			return m.startLogPanelBorderAnim()
 		} else if inRightPanel {
 			// Focus right panel
 			m.focusedPane = PaneDiff
 			m.updatePanelFocus()
+
 			return m.startLogPanelBorderAnim()
 		}
 	}
@@ -1078,23 +1136,25 @@ func (m *Model) updatePanelSizes() {
 
 // View renders the application
 func (m Model) View() tea.View {
-	v := tea.NewView("")
-	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
+	view := tea.NewView("")
+	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
 
 	if m.width == 0 || m.height == 0 {
-		v.SetContent("Loading...")
-		return v
+		view.SetContent("Loading...")
+		return view
 	}
 
 	// Render left panels (log/files + op log stacked)
 	var leftTop string
+
 	switch m.viewMode {
 	case ViewLog:
 		leftTop = m.logPanel.View()
 	case ViewFiles:
 		leftTop = m.filesPanel.View()
 	}
+
 	leftBottom := m.opLogPanel.View()
 	leftPanel := lipgloss.JoinVertical(lipgloss.Left, leftTop, leftBottom)
 
@@ -1112,14 +1172,14 @@ func (m Model) View() tea.View {
 
 	// Show floating help modal if active
 	if m.showHelp {
-		v.SetContent(m.renderWithOverlay(base))
+		view.SetContent(m.renderWithOverlay(base))
 	} else if m.editMode {
-		v.SetContent(m.renderWithDescribeOverlay(base))
+		view.SetContent(m.renderWithDescribeOverlay(base))
 	} else {
-		v.SetContent(base)
+		view.SetContent(base)
 	}
 
-	return v
+	return view
 }
 
 // renderWithOverlay composites the help modal on top of the base view
@@ -1159,12 +1219,14 @@ func (m Model) renderWithOverlay(base string) string {
 
 	// Composite and render
 	canvas := lipgloss.NewCanvas(baseLayer, overlayLayer)
+
 	return canvas.Render()
 }
 
 func (m Model) renderStatusBar() string {
 	m.statusBar.SetWidth(m.width)
 	m.statusBar.SetBindings(m.activeHelpBindings())
+
 	return ui.StatusBarStyle.Render(m.statusBar.View())
 }
 
@@ -1192,5 +1254,6 @@ func (m Model) renderWithDescribeOverlay(base string) string {
 
 	// Composite and render
 	canvas := lipgloss.NewCanvas(baseLayer, overlayLayer)
+
 	return canvas.Render()
 }

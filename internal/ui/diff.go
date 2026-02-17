@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"crypto/sha256"
 	"regexp"
 	"strings"
 
@@ -31,9 +32,10 @@ type DiffPanel struct {
 	diffContent     string
 	hunks           []jj.Hunk
 	currentHunk     int
-	headerLines     int     // Number of lines in the header (offset for hunk positions)
-	borderAnimPhase float64 // 0..1 for focus border animation
-	borderAnimating bool    // true only while the one-shot wrap is running
+	headerLines     int      // Number of lines in the header (offset for hunk positions)
+	contentHash     [32]byte // SHA-256 of diffContent; used to skip no-op SetDiff calls
+	borderAnimPhase float64  // 0..1 for focus border animation
+	borderAnimating bool     // true only while the one-shot wrap is running
 }
 
 // DetailsHeader contains the commit details shown above the diff
@@ -48,6 +50,7 @@ type DetailsHeader struct {
 // NewDiffPanel creates a new diff panel
 func NewDiffPanel() DiffPanel {
 	vp := viewport.New()
+
 	return DiffPanel{
 		viewport:    vp,
 		title:       "Diff",
@@ -94,8 +97,15 @@ func (p *DiffPanel) SetDetails(details DetailsHeader) {
 	p.updateContent()
 }
 
-// SetDiff sets the diff content
+// SetDiff sets the diff content. If the content is unchanged (same SHA-256
+// hash), it returns immediately — no viewport update, no scroll reset.
 func (p *DiffPanel) SetDiff(diff string) {
+	hash := sha256.Sum256([]byte(diff))
+	if hash == p.contentHash {
+		return
+	}
+
+	p.contentHash = hash
 	p.diffContent = diff
 	p.hunks = jj.FindHunks(diff)
 	p.currentHunk = noHunkSelected
@@ -105,6 +115,7 @@ func (p *DiffPanel) SetDiff(diff string) {
 
 func (p *DiffPanel) updateContent() {
 	var content strings.Builder
+
 	p.headerLines = 0
 
 	// Add details header if enabled
@@ -120,27 +131,34 @@ func (p *DiffPanel) updateContent() {
 		// Metadata line
 		content.WriteString("Change: ")
 		content.WriteString(p.details.ChangeID)
+
 		if p.details.CommitID != "" {
 			content.WriteString("  Commit: ")
 			content.WriteString(p.details.CommitID)
 		}
+
 		content.WriteString("\n")
+
 		p.headerLines++
 
 		if p.details.Author != "" {
 			content.WriteString("Author: ")
 			content.WriteString(p.details.Author)
 		}
+
 		if p.details.Date != "" {
 			content.WriteString("  ")
 			content.WriteString(p.details.Date)
 		}
+
 		content.WriteString("\n")
+
 		p.headerLines++
 
 		// Separator
 		content.WriteString(strings.Repeat("─", p.viewport.Width()))
 		content.WriteString("\n")
+
 		p.headerLines++
 	}
 
@@ -161,6 +179,7 @@ func (p *DiffPanel) NextHunk() {
 	if len(p.hunks) == 0 || p.currentHunk >= len(p.hunks)-1 {
 		return
 	}
+
 	p.currentHunk++
 	p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
 }
@@ -200,13 +219,16 @@ func (p *DiffPanel) syncCurrentHunk() {
 		p.currentHunk = noHunkSelected
 		return
 	}
+
 	pos := p.viewport.YOffset() - p.headerLines
+
 	for i := len(p.hunks) - 1; i >= 0; i-- {
 		if pos >= p.hunks[i].StartLine {
 			p.currentHunk = i
 			return
 		}
 	}
+
 	p.currentHunk = noHunkSelected
 }
 
@@ -219,6 +241,7 @@ func (p *DiffPanel) GotoTop() {
 // GotoBottom scrolls to the bottom
 func (p *DiffPanel) GotoBottom() {
 	p.viewport.GotoBottom()
+
 	if len(p.hunks) > 0 {
 		p.currentHunk = len(p.hunks) - 1
 	}
@@ -232,6 +255,7 @@ func (p *DiffPanel) HandleMouseScroll(button tea.MouseButton) {
 	case tea.MouseWheelDown:
 		p.viewport.ScrollDown(mouseScrollLines)
 	}
+
 	p.syncCurrentHunk()
 }
 
@@ -301,8 +325,8 @@ func ParseDetailsFromShow(showOutput string) DetailsHeader {
 	commitIDRe := regexp.MustCompile(`(?i)commit\s*id[:\s]+([a-f0-9]+)`)
 	authorRe := regexp.MustCompile(`(?i)author[:\s]+(.+)`)
 	dateRe := regexp.MustCompile(`(?i)(?:date|timestamp)[:\s]+(.+)`)
-
 	inDescription := false
+
 	var descLines []string
 
 	for _, line := range lines {
@@ -312,14 +336,17 @@ func ParseDetailsFromShow(showOutput string) DetailsHeader {
 			details.ChangeID = match[1]
 			continue
 		}
+
 		if match := commitIDRe.FindStringSubmatch(stripped); match != nil {
 			details.CommitID = match[1]
 			continue
 		}
+
 		if match := authorRe.FindStringSubmatch(stripped); match != nil {
 			details.Author = strings.TrimSpace(match[1])
 			continue
 		}
+
 		if match := dateRe.FindStringSubmatch(stripped); match != nil {
 			details.Date = strings.TrimSpace(match[1])
 			continue
@@ -330,9 +357,11 @@ func ParseDetailsFromShow(showOutput string) DetailsHeader {
 			inDescription = true
 			desc := strings.TrimPrefix(stripped, "Description:")
 			desc = strings.TrimPrefix(desc, "description:")
+
 			if strings.TrimSpace(desc) != "" {
 				descLines = append(descLines, strings.TrimSpace(desc))
 			}
+
 			continue
 		}
 
@@ -342,6 +371,7 @@ func ParseDetailsFromShow(showOutput string) DetailsHeader {
 				// End of description, start of diff
 				break
 			}
+
 			if strings.TrimSpace(stripped) != "" {
 				descLines = append(descLines, strings.TrimSpace(stripped))
 			}
@@ -349,6 +379,7 @@ func ParseDetailsFromShow(showOutput string) DetailsHeader {
 	}
 
 	details.Description = strings.Join(descLines, "\n")
+
 	return details
 }
 
@@ -359,20 +390,20 @@ func stripANSI(s string) string {
 }
 
 // HelpBindings returns the keybindings for this panel (display-only, for status bar)
-func (p DiffPanel) HelpBindings() []help.HelpBinding {
-	return []help.HelpBinding{
+func (p DiffPanel) HelpBindings() []help.Binding {
+	return []help.Binding{
 		{
-			Binding:  key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
 			Category: help.CategoryNavigation,
 			Order:    1,
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("{", "}"), key.WithHelp("{/}", "next/prev hunk")),
+			Key:      key.NewBinding(key.WithKeys("{", "}"), key.WithHelp("{/}", "next/prev hunk")),
 			Category: help.CategoryDiff,
 			Order:    1,
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
 			Category: help.CategoryNavigation,
 			Order:    2,
 		},

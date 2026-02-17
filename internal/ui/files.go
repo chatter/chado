@@ -31,6 +31,7 @@ type FilesPanel struct {
 func NewFilesPanel() FilesPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
+
 	return FilesPanel{
 		viewport: vp,
 		files:    []jj.File{},
@@ -76,6 +77,7 @@ func (p *FilesPanel) SelectedFile() *jj.File {
 	if p.cursor >= 0 && p.cursor < len(p.files) {
 		return &p.files[p.cursor]
 	}
+
 	return nil
 }
 
@@ -121,9 +123,11 @@ func (p *FilesPanel) updateViewport() {
 	}
 
 	var content strings.Builder
-	for i, file := range p.files {
+
+	for idx, file := range p.files {
 		// Status indicator with color
 		var status string
+
 		switch file.Status {
 		case jj.FileAdded:
 			status = "\033[32mA\033[0m" // Green
@@ -137,7 +141,7 @@ func (p *FilesPanel) updateViewport() {
 
 		// Selection indicator
 		cursor := "  "
-		if i == p.cursor {
+		if idx == p.cursor {
 			cursor = "→ "
 		}
 
@@ -162,8 +166,10 @@ func (p *FilesPanel) HandleClick(y int) bool {
 	if visualLine >= 0 && visualLine < len(p.files) && visualLine != p.cursor {
 		p.cursor = visualLine
 		p.updateViewport()
+
 		return true
 	}
+
 	return false
 }
 
@@ -203,8 +209,10 @@ func (p FilesPanel) View() string {
 		} else {
 			outerColorCode = PrimaryColorCode
 		}
+
 		coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
 	}
+
 	title := PanelTitle(1, coloredID+" / files", p.focused)
 
 	// Get the appropriate border style
@@ -216,6 +224,7 @@ func (p FilesPanel) View() string {
 	} else {
 		style = PanelStyle
 	}
+
 	style = style.Height(p.height - 2)
 
 	// Build content with title
@@ -225,15 +234,15 @@ func (p FilesPanel) View() string {
 }
 
 // HelpBindings returns the keybindings for this panel (display-only, for status bar)
-func (p FilesPanel) HelpBindings() []help.HelpBinding {
-	return []help.HelpBinding{
+func (p FilesPanel) HelpBindings() []help.Binding {
+	return []help.Binding{
 		{
-			Binding:  key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
 			Category: help.CategoryNavigation,
 			Order:    1,
 		},
 		{
-			Binding:  key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
 			Category: help.CategoryNavigation,
 			Order:    2,
 		},

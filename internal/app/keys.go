@@ -12,7 +12,7 @@ type Action func(m *Model) (Model, tea.Cmd)
 
 // ActionBinding combines a display binding with its action for dispatch.
 type ActionBinding struct {
-	help.HelpBinding        // embedded for display (Binding, Category, Order)
+	help.Binding        // embedded for display (Key, Category, Order)
 	Action           Action // nil = display-only (no action)
 }
 
@@ -20,20 +20,22 @@ type ActionBinding struct {
 // Returns nil, nil if no binding matches.
 func dispatchKey(m *Model, msg tea.KeyMsg, bindings []ActionBinding) (*Model, tea.Cmd) {
 	for _, ab := range bindings {
-		if key.Matches(msg, ab.Binding) && ab.Action != nil {
+		if key.Matches(msg, ab.Key) && ab.Action != nil {
 			newModel, cmd := ab.Action(m)
 			return &newModel, cmd
 		}
 	}
+
 	return nil, nil
 }
 
 // ToHelpBindings extracts display-only bindings from action bindings.
-func ToHelpBindings(abs []ActionBinding) []help.HelpBinding {
-	result := make([]help.HelpBinding, len(abs))
+func ToHelpBindings(abs []ActionBinding) []help.Binding {
+	result := make([]help.Binding, len(abs))
 	for i, ab := range abs {
-		result[i] = ab.HelpBinding
+		result[i] = ab.Binding
 	}
+
 	return result
 }
 

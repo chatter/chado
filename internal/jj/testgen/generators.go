@@ -27,6 +27,7 @@ func ChangeID(opts ...ChangeIDOption) *rapid.Generator[string] {
 	for _, opt := range opts {
 		gen = opt(gen)
 	}
+
 	return gen
 }
 
@@ -37,6 +38,7 @@ func CommitID(opts ...ChangeIDOption) *rapid.Generator[string] {
 	for _, opt := range opts {
 		gen = opt(gen)
 	}
+
 	return gen
 }
 
@@ -47,6 +49,7 @@ func OperationID(opts ...ChangeIDOption) *rapid.Generator[string] {
 	for _, opt := range opts {
 		gen = opt(gen)
 	}
+
 	return gen
 }
 
@@ -65,23 +68,25 @@ func WithNormal(gen *rapid.Generator[string]) *rapid.Generator[string] {
 // For OperationID (128 chars): exactly 12 characters.
 // Preserves any /N version suffix if present, so order of transformers doesn't matter.
 func WithShort(gen *rapid.Generator[string]) *rapid.Generator[string] {
-	return rapid.Custom(func(t *rapid.T) string {
-		id, suffix := preserveVersion(gen.Draw(t, "id"))
+	return rapid.Custom(func(prop *rapid.T) string {
+		baseID, suffix := preserveVersion(gen.Draw(prop, "id"))
 
 		var length int
-		switch len(id) {
+
+		switch len(baseID) {
 		case 128: // OperationID - always 12
 			length = 12
 		case 40: // CommitID - 7-12
-			length = rapid.IntRange(7, 12).Draw(t, "length")
+			length = rapid.IntRange(7, 12).Draw(prop, "length")
 		default: // ChangeID (32) - 8-12
-			length = rapid.IntRange(8, 12).Draw(t, "length")
+			length = rapid.IntRange(8, 12).Draw(prop, "length")
 		}
 
-		if length > len(id) {
-			length = len(id)
+		if length > len(baseID) {
+			length = len(baseID)
 		}
-		return id[:length] + suffix
+
+		return baseID[:length] + suffix
 	})
 }
 
@@ -90,6 +95,7 @@ func WithVersion(gen *rapid.Generator[string]) *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
 		id := gen.Draw(t, "id")
 		v := rapid.IntRange(1, 99).Draw(t, "v")
+
 		return fmt.Sprintf("%s/%d", id, v)
 	})
 }
@@ -100,6 +106,7 @@ func preserveVersion(id string) (base, suffix string) {
 	if idx := strings.LastIndex(id, "/"); idx != -1 {
 		return id[:idx], id[idx:]
 	}
+
 	return id, ""
 }
 
@@ -107,18 +114,19 @@ func preserveVersion(id string) (base, suffix string) {
 // Mapping: k→0, l→1, m→2, ..., t→9, u→a, v→b, w→c, x→d, y→e, z→f
 func reverseHexToHex(revHex string) string {
 	result := make([]byte, len(revHex))
-	for i, c := range revHex {
+	for idx, char := range revHex {
 		switch {
-		case c >= 'k' && c <= 't':
+		case char >= 'k' && char <= 't':
 			// k-t → 0-9
-			result[i] = byte(c) - 59
-		case c >= 'u' && c <= 'z':
+			result[idx] = byte(char) - 59
+		case char >= 'u' && char <= 'z':
 			// u-z → a-f
-			result[i] = byte(c) - 20
+			result[idx] = byte(char) - 20
 		default:
-			panic(fmt.Sprintf("reverseHexToHex: invalid reverse-hex character %q at index %d", c, i))
+			panic(fmt.Sprintf("reverseHexToHex: invalid reverse-hex character %q at index %d", char, idx))
 		}
 	}
+
 	return string(result)
 }
 
@@ -133,10 +141,12 @@ func PathComponent() *rapid.Generator[string] {
 func FilePath() *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
 		depth := rapid.IntRange(1, 16).Draw(t, "depth")
+
 		components := make([]string, depth)
 		for i := range components {
 			components[i] = PathComponent().Draw(t, "component")
 		}
+
 		return strings.Join(components, "/")
 	})
 }
@@ -167,14 +177,15 @@ func Email() *rapid.Generator[string] {
 // Timestamp generates an absolute timestamp "YYYY-MM-DD HH:MM:SS".
 // Year range 1970-2037 (Unix 32-bit timestamp safe range).
 func Timestamp() *rapid.Generator[string] {
-	return rapid.Custom(func(t *rapid.T) string {
-		year := rapid.IntRange(1970, 2037).Draw(t, "year")
-		month := rapid.IntRange(1, 12).Draw(t, "month")
-		day := rapid.IntRange(1, 28).Draw(t, "day")
-		hour := rapid.IntRange(0, 23).Draw(t, "hour")
-		min := rapid.IntRange(0, 59).Draw(t, "min")
-		sec := rapid.IntRange(0, 59).Draw(t, "sec")
-		return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, min, sec)
+	return rapid.Custom(func(prop *rapid.T) string {
+		year := rapid.IntRange(1970, 2037).Draw(prop, "year")
+		month := rapid.IntRange(1, 12).Draw(prop, "month")
+		day := rapid.IntRange(1, 28).Draw(prop, "day")
+		hour := rapid.IntRange(0, 23).Draw(prop, "hour")
+		minute := rapid.IntRange(0, 59).Draw(prop, "min")
+		sec := rapid.IntRange(0, 59).Draw(prop, "sec")
+
+		return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, sec)
 	})
 }
 
@@ -183,9 +194,11 @@ func RelativeTimestamp() *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
 		n := rapid.IntRange(1, 59).Draw(t, "n")
 		unit := rapid.SampledFrom([]string{"second", "minute", "hour", "day", "week", "month", "year"}).Draw(t, "unit")
+
 		if n > 1 {
 			unit += "s"
 		}
+
 		return fmt.Sprintf("%d %s ago", n, unit)
 	})
 }

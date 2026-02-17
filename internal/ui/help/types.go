@@ -14,10 +14,10 @@ const (
 	CategoryDiff       Category = "Diff"
 )
 
-// HelpBinding contains display information for a keybinding.
+// Binding contains display information for a keybinding.
 // This is the display-only version; app.ActionBinding adds the Action field.
-type HelpBinding struct {
-	Binding  key.Binding
+type Binding struct {
+	Key      key.Binding
 	Category Category
 	Order    int  // lower = higher priority for inline status bar
 	Pinned   bool // if true, always shown in status bar (never truncated)

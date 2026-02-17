@@ -26,13 +26,13 @@ type DescribeInput struct {
 
 // NewDescribeInput creates a new describe input overlay.
 func NewDescribeInput() *DescribeInput {
-	ti := textinput.New()
-	ti.Placeholder = "Enter description..."
-	ti.CharLimit = 256
-	ti.Focus()
+	input := textinput.New()
+	input.Placeholder = "Enter description..."
+	input.CharLimit = 256
+	input.Focus()
 
 	return &DescribeInput{
-		input: ti,
+		input: input,
 		submit: key.NewBinding(
 			key.WithKeys("enter"),
 		),
@@ -62,6 +62,7 @@ func (d *DescribeInput) SetSize(width, height int) {
 	if inputWidth < 20 {
 		inputWidth = 20
 	}
+
 	d.input.SetWidth(inputWidth)
 }
 
@@ -113,6 +114,7 @@ func (d *DescribeInput) Update(msg tea.Msg) tea.Cmd {
 				}
 			}
 		}
+
 		if key.Matches(msg, d.cancel) {
 			return func() tea.Msg {
 				return DescribeCancelMsg{}
@@ -122,7 +124,9 @@ func (d *DescribeInput) Update(msg tea.Msg) tea.Cmd {
 
 	// Forward to text input
 	var cmd tea.Cmd
+
 	d.input, cmd = d.input.Update(msg)
+
 	return cmd
 }
 

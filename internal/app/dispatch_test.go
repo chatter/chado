@@ -23,15 +23,15 @@ type testMsg struct {
 func TestDispatch_MatchesAndExecutes(t *testing.T) {
 	bindings := []ActionBinding{
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys("a")),
+			Binding: help.Binding{
+				Key:      key.NewBinding(key.WithKeys("a")),
 				Category: help.CategoryNavigation,
 			},
 			Action: testAction("action-a"),
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys("b")),
+			Binding: help.Binding{
+				Key:      key.NewBinding(key.WithKeys("b")),
 				Category: help.CategoryNavigation,
 			},
 			Action: testAction("action-b"),
@@ -59,8 +59,8 @@ func TestDispatch_MatchesAndExecutes(t *testing.T) {
 func TestDispatch_NoMatchNoAction(t *testing.T) {
 	bindings := []ActionBinding{
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys("a")),
+			Binding: help.Binding{
+				Key:      key.NewBinding(key.WithKeys("a")),
 				Category: help.CategoryNavigation,
 			},
 			Action: testAction("action-a"),
@@ -82,15 +82,15 @@ func TestDispatch_NoMatchNoAction(t *testing.T) {
 func TestDispatch_NilActionSkipped(t *testing.T) {
 	bindings := []ActionBinding{
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys("a")),
+			Binding: help.Binding{
+				Key:      key.NewBinding(key.WithKeys("a")),
 				Category: help.CategoryNavigation,
 			},
 			Action: nil, // display-only binding
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys("a")), // same key, but with action
+			Binding: help.Binding{
+				Key:      key.NewBinding(key.WithKeys("a")), // same key, but with action
 				Category: help.CategoryNavigation,
 			},
 			Action: testAction("fallback"),
@@ -114,15 +114,15 @@ func TestDispatch_NilActionSkipped(t *testing.T) {
 func TestDispatch_FirstMatchWins(t *testing.T) {
 	bindings := []ActionBinding{
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys("a")),
+			Binding: help.Binding{
+				Key:      key.NewBinding(key.WithKeys("a")),
 				Category: help.CategoryNavigation,
 			},
 			Action: testAction("first"),
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys("a")), // same key
+			Binding: help.Binding{
+				Key:      key.NewBinding(key.WithKeys("a")), // same key
 				Category: help.CategoryNavigation,
 			},
 			Action: testAction("second"),
@@ -149,15 +149,15 @@ func TestDispatch_DisabledBindingSkipped(t *testing.T) {
 
 	bindings := []ActionBinding{
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  disabledBinding,
+			Binding: help.Binding{
+				Key:      disabledBinding,
 				Category: help.CategoryNavigation,
 			},
 			Action: testAction("disabled"),
 		},
 		{
-			HelpBinding: help.HelpBinding{
-				Binding:  key.NewBinding(key.WithKeys("a")), // same key, enabled
+			Binding: help.Binding{
+				Key:      key.NewBinding(key.WithKeys("a")), // same key, enabled
 				Category: help.CategoryNavigation,
 			},
 			Action: testAction("enabled"),
@@ -263,7 +263,7 @@ func TestDispatch_DescribeBinding(t *testing.T) {
 	// Find the describe binding
 	found := false
 	for _, ab := range bindings {
-		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'd'}), ab.Binding) {
+		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'd'}), ab.Key) {
 			found = true
 			if ab.Action == nil {
 				t.Error("describe binding should have an action")
@@ -343,7 +343,7 @@ func TestDispatch_EditBinding(t *testing.T) {
 	// Find the edit binding
 	found := false
 	for _, ab := range bindings {
-		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'e'}), ab.Binding) {
+		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'e'}), ab.Key) {
 			found = true
 			if ab.Action == nil {
 				t.Error("edit binding should have an action")
@@ -402,7 +402,7 @@ func TestDispatch_NewBinding(t *testing.T) {
 	// Find the new binding
 	found := false
 	for _, ab := range bindings {
-		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'n'}), ab.Binding) {
+		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'n'}), ab.Key) {
 			found = true
 			if ab.Action == nil {
 				t.Error("new binding should have an action")
@@ -461,7 +461,7 @@ func TestDispatch_AbandonBinding(t *testing.T) {
 	// Find the abandon binding
 	found := false
 	for _, ab := range bindings {
-		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'a'}), ab.Binding) {
+		if key.Matches(tea.KeyPressMsg(tea.Key{Code: 'a'}), ab.Key) {
 			found = true
 			if ab.Action == nil {
 				t.Error("abandon binding should have an action")
