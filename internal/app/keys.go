@@ -7,13 +7,14 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// Action is a function that executes a keybinding's behavior
+// Action is a function that executes a keybinding's behavior.
 type Action func(m *Model) (Model, tea.Cmd)
 
 // ActionBinding combines a display binding with its action for dispatch.
 type ActionBinding struct {
-	help.Binding        // embedded for display (Key, Category, Order)
-	Action           Action // nil = display-only (no action)
+	help.Binding // embedded for display (Key, Category, Order)
+
+	Action Action // nil = display-only (no action)
 }
 
 // dispatchKey iterates through bindings and executes the first matching action.
@@ -39,7 +40,7 @@ func ToHelpBindings(abs []ActionBinding) []help.Binding {
 	return result
 }
 
-// KeyMap defines the key bindings for the application
+// KeyMap defines the key bindings for the application.
 type KeyMap struct {
 	// Navigation between panes
 	FocusPane0 key.Binding
@@ -63,11 +64,12 @@ type KeyMap struct {
 	Describe key.Binding
 	Edit     key.Binding
 	New      key.Binding
+	Squash   key.Binding
 	Quit     key.Binding
 	Help     key.Binding
 }
 
-// DefaultKeyMap returns the default key bindings
+// DefaultKeyMap returns the default key bindings.
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		FocusPane0: key.NewBinding(
@@ -137,6 +139,10 @@ func DefaultKeyMap() KeyMap {
 		New: key.NewBinding(
 			key.WithKeys("n"),
 			key.WithHelp("n", "new"),
+		),
+		Squash: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "squash"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),

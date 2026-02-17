@@ -7,6 +7,15 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+const (
+	// floatingChromeLines is the vertical space consumed by the modal's
+	// title, blank lines, and footer: title(1) + blank(1) + blank(1) + footer(1).
+	floatingChromeLines = 4
+
+	// noBindingsWidth is the rendered width of the "No keybindings available" fallback.
+	noBindingsWidth = 24
+)
+
 // FloatingHelp renders a modal with all keybindings organized by category.
 type FloatingHelp struct {
 	width    int
@@ -87,7 +96,7 @@ func (f *FloatingHelp) View() string {
 
 	// Calculate available height for content
 	// title (1) + blank (1) + content + blank (1) + footer (1) = 4 + content
-	availableContentHeight := maxInnerHeight - 4
+	availableContentHeight := maxInnerHeight - floatingChromeLines
 
 	// Truncate content if needed
 	contentLines := strings.Split(strings.TrimRight(content, "\n"), "\n")
@@ -103,11 +112,13 @@ func (f *FloatingHelp) View() string {
 	return f.borderStyle.Render(fullContent)
 }
 
-// categoryOrder defines the display order of categories
-var categoryOrder = []Category{
-	CategoryNavigation,
-	CategoryActions,
-	CategoryDiff,
+// categoryOrder returns the display order of categories.
+func categoryOrder() []Category {
+	return []Category{
+		CategoryNavigation,
+		CategoryActions,
+		CategoryDiff,
+	}
 }
 
 // groupByCategory groups enabled bindings by category, deduping by description.
@@ -147,7 +158,7 @@ func (f *FloatingHelp) groupByCategory() map[Category][]Binding {
 	return groups
 }
 
-// column represents a category rendered as a column
+// column represents a category rendered as a column.
 type column struct {
 	lines  []string
 	width  int
@@ -159,13 +170,13 @@ type column struct {
 // Returns the rendered content, its width, and its height.
 func (f *FloatingHelp) renderColumns(groups map[Category][]Binding, maxWidth int) (string, int, int) {
 	if len(groups) == 0 {
-		return "No keybindings available", 24, 1
+		return "No keybindings available", noBindingsWidth, 1
 	}
 
 	// Build all category columns
 	allColumns := f.buildColumns(groups)
 	if len(allColumns) == 0 {
-		return "No keybindings available", 24, 1
+		return "No keybindings available", noBindingsWidth, 1
 	}
 
 	columnGap := "    " // 4 spaces between columns
@@ -223,7 +234,7 @@ func (f *FloatingHelp) renderColumns(groups map[Category][]Binding, maxWidth int
 	return result, maxRowWidth, totalHeight
 }
 
-// buildColumns creates column structures for each category
+// buildColumns creates column structures for each category.
 func (f *FloatingHelp) buildColumns(groups map[Category][]Binding) []column {
 	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
@@ -231,7 +242,7 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]Binding) []column {
 
 	var columns []column
 
-	for _, cat := range categoryOrder {
+	for _, cat := range categoryOrder() {
 		bindings, ok := groups[cat]
 		if !ok || len(bindings) == 0 {
 			continue
@@ -254,8 +265,11 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]Binding) []column {
 		colWidth := lipgloss.Width(string(cat))
 
 		for _, hb := range bindings {
+			// keyColumnPadding adds breathing room between key and description.
+			const keyColumnPadding = 2
+
 			help := hb.Key.Help()
-			key := keyStyle.Width(maxKeyWidth + 2).Render(help.Key) // +2 for breathing room
+			key := keyStyle.Width(maxKeyWidth + keyColumnPadding).Render(help.Key)
 			desc := descStyle.Render(help.Desc)
 			line := key + desc
 			lines = append(lines, line)
@@ -275,7 +289,7 @@ func (f *FloatingHelp) buildColumns(groups map[Category][]Binding) []column {
 	return columns
 }
 
-// renderRow renders a single row of columns side by side
+// renderRow renders a single row of columns side by side.
 func (f *FloatingHelp) renderRow(row []column, gap string) (string, int, int) {
 	if len(row) == 0 {
 		return "", 0, 0
@@ -295,13 +309,8 @@ func (f *FloatingHelp) renderRow(row []column, gap string) (string, int, int) {
 	var paddedColumns []string
 
 	for _, col := range row {
-		lines := make([]string, len(col.lines))
+		lines := make([]string, maxHeight)
 		copy(lines, col.lines)
-
-		// Pad to max height
-		for len(lines) < maxHeight {
-			lines = append(lines, "")
-		}
 
 		// Pad each line to column width
 		for j, line := range lines {

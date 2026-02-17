@@ -2,7 +2,6 @@ package ui
 
 import (
 	"crypto/sha256"
-	"regexp"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -14,59 +13,48 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// noHunkSelected indicates viewport is in header area, before any hunk
+// noHunkSelected indicates viewport is in header area, before any hunk.
 const noHunkSelected = -1
 
-// mouseScrollLines is the number of lines to scroll per mouse wheel tick
+// mouseScrollLines is the number of lines to scroll per mouse wheel tick.
 const mouseScrollLines = 3
 
-// DiffPanel displays diff content with optional details header
+// DiffPanel displays diff content with optional details header.
 type DiffPanel struct {
 	viewport        viewport.Model
+	styles          *Styles
 	focused         bool
 	width           int
 	height          int
 	title           string
-	showDetails     bool
-	details         DetailsHeader
 	diffContent     string
 	hunks           []jj.Hunk
 	currentHunk     int
-	headerLines     int      // Number of lines in the header (offset for hunk positions)
 	contentHash     [32]byte // SHA-256 of diffContent; used to skip no-op SetDiff calls
 	borderAnimPhase float64  // 0..1 for focus border animation
 	borderAnimating bool     // true only while the one-shot wrap is running
 }
 
-// DetailsHeader contains the commit details shown above the diff
-type DetailsHeader struct {
-	ChangeID    string
-	CommitID    string
-	Author      string
-	Date        string
-	Description string
-}
-
-// NewDiffPanel creates a new diff panel
-func NewDiffPanel() DiffPanel {
+// NewDiffPanel creates a new diff panel.
+func NewDiffPanel(styles *Styles) DiffPanel {
 	vp := viewport.New()
 
 	return DiffPanel{
-		viewport:    vp,
-		title:       "Diff",
-		showDetails: true,
+		viewport: vp,
+		styles:   styles,
+		title:    "Diff",
 	}
 }
 
-// SetSize sets the panel dimensions
+// SetSize sets the panel dimensions.
 func (p *DiffPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
-	p.viewport.SetWidth(width - 2)   // -border
-	p.viewport.SetHeight(height - 3) // -title
+	p.viewport.SetWidth(width - PanelBorderWidth)
+	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
-// SetFocused sets the focus state
+// SetFocused sets the focus state.
 func (p *DiffPanel) SetFocused(focused bool) {
 	p.focused = focused
 }
@@ -81,20 +69,9 @@ func (p *DiffPanel) SetBorderAnimating(animating bool) {
 	p.borderAnimating = animating
 }
 
-// SetTitle sets the panel title
+// SetTitle sets the panel title.
 func (p *DiffPanel) SetTitle(title string) {
 	p.title = title
-}
-
-// SetShowDetails controls whether to show the details header
-func (p *DiffPanel) SetShowDetails(show bool) {
-	p.showDetails = show
-}
-
-// SetDetails sets the commit details header
-func (p *DiffPanel) SetDetails(details DetailsHeader) {
-	p.details = details
-	p.updateContent()
 }
 
 // SetDiff sets the diff content. If the content is unchanged (same SHA-256
@@ -107,84 +84,22 @@ func (p *DiffPanel) SetDiff(diff string) {
 
 	p.contentHash = hash
 	p.diffContent = diff
-	p.hunks = jj.FindHunks(diff)
 	p.currentHunk = noHunkSelected
 	p.updateContent()
 	p.viewport.GotoTop()
 }
 
-func (p *DiffPanel) updateContent() {
-	var content strings.Builder
-
-	p.headerLines = 0
-
-	// Add details header if enabled
-	if p.showDetails && p.details.ChangeID != "" {
-		// Description first
-		if p.details.Description != "" {
-			content.WriteString(p.details.Description)
-			content.WriteString("\n\n")
-			// Count lines in description
-			p.headerLines += strings.Count(p.details.Description, "\n") + 2
-		}
-
-		// Metadata line
-		content.WriteString("Change: ")
-		content.WriteString(p.details.ChangeID)
-
-		if p.details.CommitID != "" {
-			content.WriteString("  Commit: ")
-			content.WriteString(p.details.CommitID)
-		}
-
-		content.WriteString("\n")
-
-		p.headerLines++
-
-		if p.details.Author != "" {
-			content.WriteString("Author: ")
-			content.WriteString(p.details.Author)
-		}
-
-		if p.details.Date != "" {
-			content.WriteString("  ")
-			content.WriteString(p.details.Date)
-		}
-
-		content.WriteString("\n")
-
-		p.headerLines++
-
-		// Separator
-		content.WriteString(strings.Repeat("─", p.viewport.Width()))
-		content.WriteString("\n")
-
-		p.headerLines++
-	}
-
-	// Add diff content - apply word wrap to fit viewport width
-	viewportWidth := p.viewport.Width()
-	if viewportWidth > 0 {
-		wrapped := lipgloss.NewStyle().Width(viewportWidth).Render(p.diffContent)
-		content.WriteString(wrapped)
-	} else {
-		content.WriteString(p.diffContent)
-	}
-
-	p.viewport.SetContent(content.String())
-}
-
-// NextHunk jumps to the next hunk/section
+// NextHunk jumps to the next hunk/section.
 func (p *DiffPanel) NextHunk() {
 	if len(p.hunks) == 0 || p.currentHunk >= len(p.hunks)-1 {
 		return
 	}
 
 	p.currentHunk++
-	p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
+	p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine)
 }
 
-// PrevHunk jumps to start of current hunk, or previous hunk if already at start
+// PrevHunk jumps to start of current hunk, or previous hunk if already at start.
 func (p *DiffPanel) PrevHunk() {
 	if len(p.hunks) == 0 {
 		return
@@ -196,7 +111,7 @@ func (p *DiffPanel) PrevHunk() {
 		return
 	}
 
-	currentHunkStart := p.hunks[p.currentHunk].StartLine + p.headerLines
+	currentHunkStart := p.hunks[p.currentHunk].StartLine
 
 	// If not at start of current hunk, go to start of current hunk
 	if p.viewport.YOffset() > currentHunkStart {
@@ -207,38 +122,19 @@ func (p *DiffPanel) PrevHunk() {
 	// Already at start of current hunk, go to previous hunk (or top if at hunk 0)
 	p.currentHunk--
 	if p.currentHunk >= 0 {
-		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine + p.headerLines)
+		p.viewport.SetYOffset(p.hunks[p.currentHunk].StartLine)
 	} else {
 		p.viewport.GotoTop()
 	}
 }
 
-// syncCurrentHunk updates currentHunk based on viewport position
-func (p *DiffPanel) syncCurrentHunk() {
-	if len(p.hunks) == 0 {
-		p.currentHunk = noHunkSelected
-		return
-	}
-
-	pos := p.viewport.YOffset() - p.headerLines
-
-	for i := len(p.hunks) - 1; i >= 0; i-- {
-		if pos >= p.hunks[i].StartLine {
-			p.currentHunk = i
-			return
-		}
-	}
-
-	p.currentHunk = noHunkSelected
-}
-
-// GotoTop scrolls to the top
+// GotoTop scrolls to the top.
 func (p *DiffPanel) GotoTop() {
 	p.viewport.GotoTop()
 	p.currentHunk = noHunkSelected
 }
 
-// GotoBottom scrolls to the bottom
+// GotoBottom scrolls to the bottom.
 func (p *DiffPanel) GotoBottom() {
 	p.viewport.GotoBottom()
 
@@ -247,7 +143,7 @@ func (p *DiffPanel) GotoBottom() {
 	}
 }
 
-// HandleMouseScroll handles mouse wheel events
+// HandleMouseScroll handles mouse wheel events.
 func (p *DiffPanel) HandleMouseScroll(button tea.MouseButton) {
 	switch button {
 	case tea.MouseWheelUp:
@@ -259,16 +155,15 @@ func (p *DiffPanel) HandleMouseScroll(button tea.MouseButton) {
 	p.syncCurrentHunk()
 }
 
-// Update handles input
+// Update handles input.
 func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 	if !p.focused {
 		return nil
 	}
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.String() {
-		case "j", "down":
+		case "j", "down": //nolint:goconst // key name literals are clearest inline
 			p.viewport.ScrollDown(1)
 			p.syncCurrentHunk()
 		case "k", "up":
@@ -288,20 +183,23 @@ func (p *DiffPanel) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// View renders the panel
-func (p DiffPanel) View() string {
-	title := PanelTitle(0, p.title, p.focused)
+// View renders the panel.
+func (p *DiffPanel) View() string {
+	title := p.styles.PanelTitle(0, p.title, p.focused)
 
 	// Get the appropriate border style
 	var style lipgloss.Style
-	if p.focused && p.borderAnimating {
-		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
-	} else if p.focused {
-		style = FocusedPanelStyle
-	} else {
-		style = PanelStyle
+
+	switch {
+	case p.focused && p.borderAnimating:
+		style = p.styles.AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+	case p.focused:
+		style = p.styles.FocusedPanel
+	default:
+		style = p.styles.Panel
 	}
-	style = style.Height(p.height - 2)
+
+	style = style.Height(p.height - PanelBorderHeight)
 
 	// Build content with title
 	content := title + "\n" + p.viewport.View()
@@ -309,103 +207,61 @@ func (p DiffPanel) View() string {
 	return style.Render(content)
 }
 
-// ParseDetailsFromShow parses jj show output to extract details
-func ParseDetailsFromShow(showOutput string) DetailsHeader {
-	details := DetailsHeader{}
-	lines := strings.Split(showOutput, "\n")
-
-	// jj show output format varies, but typically has:
-	// Commit ID: ...
-	// Change ID: ...
-	// Author: ...
-	// Date: ...
-	// Description
-
-	changeIDRe := regexp.MustCompile(`(?i)change\s*id[:\s]+([a-z0-9]+)`)
-	commitIDRe := regexp.MustCompile(`(?i)commit\s*id[:\s]+([a-f0-9]+)`)
-	authorRe := regexp.MustCompile(`(?i)author[:\s]+(.+)`)
-	dateRe := regexp.MustCompile(`(?i)(?:date|timestamp)[:\s]+(.+)`)
-	inDescription := false
-
-	var descLines []string
-
-	for _, line := range lines {
-		stripped := stripANSI(line)
-
-		if match := changeIDRe.FindStringSubmatch(stripped); match != nil {
-			details.ChangeID = match[1]
-			continue
-		}
-
-		if match := commitIDRe.FindStringSubmatch(stripped); match != nil {
-			details.CommitID = match[1]
-			continue
-		}
-
-		if match := authorRe.FindStringSubmatch(stripped); match != nil {
-			details.Author = strings.TrimSpace(match[1])
-			continue
-		}
-
-		if match := dateRe.FindStringSubmatch(stripped); match != nil {
-			details.Date = strings.TrimSpace(match[1])
-			continue
-		}
-
-		// Check for description start
-		if strings.HasPrefix(strings.ToLower(stripped), "description:") {
-			inDescription = true
-			desc := strings.TrimPrefix(stripped, "Description:")
-			desc = strings.TrimPrefix(desc, "description:")
-
-			if strings.TrimSpace(desc) != "" {
-				descLines = append(descLines, strings.TrimSpace(desc))
-			}
-
-			continue
-		}
-
-		// Collect description lines
-		if inDescription {
-			if strings.HasPrefix(stripped, "diff ") {
-				// End of description, start of diff
-				break
-			}
-
-			if strings.TrimSpace(stripped) != "" {
-				descLines = append(descLines, strings.TrimSpace(stripped))
-			}
-		}
-	}
-
-	details.Description = strings.Join(descLines, "\n")
-
-	return details
-}
-
-// stripANSI removes ANSI escape codes
-func stripANSI(s string) string {
-	ansiRe := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
-	return ansiRe.ReplaceAllString(s, "")
-}
-
-// HelpBindings returns the keybindings for this panel (display-only, for status bar)
-func (p DiffPanel) HelpBindings() []help.Binding {
+// HelpBindings returns the keybindings for this panel (display-only, for status bar).
+func (p *DiffPanel) HelpBindings() []help.Binding {
 	return []help.Binding{
 		{
 			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
 			Category: help.CategoryNavigation,
-			Order:    1,
+			Order:    PanelOrderPrimary,
 		},
 		{
 			Key:      key.NewBinding(key.WithKeys("{", "}"), key.WithHelp("{/}", "next/prev hunk")),
 			Category: help.CategoryDiff,
-			Order:    1,
+			Order:    PanelOrderPrimary,
 		},
 		{
 			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
 			Category: help.CategoryNavigation,
-			Order:    2,
+			Order:    PanelOrderSecondary,
 		},
 	}
+}
+
+// syncCurrentHunk updates currentHunk based on viewport position.
+func (p *DiffPanel) syncCurrentHunk() {
+	if len(p.hunks) == 0 {
+		p.currentHunk = noHunkSelected
+		return
+	}
+
+	pos := p.viewport.YOffset()
+
+	for i := len(p.hunks) - 1; i >= 0; i-- {
+		if pos >= p.hunks[i].StartLine {
+			p.currentHunk = i
+			return
+		}
+	}
+
+	p.currentHunk = noHunkSelected
+}
+
+func (p *DiffPanel) updateContent() {
+	var content string
+
+	viewportWidth := p.viewport.Width()
+	if viewportWidth > 0 {
+		content = lipgloss.NewStyle().Width(viewportWidth).Render(p.diffContent)
+	} else {
+		content = p.diffContent
+	}
+
+	// Replace the template separator with a full-width line
+	if viewportWidth > 0 {
+		content = strings.Replace(content, "----", strings.Repeat("─", viewportWidth), 1)
+	}
+
+	p.hunks = jj.FindHunks(content)
+	p.viewport.SetContent(content)
 }

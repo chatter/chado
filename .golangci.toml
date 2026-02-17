@@ -109,6 +109,11 @@ min-complexity = 15
 [linters.settings.godoclint]
 default = 'all'
 
+[linters.settings.godoclint.options.max-len]
+length = 117
+
+[linters.funcorder]
+alphabetical = true
 
 [linters.settings.staticcheck]
 checks = ['all']

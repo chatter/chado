@@ -1,6 +1,8 @@
+// Package app implements the main TUI application model and update loop.
 package app
 
 import (
+	"context"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -12,7 +14,7 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// ViewMode represents the current view hierarchy
+// ViewMode represents the current view hierarchy.
 type ViewMode int
 
 const (
@@ -20,7 +22,7 @@ const (
 	ViewFiles                 // Drill down: files in a change
 )
 
-// FocusedPane represents which pane has focus
+// FocusedPane represents which pane has focus.
 type FocusedPane int
 
 const (
@@ -29,7 +31,69 @@ const (
 	PaneOpLog                    // [2] Left pane - op log
 )
 
-// Model is the main application model
+const (
+	// watcherDebounceDelay is the pause before flushing batched file-watcher events.
+	watcherDebounceDelay = 300 * time.Millisecond
+
+	// paneCount is the total number of navigable panes.
+	paneCount = 3
+
+	// borderAnimTickInterval is the frame interval for the focus border animation.
+	borderAnimTickInterval = 15 * time.Millisecond
+
+	// describeOverlayWidth is the fixed width of the describe-input overlay.
+	describeOverlayWidth = 60
+
+	// describeOverlayHeight is the fixed height of the describe-input overlay.
+	describeOverlayHeight = 10
+
+	// Help binding display order values (lower = shown first in status bar).
+	orderSelect     = 10
+	orderBack       = 11
+	orderDescribe   = 12
+	orderEdit       = 13
+	orderNew        = 14
+	orderAbandon    = 15
+	orderSquash     = 16
+	orderNextPane   = 20
+	orderPrevPane   = 21
+	orderFocusPane0 = 50
+	orderFocusPane1 = 51
+	orderFocusPane2 = 52
+	orderHelp       = 99
+	orderQuit       = 100
+
+	// percentDivisor converts a percentage numerator to a fraction.
+	percentDivisor = 100
+
+	// centerDivisor halves a dimension to find the center point.
+	centerDivisor = 2
+
+	// leftPanelWidthPct is the left panel's share of screen width.
+	leftPanelWidthPct = 40
+
+	// leftPanelSplitDivisor divides the left panel vertically into equal halves.
+	leftPanelSplitDivisor = 2
+
+	// modalWidthPct and modalHeightPct control the help modal's screen share.
+	modalWidthPct  = 80
+	modalHeightPct = 70
+
+	// minModalWidth and minModalHeight are floor sizes for the help modal.
+	minModalWidth  = 40
+	minModalHeight = 10
+
+	// modalEdgePadding is the gap kept between the modal and the screen edge.
+	modalEdgePadding = 4
+
+	// statusBarHeight is the vertical space reserved for the status bar.
+	statusBarHeight = 1
+
+	// contentYOffset accounts for border (1) + title line (1) in a panel.
+	contentYOffset = 2
+)
+
+// Model is the main application model.
 type Model struct {
 	// Core state
 	workDir string
@@ -49,6 +113,7 @@ type Model struct {
 	describeInput *ui.DescribeInput
 
 	// Panels
+	styles     *ui.Styles
 	logPanel   ui.LogPanel
 	opLogPanel ui.OpLogPanel
 	filesPanel ui.FilesPanel
@@ -83,14 +148,15 @@ type borderAnimTickMsg struct {
 	Generation int // must match Model.borderAnimGeneration or tick is ignored (stale)
 }
 
-// New creates a new application model
-func New(workDir string, version string, log *logger.Logger) Model {
-	runner := jj.NewRunner(workDir, log)
+// New creates a new application model.
+func New(ctx context.Context, workDir string, version string, log *logger.Logger) Model {
+	runner := jj.NewRunner(ctx, workDir, log)
+	styles := ui.NewStyles()
 
-	logPanel := ui.NewLogPanel()
-	opLogPanel := ui.NewOpLogPanel()
-	filesPanel := ui.NewFilesPanel()
-	diffPanel := ui.NewDiffPanel()
+	logPanel := ui.NewLogPanel(styles)
+	opLogPanel := ui.NewOpLogPanel(styles)
+	filesPanel := ui.NewFilesPanel(styles)
+	diffPanel := ui.NewDiffPanel(styles)
 	statusBar := help.NewStatusBar("chado " + version)
 	floatingHelp := help.NewFloatingHelp()
 	describeInput := ui.NewDescribeInput()
@@ -107,6 +173,7 @@ func New(workDir string, version string, log *logger.Logger) Model {
 		keys:          DefaultKeyMap(),
 		log:           log,
 		runner:        runner,
+		styles:        styles,
 		viewMode:      ViewLog,
 		focusedPane:   PaneLog,
 		logPanel:      logPanel,
@@ -119,8 +186,8 @@ func New(workDir string, version string, log *logger.Logger) Model {
 	}
 }
 
-// Init initializes the application
-func (m Model) Init() tea.Cmd {
+// Init initializes the application.
+func (m *Model) Init() tea.Cmd {
 	m.log.Info("initializing app", "workdir", m.workDir, "version", m.version)
 
 	return tea.Batch(
@@ -130,143 +197,7 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
-// loadLog fetches the jj log
-func (m Model) loadLog() tea.Cmd {
-	return func() tea.Msg {
-		output, err := m.runner.Log()
-		if err != nil {
-			return errMsg{err}
-		}
-
-		changes := m.runner.ParseLogLines(output)
-
-		return logLoadedMsg{raw: output, changes: changes}
-	}
-}
-
-// loadDiff fetches the diff for a change
-func (m Model) loadDiff(changeID string) tea.Cmd {
-	return func() tea.Msg {
-		// Get show output for details
-		showOutput, _ := m.runner.Show(changeID)
-
-		// Get diff
-		diffOutput, err := m.runner.Diff(changeID)
-		if err != nil {
-			return errMsg{err}
-		}
-
-		return diffLoadedMsg{
-			changeID:   changeID,
-			showOutput: showOutput,
-			diffOutput: diffOutput,
-		}
-	}
-}
-
-// loadFileDiff fetches the diff for a specific file
-func (m Model) loadFileDiff(changeID, filePath string) tea.Cmd {
-	return func() tea.Msg {
-		diffOutput, err := m.runner.DiffFile(changeID, filePath)
-		if err != nil {
-			return errMsg{err}
-		}
-
-		return fileDiffLoadedMsg{diffOutput: diffOutput}
-	}
-}
-
-// loadFiles parses files from diff output
-func (m Model) loadFiles(changeID string) tea.Cmd {
-	return func() tea.Msg {
-		diffOutput, err := m.runner.Diff(changeID)
-		if err != nil {
-			return errMsg{err}
-		}
-
-		// Get the shortest unique prefix for coloring
-		shortCode, _ := m.runner.ShortestChangeID(changeID)
-		if shortCode == "" {
-			shortCode = changeID // Fallback to full ID if call fails
-		}
-
-		files := m.runner.ParseFiles(diffOutput)
-
-		return filesLoadedMsg{changeID: changeID, shortCode: shortCode, files: files, diffOutput: diffOutput}
-	}
-}
-
-// loadOpLog fetches the jj operation log
-func (m Model) loadOpLog() tea.Cmd {
-	return func() tea.Msg {
-		output, err := m.runner.OpLog()
-		if err != nil {
-			return errMsg{err}
-		}
-
-		operations := m.runner.ParseOpLogLines(output)
-
-		return opLogLoadedMsg{raw: output, operations: operations}
-	}
-}
-
-// loadOpShow fetches details for a specific operation
-func (m Model) loadOpShow(opID string) tea.Cmd {
-	return func() tea.Msg {
-		output, err := m.runner.OpShow(opID)
-		if err != nil {
-			return errMsg{err}
-		}
-
-		return opShowLoadedMsg{opID: opID, output: output}
-	}
-}
-
-// loadEvoLog fetches the evolution log for a specific change
-func (m Model) loadEvoLog(changeID, shortCode string) tea.Cmd {
-	return func() tea.Msg {
-		output, err := m.runner.EvoLog(changeID)
-		if err != nil {
-			return errMsg{err}
-		}
-
-		operations := m.runner.ParseOpLogLines(output)
-
-		return evoLogLoadedMsg{
-			changeID:   changeID,
-			shortCode:  shortCode,
-			raw:        output,
-			operations: operations,
-		}
-	}
-}
-
-// startWatcher starts the file system watcher
-func (m Model) startWatcher() tea.Cmd {
-	return func() tea.Msg {
-		watcher, err := jj.NewWatcher(m.workDir, m.log)
-		if err != nil {
-			// Don't fail if watcher can't start, just disable auto-refresh
-			return watcherStartedMsg{watcher: nil, err: err}
-		}
-
-		return watcherStartedMsg{watcher: watcher, err: nil}
-	}
-}
-
-// waitForChange waits for file system changes
-func (m Model) waitForChange() tea.Cmd {
-	if m.watcher == nil {
-		return nil
-	}
-
-	return func() tea.Msg {
-		<-m.watcher.Events() // Block until valid event
-		return jj.WatcherMsg{}
-	}
-}
-
-// Message types
+// Message types.
 type logLoadedMsg struct {
 	raw     string
 	changes []jj.Change
@@ -274,7 +205,6 @@ type logLoadedMsg struct {
 
 type diffLoadedMsg struct {
 	changeID   string
-	showOutput string
 	diffOutput string
 }
 
@@ -332,203 +262,431 @@ type abandonCompleteMsg struct {
 	changeID string
 }
 
-// Update handles messages
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
+type squashCompleteMsg struct {
+	changeID string
+}
 
+// Update handles messages.
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// When edit mode is active, forward to describe input
-		if m.editMode {
-			cmd := m.describeInput.Update(msg)
-			return m, cmd
-		}
-
-		// When help modal is open, only handle ?, esc, and q
-		if m.showHelp {
-			if msg.String() == "?" || msg.String() == "esc" {
-				m.showHelp = false
-				return m, nil
-			}
-
-			if msg.String() == "q" {
-				if m.watcher != nil {
-					m.watcher.Close()
-				}
-
-				return m, tea.Quit
-			}
-			// Absorb all other keys
-			return m, nil
-		}
-
-		// Try active bindings first
-		if newModel, cmd := dispatchKey(&m, msg, m.activeBindings()); newModel != nil {
-			m = *newModel
-
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		} else {
-			// No binding matched, pass to focused panel
-			cmds = append(cmds, m.updateFocusedPanel(msg))
-		}
-
+		return m.handleKeyMsg(msg)
 	case tea.MouseMsg:
-		cmds = append(cmds, m.handleMouse(msg))
-
+		return m, m.handleMouse(msg)
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updatePanelSizes()
-
 	case logLoadedMsg:
-		m.changes = msg.changes
-		m.logPanel.SetContent(msg.raw, msg.changes)
-		// Only load diff if we're in log view AND log panel is focused
-		if m.viewMode == ViewLog && m.focusedPane == PaneLog {
-			if selected := m.logPanel.SelectedChange(); selected != nil {
-				cmds = append(cmds, m.loadDiff(selected.ChangeID))
-			}
-		}
-
+		return m, m.handleLogLoaded(msg)
 	case diffLoadedMsg:
-		m.currentDiff = msg.diffOutput
-
-		details := ui.ParseDetailsFromShow(msg.showOutput)
-		if details.ChangeID == "" {
-			details.ChangeID = msg.changeID
-		}
-
-		m.diffPanel.SetDetails(details)
-		m.diffPanel.SetDiff(msg.diffOutput)
-
+		m.handleDiffLoaded(msg)
 	case filesLoadedMsg:
-		m.filesPanel.SetFiles(msg.changeID, msg.shortCode, msg.files)
-		m.currentDiff = msg.diffOutput
-		// Load evolog for this change (shows operations that affected it)
-		cmds = append(cmds, m.loadEvoLog(msg.changeID, msg.shortCode))
-		// If there are files, show diff for the first one
-		if len(msg.files) > 0 {
-			cmds = append(cmds, m.loadFileDiff(msg.changeID, msg.files[0].Path))
-		}
-
+		return m, m.handleFilesLoaded(msg)
 	case fileDiffLoadedMsg:
-		m.diffPanel.SetShowDetails(false)
-		m.diffPanel.SetTitle("Patch")
-		m.diffPanel.SetDiff(msg.diffOutput)
-
+		m.handleFileDiffLoaded(msg)
 	case opLogLoadedMsg:
-		m.opLogPanel.SetOpLogContent(msg.raw, msg.operations)
-		// If op log panel is focused, load op show for selected operation
-		if m.focusedPane == PaneOpLog {
-			if selected := m.opLogPanel.SelectedOperation(); selected != nil {
-				cmds = append(cmds, m.loadOpShow(selected.OpID))
-			}
-		}
-
+		return m, m.handleOpLogLoaded(msg)
 	case evoLogLoadedMsg:
-		m.opLogPanel.SetEvoLogContent(msg.changeID, msg.shortCode, msg.raw, msg.operations)
-		// If op log panel is focused, load op show for selected operation
-		if m.focusedPane == PaneOpLog {
-			if selected := m.opLogPanel.SelectedOperation(); selected != nil {
-				cmds = append(cmds, m.loadOpShow(selected.OpID))
-			}
-		}
-
+		return m, m.handleEvoLogLoaded(msg)
 	case opShowLoadedMsg:
-		m.diffPanel.SetShowDetails(false)
-		m.diffPanel.SetTitle("Operation")
-		m.diffPanel.SetDiff(msg.output)
-
+		m.handleOpShowLoaded(msg)
 	case watcherStartedMsg:
-		if msg.err != nil {
-			m.log.Warn("watcher failed to start", "err", msg.err)
-		}
-
-		if m.watcher = msg.watcher; m.watcher != nil {
-			cmds = append(cmds, m.waitForChange())
-		}
-
+		return m, m.handleWatcherStarted(msg)
 	case jj.WatcherMsg:
-		// Coalesce: schedule a single flush after a short delay.
-		// Do NOT refresh or re-arm waitForChange here.
-		if !m.watcherPending {
-			m.watcherPending = true
-			cmds = append(cmds, tea.Tick(300*time.Millisecond, func(time.Time) tea.Msg {
-				return watcherFlushMsg{}
-			}))
-		}
-
+		return m, m.handleWatcherEvent(msg)
 	case watcherFlushMsg:
-		// One refresh per burst, then re-arm the watcher.
-		m.watcherPending = false
-		cmds = append(cmds, m.loadLog(), m.loadOpLog(), m.waitForChange())
-
-		// If drilled into files view, reload file list and current diff
-		if m.viewMode == ViewFiles {
-			if change := m.filesPanel.ChangeID(); change != "" {
-				cmds = append(cmds, m.loadFiles(change))
-				if file := m.filesPanel.SelectedFile(); file != nil {
-					cmds = append(cmds, m.loadFileDiff(change, file.Path))
-				}
-			}
-		}
-
+		return m, m.handleWatcherFlush(msg)
 	case errMsg:
-		m.log.Error("app error", "err", msg.err)
-		m.lastError = msg.err.Error()
-
+		m.handleErr(msg)
 	case ui.DescribeSubmitMsg:
-		// Run jj describe and reload
-		m.editMode = false
-		cmds = append(cmds, m.runDescribe(msg.ChangeID, msg.Description))
-
+		return m, m.handleDescribeSubmit(msg)
 	case ui.DescribeCancelMsg:
-		// Just close the edit mode
 		m.editMode = false
-
-	case describeCompleteMsg:
-		// Description updated, reload the log
-		cmds = append(cmds, m.loadLog(), m.loadOpLog())
-
-	case editCompleteMsg:
-		// Edit complete, reload the log
-		cmds = append(cmds, m.loadLog(), m.loadOpLog())
-
-	case newCompleteMsg:
-		// New change created, reload the log
-		cmds = append(cmds, m.loadLog(), m.loadOpLog())
-
-	case abandonCompleteMsg:
-		// Change abandoned, reload the log
-		cmds = append(cmds, m.loadLog(), m.loadOpLog())
-
+	case describeCompleteMsg, editCompleteMsg, newCompleteMsg,
+		abandonCompleteMsg, squashCompleteMsg:
+		return m, m.reloadAfterMutation()
 	case borderAnimTickMsg:
-		if msg.Generation != m.borderAnimGeneration {
-			break // stale tick from a previous focus; ignore
-		}
-
-		const animSteps = 120
-
-		nextPhase := msg.Phase + 1.0/animSteps
-		if nextPhase > 1 {
-			nextPhase = 1
-		}
-
-		m.logPanelBorderPhase = nextPhase
-		m.setFocusBorderAnimPhase(nextPhase)
-
-		if nextPhase >= 1 {
-			m.setFocusBorderAnimating(false) // animation complete; show static focus border
-		}
-
-		if nextPhase < 1 {
-			cmds = append(cmds, m.startLogPanelBorderAnimWithPhase(nextPhase, m.borderAnimGeneration))
-		}
+		return m, m.handleBorderAnimTick(msg)
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
+}
+
+// View renders the application.
+func (m *Model) View() tea.View {
+	view := tea.NewView("")
+	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
+
+	if m.width == 0 || m.height == 0 {
+		view.SetContent("Loading...")
+		return view
+	}
+
+	// Render left panels (log/files + op log stacked)
+	var leftTop string
+
+	switch m.viewMode {
+	case ViewLog:
+		leftTop = m.logPanel.View()
+	case ViewFiles:
+		leftTop = m.filesPanel.View()
+	}
+
+	leftBottom := m.opLogPanel.View()
+	leftPanel := lipgloss.JoinVertical(lipgloss.Left, leftTop, leftBottom)
+
+	// Render right panel (diff)
+	rightPanel := m.diffPanel.View()
+
+	// Join panels horizontally
+	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+
+	// Status bar
+	statusBar := m.renderStatusBar()
+
+	// Join vertically
+	base := lipgloss.JoinVertical(lipgloss.Left, panels, statusBar)
+
+	// Show floating help modal if active
+	switch {
+	case m.showHelp:
+		view.SetContent(m.renderWithOverlay(base))
+	case m.editMode:
+		view.SetContent(m.renderWithDescribeOverlay(base))
+	default:
+		view.SetContent(base)
+	}
+
+	return view
+}
+
+// Action methods for keybindings.
+
+// actionAbandon executes jj abandon on the selected change.
+// Only allows abandon when log panel is focused and in log view.
+func (m *Model) actionAbandon() (Model, tea.Cmd) {
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	return *m, m.runAbandon(selected.ChangeID)
+}
+
+// actionBack handles going back up the view hierarchy.
+func (m *Model) actionBack() (Model, tea.Cmd) {
+	// Only handle Esc when we're in a drilled-down view AND focused on left pane
+	if m.viewMode != ViewLog && m.focusedPane == PaneLog {
+		cmd := m.handleBack()
+		return *m, cmd
+	}
+
+	return *m, nil
+}
+
+// actionDescribe opens the describe input overlay for the selected change.
+// Only allows describe when log panel is focused and in log view.
+func (m *Model) actionDescribe() (Model, tea.Cmd) {
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	// Initialize describe input with current description
+	m.describeInput.SetChangeID(selected.ChangeID)
+	// If no real description, leave empty so placeholder shows and typing replaces
+	desc := selected.Description
+	if desc == "" || desc == "(no description set)" {
+		desc = ""
+	}
+
+	m.describeInput.SetValue(desc)
+	m.describeInput.SetSize(describeOverlayWidth, describeOverlayHeight)
+	m.editMode = true
+
+	return *m, m.describeInput.Focus()
+}
+
+// actionEdit executes jj edit on the selected change.
+// Only allows edit when log panel is focused and in log view.
+func (m *Model) actionEdit() (Model, tea.Cmd) {
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	return *m, m.runEdit(selected.ChangeID)
+}
+
+func (m *Model) actionEnter() (Model, tea.Cmd) {
+	cmd := m.handleEnter()
+	return *m, cmd
+}
+
+func (m *Model) actionFocusPane0() (Model, tea.Cmd) {
+	prevPane := m.focusedPane
+	m.focusedPane = PaneDiff
+	m.updatePanelFocus()
+
+	return *m, tea.Batch(m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim())
+}
+
+func (m *Model) actionFocusPane1() (Model, tea.Cmd) {
+	prevPane := m.focusedPane
+	m.focusedPane = PaneLog
+	m.updatePanelFocus()
+	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
+
+	return *m, tea.Batch(cmds...)
+}
+
+func (m *Model) actionFocusPane2() (Model, tea.Cmd) {
+	prevPane := m.focusedPane
+	m.focusedPane = PaneOpLog
+	m.updatePanelFocus()
+
+	return *m, tea.Batch(m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim())
+}
+
+// actionNew creates an empty change on top of current working copy.
+// Works from any context.
+func (m *Model) actionNew() (Model, tea.Cmd) {
+	return *m, m.runNew()
+}
+
+// actionSquash executes jj squash on the selected change.
+// Only allows squash when log panel is focused and in log view.
+func (m *Model) actionSquash() (Model, tea.Cmd) {
+	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
+		return *m, nil
+	}
+
+	selected := m.logPanel.SelectedChange()
+	if selected == nil {
+		return *m, nil
+	}
+
+	return *m, m.runSquash(selected.ChangeID)
+}
+
+func (m *Model) actionNextPane() (Model, tea.Cmd) {
+	prevPane := m.focusedPane
+	m.focusedPane = (m.focusedPane + 1) % paneCount
+	m.updatePanelFocus()
+	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
+
+	return *m, tea.Batch(cmds...)
+}
+
+func (m *Model) actionPrevPane() (Model, tea.Cmd) {
+	prevPane := m.focusedPane
+	m.focusedPane = (m.focusedPane + paneCount - 1) % paneCount
+	m.updatePanelFocus()
+	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
+
+	return *m, tea.Batch(cmds...)
+}
+
+func (m *Model) actionQuit() (Model, tea.Cmd) {
+	if m.watcher != nil {
+		m.watcher.Close()
+	}
+
+	return *m, tea.Quit
+}
+
+// actionToggleHelp toggles the help modal visibility.
+func (m *Model) actionToggleHelp() (Model, tea.Cmd) {
+	m.showHelp = !m.showHelp
+	return *m, nil
+}
+
+// activeBindings returns all currently active keybindings for dispatch.
+// Merges global bindings with context-specific panel bindings.
+func (m *Model) activeBindings() []ActionBinding {
+	return m.globalBindings()
+	// Note: Panel bindings (j/k, g/G) are handled by updateFocusedPanel()
+	// They don't need to be in activeBindings() for dispatch since they're
+	// not ActionBindings - they're handled directly by the panels.
+}
+
+// activeHelpBindings returns all display bindings for the current context.
+// Used by the status bar to show context-sensitive help.
+func (m *Model) activeHelpBindings() []help.Binding {
+	// Start with global bindings
+	bindings := ToHelpBindings(m.globalBindings())
+
+	// Add panel-specific bindings based on focus
+	switch m.focusedPane {
+	case PaneLog:
+		if m.viewMode == ViewLog {
+			bindings = append(bindings, m.logPanel.HelpBindings()...)
+		} else {
+			bindings = append(bindings, m.filesPanel.HelpBindings()...)
+		}
+	case PaneOpLog:
+		bindings = append(bindings, m.opLogPanel.HelpBindings()...)
+	case PaneDiff:
+		bindings = append(bindings, m.diffPanel.HelpBindings()...)
+	}
+
+	return bindings
+}
+
+// globalBindings returns the app-level keybindings with their actions.
+func (m *Model) globalBindings() []ActionBinding {
+	return []ActionBinding{
+		// Quit - pinned, always visible
+		{
+			Binding: help.Binding{
+				Key:      m.keys.Quit,
+				Category: help.CategoryActions,
+				Order:    orderQuit,
+				Pinned:   true,
+			},
+			Action: (*Model).actionQuit,
+		},
+		// Pane focus - "#" represents 0/1 (deduped by description)
+		{
+			Binding: help.Binding{
+				Key:      m.keys.FocusPane0,
+				Category: help.CategoryNavigation,
+				Order:    orderFocusPane0,
+			},
+			Action: (*Model).actionFocusPane0,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.FocusPane1,
+				Category: help.CategoryNavigation,
+				Order:    orderFocusPane1,
+			},
+			Action: (*Model).actionFocusPane1,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.FocusPane2,
+				Category: help.CategoryNavigation,
+				Order:    orderFocusPane2,
+			},
+			Action: (*Model).actionFocusPane2,
+		},
+		// Next/prev pane - combined keys
+		{
+			Binding: help.Binding{
+				Key:      m.keys.NextPane,
+				Category: help.CategoryNavigation,
+				Order:    orderNextPane,
+			},
+			Action: (*Model).actionNextPane,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.PrevPane,
+				Category: help.CategoryNavigation,
+				Order:    orderPrevPane,
+			},
+			Action: (*Model).actionPrevPane,
+		},
+		// Actions
+		{
+			Binding: help.Binding{
+				Key:      m.keys.Enter,
+				Category: help.CategoryActions,
+				Order:    orderSelect,
+			},
+			Action: (*Model).actionEnter,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.Back,
+				Category: help.CategoryActions,
+				Order:    orderBack,
+			},
+			Action: (*Model).actionBack,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.Describe,
+				Category: help.CategoryActions,
+				Order:    orderDescribe,
+			},
+			Action: (*Model).actionDescribe,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.Edit,
+				Category: help.CategoryActions,
+				Order:    orderEdit,
+			},
+			Action: (*Model).actionEdit,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.New,
+				Category: help.CategoryActions,
+				Order:    orderNew,
+			},
+			Action: (*Model).actionNew,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.Abandon,
+				Category: help.CategoryActions,
+				Order:    orderAbandon,
+			},
+			Action: (*Model).actionAbandon,
+		},
+		{
+			Binding: help.Binding{
+				Key:      m.keys.Squash,
+				Category: help.CategoryActions,
+				Order:    orderSquash,
+			},
+			Action: (*Model).actionSquash,
+		},
+		// Help toggle - pinned, always visible
+		{
+			Binding: help.Binding{
+				Key:      m.keys.Help,
+				Category: help.CategoryActions,
+				Order:    orderHelp,
+				Pinned:   true,
+			},
+			Action: (*Model).actionToggleHelp,
+		},
+	}
+}
+
+func (m *Model) handleBack() tea.Cmd {
+	if m.viewMode == ViewFiles {
+		// Go back to log view
+		m.viewMode = ViewLog
+		m.updatePanelFocus() // log now visible in left slot; focused, not animated
+		m.diffPanel.SetTitle("Diff")
+		// Restore full diff for selected change
+		if change := m.logPanel.SelectedChange(); change != nil {
+			m.diffPanel.SetDiff(m.currentDiff)
+		}
+		// Restore global op log (switch back from evolog mode)
+		return m.loadOpLog()
+	}
+
+	return nil
 }
 
 func (m *Model) handleEnter() tea.Cmd {
@@ -554,23 +712,447 @@ func (m *Model) handleEnter() tea.Cmd {
 	return nil
 }
 
-func (m *Model) handleBack() tea.Cmd {
-	switch m.viewMode {
-	case ViewFiles:
-		// Go back to log view
-		m.viewMode = ViewLog
-		m.updatePanelFocus() // log now visible in left slot; focused, not animated
-		m.diffPanel.SetShowDetails(true)
-		m.diffPanel.SetTitle("Diff")
-		// Restore full diff for selected change
-		if change := m.logPanel.SelectedChange(); change != nil {
-			m.diffPanel.SetDiff(m.currentDiff)
+// handleFocusChange loads appropriate content when focus changes between panes.
+func (m *Model) handleFocusChange(fromPane, toPane FocusedPane) tea.Cmd {
+	if fromPane == toPane {
+		return nil
+	}
+
+	// When focusing op log, show op details in diff pane
+	if toPane == PaneOpLog {
+		if op := m.opLogPanel.SelectedOperation(); op != nil {
+			return m.loadOpShow(op.OpID)
 		}
-		// Restore global op log (switch back from evolog mode)
-		return m.loadOpLog()
+	}
+
+	// When focusing log (from op log), show change diff in diff pane
+	if toPane == PaneLog && fromPane == PaneOpLog {
+		return m.loadSelectedDiff()
 	}
 
 	return nil
+}
+
+// loadSelectedDiff loads diff content for the currently selected item based on view mode.
+func (m *Model) loadSelectedDiff() tea.Cmd {
+	if m.viewMode == ViewLog {
+		if change := m.logPanel.SelectedChange(); change != nil {
+			return m.loadDiff(change.ChangeID)
+		}
+
+		return nil
+	}
+
+	if file := m.filesPanel.SelectedFile(); file != nil {
+		return m.loadFileDiff(m.filesPanel.ChangeID(), file.Path)
+	}
+
+	return nil
+}
+
+func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	// Get the underlying mouse event
+	mouse := msg.Mouse()
+
+	// Get left panel width from rendered content
+	var leftWidth int
+	if m.viewMode == ViewLog {
+		leftWidth = lipgloss.Width(m.logPanel.View())
+	} else {
+		leftWidth = lipgloss.Width(m.filesPanel.View())
+	}
+
+	// Calculate panel heights for vertical split
+	contentHeight := m.height - statusBarHeight
+	leftTopHeight := contentHeight / leftPanelSplitDivisor
+
+	// Panel content starts after border (1) and title line (1)
+
+	// Determine which panel was interacted with
+	inLeftPanel := mouse.X < leftWidth
+	inRightPanel := mouse.X >= leftWidth
+	inTopLeftPanel := inLeftPanel && mouse.Y < leftTopHeight
+	inBottomLeftPanel := inLeftPanel && mouse.Y >= leftTopHeight
+
+	// Handle scroll events (wheel)
+	if mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelDown {
+		if inRightPanel {
+			m.diffPanel.HandleMouseScroll(mouse.Button)
+		}
+
+		return nil
+	}
+
+	// Handle click events
+	if mouse.Button == tea.MouseLeft {
+		switch {
+		case inTopLeftPanel:
+			return m.handleLogPanelClick(mouse.Y - contentYOffset)
+		case inBottomLeftPanel:
+			return m.handleOpLogPanelClick(mouse.Y - leftTopHeight - contentYOffset)
+		case inRightPanel:
+			return m.handleDiffPanelClick()
+		}
+	}
+
+	return nil
+}
+
+func (m *Model) handleLogPanelClick(contentY int) tea.Cmd {
+	m.focusedPane = PaneLog
+	m.updatePanelFocus()
+
+	var loadCmd tea.Cmd
+
+	if m.viewMode == ViewLog {
+		loadCmd = m.loadClickedChange(contentY)
+	} else {
+		loadCmd = m.loadClickedFile(contentY)
+	}
+
+	return tea.Batch(loadCmd, m.startLogPanelBorderAnim())
+}
+
+func (m *Model) handleOpLogPanelClick(contentY int) tea.Cmd {
+	m.focusedPane = PaneOpLog
+	m.updatePanelFocus()
+
+	return tea.Batch(m.loadClickedOp(contentY), m.startLogPanelBorderAnim())
+}
+
+// loadClickedChange processes a click in the log panel and loads the diff if a change was selected.
+func (m *Model) loadClickedChange(contentY int) tea.Cmd {
+	if !m.logPanel.HandleClick(contentY) || m.logPanel.SelectedChange() == nil {
+		return nil
+	}
+
+	return m.loadDiff(m.logPanel.SelectedChange().ChangeID)
+}
+
+// loadClickedFile processes a click in the files panel and loads the file diff if a file was selected.
+func (m *Model) loadClickedFile(contentY int) tea.Cmd {
+	if !m.filesPanel.HandleClick(contentY) || m.filesPanel.SelectedFile() == nil {
+		return nil
+	}
+
+	return m.loadFileDiff(m.filesPanel.ChangeID(), m.filesPanel.SelectedFile().Path)
+}
+
+// loadClickedOp processes a click in the op log panel and loads op details if an operation was selected.
+func (m *Model) loadClickedOp(contentY int) tea.Cmd {
+	if !m.opLogPanel.HandleClick(contentY) || m.opLogPanel.SelectedOperation() == nil {
+		return nil
+	}
+
+	return m.loadOpShow(m.opLogPanel.SelectedOperation().OpID)
+}
+
+func (m *Model) handleDiffPanelClick() tea.Cmd {
+	m.focusedPane = PaneDiff
+	m.updatePanelFocus()
+
+	return m.startLogPanelBorderAnim()
+}
+
+// loadDiff fetches the diff for a change.
+func (m *Model) loadDiff(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		// Get diff
+		diffOutput, err := m.runner.Show(changeID)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		return diffLoadedMsg{
+			changeID:   changeID,
+			diffOutput: diffOutput,
+		}
+	}
+}
+
+// loadEvoLog fetches the evolution log for a specific change.
+func (m *Model) loadEvoLog(changeID, shortCode string) tea.Cmd {
+	return func() tea.Msg {
+		output, err := m.runner.EvoLog(changeID)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		operations := m.runner.ParseOpLogLines(output)
+
+		return evoLogLoadedMsg{
+			changeID:   changeID,
+			shortCode:  shortCode,
+			raw:        output,
+			operations: operations,
+		}
+	}
+}
+
+// loadFileDiff fetches the diff for a specific file.
+func (m *Model) loadFileDiff(changeID, filePath string) tea.Cmd {
+	return func() tea.Msg {
+		diffOutput, err := m.runner.DiffFile(changeID, filePath)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		return fileDiffLoadedMsg{diffOutput: diffOutput}
+	}
+}
+
+// loadFiles parses files from diff output.
+func (m *Model) loadFiles(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		diffOutput, err := m.runner.Diff(changeID)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		// Get the shortest unique prefix for coloring
+		shortCode, _ := m.runner.ShortestChangeID(changeID)
+		if shortCode == "" {
+			shortCode = changeID // Fallback to full ID if call fails
+		}
+
+		files := m.runner.ParseFiles(diffOutput)
+
+		return filesLoadedMsg{changeID: changeID, shortCode: shortCode, files: files, diffOutput: diffOutput}
+	}
+}
+
+// loadLog fetches the jj log.
+func (m *Model) loadLog() tea.Cmd {
+	return func() tea.Msg {
+		output, err := m.runner.Log()
+		if err != nil {
+			return errMsg{err}
+		}
+
+		changes := m.runner.ParseLogLines(output)
+
+		return logLoadedMsg{raw: output, changes: changes}
+	}
+}
+
+// loadOpLog fetches the jj operation log.
+func (m *Model) loadOpLog() tea.Cmd {
+	return func() tea.Msg {
+		output, err := m.runner.OpLog()
+		if err != nil {
+			return errMsg{err}
+		}
+
+		operations := m.runner.ParseOpLogLines(output)
+
+		return opLogLoadedMsg{raw: output, operations: operations}
+	}
+}
+
+// loadOpShow fetches details for a specific operation.
+func (m *Model) loadOpShow(opID string) tea.Cmd {
+	return func() tea.Msg {
+		output, err := m.runner.OpShow(opID)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		return opShowLoadedMsg{opID: opID, output: output}
+	}
+}
+
+// renderWithOverlay composites the help modal on top of the base view.
+// using lipgloss v2 Canvas/Layer for true transparency.
+func (m *Model) renderWithOverlay(base string) string {
+	// Calculate modal size (centered, ~80% of screen)
+	modalWidth := m.width * modalWidthPct / percentDivisor
+	modalHeight := m.height * modalHeightPct / percentDivisor
+
+	if modalWidth < minModalWidth {
+		modalWidth = min(minModalWidth, m.width-modalEdgePadding)
+	}
+
+	if modalHeight < minModalHeight {
+		modalHeight = min(minModalHeight, m.height-modalEdgePadding)
+	}
+
+	// Set up and render floating help
+	m.floatingHelp.SetSize(modalWidth, modalHeight)
+	m.floatingHelp.SetBindings(m.activeHelpBindings())
+	modal := m.floatingHelp.View()
+
+	// Calculate center position
+	overlayWidth := lipgloss.Width(modal)
+	overlayHeight := lipgloss.Height(modal)
+	overlayX := (m.width - overlayWidth) / centerDivisor
+	overlayY := (m.height - overlayHeight) / centerDivisor
+
+	// Create base layer (full screen)
+	baseLayer := lipgloss.NewLayer(base).
+		Width(m.width).
+		Height(m.height).
+		X(0).Y(0).Z(0)
+
+	// Create overlay layer (centered, on top)
+	overlayLayer := lipgloss.NewLayer(modal).
+		X(overlayX).Y(overlayY).Z(1)
+
+	// Composite and render
+	canvas := lipgloss.NewCanvas(baseLayer, overlayLayer)
+
+	return canvas.Render()
+}
+
+func (m *Model) renderStatusBar() string {
+	m.statusBar.SetWidth(m.width)
+
+	return m.styles.StatusBar.Render(m.statusBar.View())
+}
+
+// renderWithDescribeOverlay composites the describe input on top of the base view
+// using lipgloss v2 Canvas/Layer for true transparency.
+func (m *Model) renderWithDescribeOverlay(base string) string {
+	// Render the describe input
+	describeView := m.describeInput.View()
+	overlayWidth := m.describeInput.Width()
+	overlayHeight := m.describeInput.Height()
+
+	// Calculate center position
+	overlayX := (m.width - overlayWidth) / centerDivisor
+	overlayY := (m.height - overlayHeight) / centerDivisor
+
+	// Create base layer (full screen)
+	baseLayer := lipgloss.NewLayer(base).
+		Width(m.width).
+		Height(m.height).
+		X(0).Y(0).Z(0)
+
+	// Create overlay layer (centered, on top)
+	overlayLayer := lipgloss.NewLayer(describeView).
+		X(overlayX).Y(overlayY).Z(1)
+
+	// Composite and render
+	canvas := lipgloss.NewCanvas(baseLayer, overlayLayer)
+
+	return canvas.Render()
+}
+
+// runAbandon executes jj abandon and returns a completion message.
+func (m *Model) runAbandon(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.runner.Abandon(changeID)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		return abandonCompleteMsg{changeID: changeID}
+	}
+}
+
+// runDescribe executes jj describe and returns a completion message.
+func (m *Model) runDescribe(changeID, message string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.runner.Describe(changeID, message); err != nil {
+			return errMsg{err}
+		}
+
+		return describeCompleteMsg{changeID: changeID}
+	}
+}
+
+// runEdit executes jj edit and returns a completion message.
+func (m *Model) runEdit(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.runner.Edit(changeID); err != nil {
+			return errMsg{err}
+		}
+
+		return editCompleteMsg{changeID: changeID}
+	}
+}
+
+// runNew executes jj new and returns a completion message.
+func (m *Model) runNew() tea.Cmd {
+	return func() tea.Msg {
+		if err := m.runner.New(); err != nil {
+			return errMsg{err}
+		}
+
+		return newCompleteMsg{}
+	}
+}
+
+// runSquash executes jj squash and returns a completion message.
+func (m *Model) runSquash(changeID string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.runner.Squash(changeID); err != nil {
+			return errMsg{err}
+		}
+
+		return squashCompleteMsg{changeID: changeID}
+	}
+}
+
+// setFocusBorderAnimPhase sets the border anim phase on whichever panel currently has focus.
+func (m *Model) setFocusBorderAnimPhase(phase float64) {
+	switch m.focusedPane {
+	case PaneLog:
+		if m.viewMode == ViewLog {
+			m.logPanel.SetBorderAnimPhase(phase)
+		} else {
+			m.filesPanel.SetBorderAnimPhase(phase)
+		}
+	case PaneDiff:
+		m.diffPanel.SetBorderAnimPhase(phase)
+	case PaneOpLog:
+		m.opLogPanel.SetBorderAnimPhase(phase)
+	}
+}
+
+// setFocusBorderAnimating sets the border animating flag on whichever panel currently has focus.
+func (m *Model) setFocusBorderAnimating(animating bool) {
+	switch m.focusedPane {
+	case PaneLog:
+		if m.viewMode == ViewLog {
+			m.logPanel.SetBorderAnimating(animating)
+		} else {
+			m.filesPanel.SetBorderAnimating(animating)
+		}
+	case PaneDiff:
+		m.diffPanel.SetBorderAnimating(animating)
+	case PaneOpLog:
+		m.opLogPanel.SetBorderAnimating(animating)
+	}
+}
+
+// startLogPanelBorderAnim starts the one-shot border wrap animation for the focused panel.
+func (m *Model) startLogPanelBorderAnim() tea.Cmd {
+	m.borderAnimGeneration++
+	m.logPanelBorderPhase = 0
+	m.setFocusBorderAnimPhase(0)
+	m.setFocusBorderAnimating(true) // only explicit focus (key/mouse) runs the animation
+
+	return m.startLogPanelBorderAnimWithPhase(0, m.borderAnimGeneration)
+}
+
+// startLogPanelBorderAnimWithPhase schedules the next tick with phase and generation.
+func (m *Model) startLogPanelBorderAnimWithPhase(phase float64, generation int) tea.Cmd {
+	return tea.Tick(borderAnimTickInterval, func(_ time.Time) tea.Msg {
+		return borderAnimTickMsg{Phase: phase, Generation: generation}
+	})
+}
+
+// startWatcher starts the file system watcher.
+func (m *Model) startWatcher() tea.Cmd {
+	return func() tea.Msg {
+		watcher, err := jj.NewWatcher(m.workDir, m.log)
+		if err != nil {
+			// Don't fail if watcher can't start, just disable auto-refresh
+			return watcherStartedMsg{watcher: nil, err: err}
+		}
+
+		return watcherStartedMsg{watcher: watcher, err: nil}
+	}
 }
 
 func (m *Model) updateFocusedPanel(msg tea.Msg) tea.Cmd {
@@ -619,513 +1201,16 @@ func (m *Model) updatePanelFocus() {
 	m.opLogPanel.SetBorderAnimating(false)
 }
 
-// Action methods for keybindings
-
-func (m *Model) actionQuit() (Model, tea.Cmd) {
-	if m.watcher != nil {
-		m.watcher.Close()
-	}
-
-	return *m, tea.Quit
-}
-
-func (m *Model) actionFocusPane0() (Model, tea.Cmd) {
-	prevPane := m.focusedPane
-	m.focusedPane = PaneDiff
-	m.updatePanelFocus()
-
-	return *m, tea.Batch(m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim())
-}
-
-func (m *Model) actionFocusPane1() (Model, tea.Cmd) {
-	prevPane := m.focusedPane
-	m.focusedPane = PaneLog
-	m.updatePanelFocus()
-	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
-
-	return *m, tea.Batch(cmds...)
-}
-
-func (m *Model) actionFocusPane2() (Model, tea.Cmd) {
-	prevPane := m.focusedPane
-	m.focusedPane = PaneOpLog
-	m.updatePanelFocus()
-
-	return *m, tea.Batch(m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim())
-}
-
-func (m *Model) actionNextPane() (Model, tea.Cmd) {
-	prevPane := m.focusedPane
-	m.focusedPane = (m.focusedPane + 1) % 3
-	m.updatePanelFocus()
-	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
-
-	return *m, tea.Batch(cmds...)
-}
-
-func (m *Model) actionPrevPane() (Model, tea.Cmd) {
-	prevPane := m.focusedPane
-	m.focusedPane = (m.focusedPane + 2) % 3 // +2 is same as -1 mod 3
-	m.updatePanelFocus()
-	cmds := []tea.Cmd{m.handleFocusChange(prevPane, m.focusedPane), m.startLogPanelBorderAnim()}
-
-	return *m, tea.Batch(cmds...)
-}
-
-// startLogPanelBorderAnim starts the one-shot border wrap animation for the focused panel.
-func (m *Model) startLogPanelBorderAnim() tea.Cmd {
-	m.borderAnimGeneration++
-	m.logPanelBorderPhase = 0
-	m.setFocusBorderAnimPhase(0)
-	m.setFocusBorderAnimating(true) // only explicit focus (key/mouse) runs the animation
-
-	return m.startLogPanelBorderAnimWithPhase(0, m.borderAnimGeneration)
-}
-
-// setFocusBorderAnimPhase sets the border anim phase on whichever panel currently has focus.
-func (m *Model) setFocusBorderAnimPhase(phase float64) {
-	switch m.focusedPane {
-	case PaneLog:
-		if m.viewMode == ViewLog {
-			m.logPanel.SetBorderAnimPhase(phase)
-		} else {
-			m.filesPanel.SetBorderAnimPhase(phase)
-		}
-	case PaneDiff:
-		m.diffPanel.SetBorderAnimPhase(phase)
-	case PaneOpLog:
-		m.opLogPanel.SetBorderAnimPhase(phase)
-	}
-}
-
-// setFocusBorderAnimating sets the border animating flag on whichever panel currently has focus.
-func (m *Model) setFocusBorderAnimating(animating bool) {
-	switch m.focusedPane {
-	case PaneLog:
-		if m.viewMode == ViewLog {
-			m.logPanel.SetBorderAnimating(animating)
-		} else {
-			m.filesPanel.SetBorderAnimating(animating)
-		}
-	case PaneDiff:
-		m.diffPanel.SetBorderAnimating(animating)
-	case PaneOpLog:
-		m.opLogPanel.SetBorderAnimating(animating)
-	}
-}
-
-// startLogPanelBorderAnimWithPhase schedules the next tick with phase and generation.
-func (m *Model) startLogPanelBorderAnimWithPhase(phase float64, generation int) tea.Cmd {
-	return tea.Tick(15*time.Millisecond, func(_ time.Time) tea.Msg {
-		return borderAnimTickMsg{Phase: phase, Generation: generation}
-	})
-}
-
-// handleFocusChange loads appropriate content when focus changes between panes
-func (m *Model) handleFocusChange(from, to FocusedPane) tea.Cmd {
-	if from == to {
-		return nil
-	}
-
-	// When focusing op log, show op details in diff pane
-	if to == PaneOpLog {
-		if op := m.opLogPanel.SelectedOperation(); op != nil {
-			return m.loadOpShow(op.OpID)
-		}
-	}
-
-	// When focusing log (from op log), show change diff in diff pane
-	if to == PaneLog && from == PaneOpLog {
-		if m.viewMode == ViewLog {
-			if change := m.logPanel.SelectedChange(); change != nil {
-				return m.loadDiff(change.ChangeID)
-			}
-		} else {
-			if file := m.filesPanel.SelectedFile(); file != nil {
-				return m.loadFileDiff(m.filesPanel.ChangeID(), file.Path)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (m *Model) actionEnter() (Model, tea.Cmd) {
-	cmd := m.handleEnter()
-	return *m, cmd
-}
-
-func (m *Model) actionBack() (Model, tea.Cmd) {
-	// Only handle Esc when we're in a drilled-down view AND focused on left pane
-	if m.viewMode != ViewLog && m.focusedPane == PaneLog {
-		cmd := m.handleBack()
-		return *m, cmd
-	}
-
-	return *m, nil
-}
-
-func (m *Model) actionToggleHelp() (Model, tea.Cmd) {
-	m.showHelp = !m.showHelp
-	return *m, nil
-}
-
-func (m *Model) actionDescribe() (Model, tea.Cmd) {
-	// Only allow describe when log panel is focused and in log view
-	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
-		return *m, nil
-	}
-
-	selected := m.logPanel.SelectedChange()
-	if selected == nil {
-		return *m, nil
-	}
-
-	// Initialize describe input with current description
-	m.describeInput.SetChangeID(selected.ChangeID)
-	// If no real description, leave empty so placeholder shows and typing replaces
-	desc := selected.Description
-	if desc == "" || desc == "(no description set)" {
-		desc = ""
-	}
-
-	m.describeInput.SetValue(desc)
-	m.describeInput.SetSize(60, 10) // Fixed size for the overlay
-	m.editMode = true
-
-	return *m, m.describeInput.Focus()
-}
-
-// runDescribe executes jj describe and returns a completion message
-func (m *Model) runDescribe(changeID, message string) tea.Cmd {
-	return func() tea.Msg {
-		if err := m.runner.Describe(changeID, message); err != nil {
-			return errMsg{err}
-		}
-
-		return describeCompleteMsg{changeID: changeID}
-	}
-}
-
-func (m *Model) actionEdit() (Model, tea.Cmd) {
-	// Only allow edit when log panel is focused and in log view
-	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
-		return *m, nil
-	}
-
-	selected := m.logPanel.SelectedChange()
-	if selected == nil {
-		return *m, nil
-	}
-
-	return *m, m.runEdit(selected.ChangeID)
-}
-
-// runEdit executes jj edit and returns a completion message
-func (m *Model) runEdit(changeID string) tea.Cmd {
-	return func() tea.Msg {
-		if err := m.runner.Edit(changeID); err != nil {
-			return errMsg{err}
-		}
-
-		return editCompleteMsg{changeID: changeID}
-	}
-}
-
-func (m *Model) actionNew() (Model, tea.Cmd) {
-	// New creates an empty change on top of current working copy
-	// Works from any context
-	return *m, m.runNew()
-}
-
-// runNew executes jj new and returns a completion message
-func (m *Model) runNew() tea.Cmd {
-	return func() tea.Msg {
-		if err := m.runner.New(); err != nil {
-			return errMsg{err}
-		}
-
-		return newCompleteMsg{}
-	}
-}
-
-func (m *Model) actionAbandon() (Model, tea.Cmd) {
-	// Only allow abandon when log panel is focused and in log view
-	if m.focusedPane != PaneLog || m.viewMode != ViewLog {
-		return *m, nil
-	}
-
-	selected := m.logPanel.SelectedChange()
-	if selected == nil {
-		return *m, nil
-	}
-
-	return *m, m.runAbandon(selected.ChangeID)
-}
-
-// runAbandon executes jj abandon and returns a completion message
-func (m *Model) runAbandon(changeID string) tea.Cmd {
-	return func() tea.Msg {
-		err := m.runner.Abandon(changeID)
-		if err != nil {
-			return errMsg{err}
-		}
-
-		return abandonCompleteMsg{changeID: changeID}
-	}
-}
-
-// activeBindings returns all currently active keybindings for dispatch.
-// Merges global bindings with context-specific panel bindings.
-func (m *Model) activeBindings() []ActionBinding {
-	return m.globalBindings()
-	// Note: Panel bindings (j/k, g/G) are handled by updateFocusedPanel()
-	// They don't need to be in activeBindings() for dispatch since they're
-	// not ActionBindings - they're handled directly by the panels.
-}
-
-// activeHelpBindings returns all display bindings for the current context.
-// Used by the status bar to show context-sensitive help.
-func (m *Model) activeHelpBindings() []help.Binding {
-	// Start with global bindings
-	bindings := ToHelpBindings(m.globalBindings())
-
-	// Add panel-specific bindings based on focus
-	switch m.focusedPane {
-	case PaneLog:
-		if m.viewMode == ViewLog {
-			bindings = append(bindings, m.logPanel.HelpBindings()...)
-		} else {
-			bindings = append(bindings, m.filesPanel.HelpBindings()...)
-		}
-	case PaneOpLog:
-		bindings = append(bindings, m.opLogPanel.HelpBindings()...)
-	case PaneDiff:
-		bindings = append(bindings, m.diffPanel.HelpBindings()...)
-	}
-
-	return bindings
-}
-
-// globalBindings returns the app-level keybindings with their actions.
-func (m *Model) globalBindings() []ActionBinding {
-	return []ActionBinding{
-		// Quit - pinned, always visible
-		{
-			Binding: help.Binding{
-				Key:      m.keys.Quit,
-				Category: help.CategoryActions,
-				Order:    100,
-				Pinned:   true,
-			},
-			Action: (*Model).actionQuit,
-		},
-		// Pane focus - "#" represents 0/1 (deduped by description)
-		{
-			Binding: help.Binding{
-				Key:      m.keys.FocusPane0,
-				Category: help.CategoryNavigation,
-				Order:    50,
-			},
-			Action: (*Model).actionFocusPane0,
-		},
-		{
-			Binding: help.Binding{
-				Key:      m.keys.FocusPane1,
-				Category: help.CategoryNavigation,
-				Order:    51,
-			},
-			Action: (*Model).actionFocusPane1,
-		},
-		{
-			Binding: help.Binding{
-				Key:      m.keys.FocusPane2,
-				Category: help.CategoryNavigation,
-				Order:    52,
-			},
-			Action: (*Model).actionFocusPane2,
-		},
-		// Next/prev pane - combined keys
-		{
-			Binding: help.Binding{
-				Key:      m.keys.NextPane,
-				Category: help.CategoryNavigation,
-				Order:    20,
-			},
-			Action: (*Model).actionNextPane,
-		},
-		{
-			Binding: help.Binding{
-				Key:      m.keys.PrevPane,
-				Category: help.CategoryNavigation,
-				Order:    21,
-			},
-			Action: (*Model).actionPrevPane,
-		},
-		// Actions
-		{
-			Binding: help.Binding{
-				Key:      m.keys.Enter,
-				Category: help.CategoryActions,
-				Order:    10,
-			},
-			Action: (*Model).actionEnter,
-		},
-		{
-			Binding: help.Binding{
-				Key:      m.keys.Back,
-				Category: help.CategoryActions,
-				Order:    11,
-			},
-			Action: (*Model).actionBack,
-		},
-		{
-			Binding: help.Binding{
-				Key:      m.keys.Describe,
-				Category: help.CategoryActions,
-				Order:    12,
-			},
-			Action: (*Model).actionDescribe,
-		},
-		{
-			Binding: help.Binding{
-				Key:      m.keys.Edit,
-				Category: help.CategoryActions,
-				Order:    13,
-			},
-			Action: (*Model).actionEdit,
-		},
-		{
-			Binding: help.Binding{
-				Key:      m.keys.New,
-				Category: help.CategoryActions,
-				Order:    14,
-			},
-			Action: (*Model).actionNew,
-		},
-		{
-			Binding: help.Binding{
-				Key:      m.keys.Abandon,
-				Category: help.CategoryActions,
-				Order:    15,
-			},
-			Action: (*Model).actionAbandon,
-		},
-		// Help toggle - pinned, always visible
-		{
-			Binding: help.Binding{
-				Key:      m.keys.Help,
-				Category: help.CategoryActions,
-				Order:    99,
-				Pinned:   true,
-			},
-			Action: (*Model).actionToggleHelp,
-		},
-	}
-}
-
-func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
-	// Get the underlying mouse event
-	mouse := msg.Mouse()
-
-	// Get left panel width from rendered content
-	var leftWidth int
-	if m.viewMode == ViewLog {
-		leftWidth = lipgloss.Width(m.logPanel.View())
-	} else {
-		leftWidth = lipgloss.Width(m.filesPanel.View())
-	}
-
-	// Calculate panel heights for vertical split
-	contentHeight := m.height - 1
-	leftTopHeight := contentHeight / 2
-
-	// Panel content starts after border (1) and title line (1)
-	contentYOffset := 2
-
-	// Determine which panel was interacted with
-	inLeftPanel := mouse.X < leftWidth
-	inRightPanel := mouse.X >= leftWidth
-	inTopLeftPanel := inLeftPanel && mouse.Y < leftTopHeight
-	inBottomLeftPanel := inLeftPanel && mouse.Y >= leftTopHeight
-
-	// Handle scroll events (wheel)
-	if mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelDown {
-		if inRightPanel {
-			m.diffPanel.HandleMouseScroll(mouse.Button)
-		}
-
-		return nil
-	}
-
-	// Handle click events
-	if mouse.Button == tea.MouseLeft {
-		if inTopLeftPanel {
-			// Y relative to top panel content area
-			contentY := mouse.Y - contentYOffset
-
-			// Focus top-left panel
-			m.focusedPane = PaneLog
-			m.updatePanelFocus()
-
-			if m.viewMode == ViewLog {
-				var cmd tea.Cmd
-
-				if m.logPanel.HandleClick(contentY) {
-					if change := m.logPanel.SelectedChange(); change != nil {
-						cmd = m.loadDiff(change.ChangeID)
-					}
-				}
-
-				return tea.Batch(cmd, m.startLogPanelBorderAnim())
-			}
-
-			if m.filesPanel.HandleClick(contentY) {
-				if file := m.filesPanel.SelectedFile(); file != nil {
-					changeID := m.filesPanel.ChangeID()
-
-					return tea.Batch(m.loadFileDiff(changeID, file.Path), m.startLogPanelBorderAnim())
-				}
-			}
-
-			return m.startLogPanelBorderAnim()
-		} else if inBottomLeftPanel {
-			// Y relative to bottom panel content area
-			contentY := mouse.Y - leftTopHeight - contentYOffset
-
-			// Focus op log panel
-			m.focusedPane = PaneOpLog
-			m.updatePanelFocus()
-
-			if m.opLogPanel.HandleClick(contentY) {
-				if op := m.opLogPanel.SelectedOperation(); op != nil {
-					return tea.Batch(m.loadOpShow(op.OpID), m.startLogPanelBorderAnim())
-				}
-			}
-
-			return m.startLogPanelBorderAnim()
-		} else if inRightPanel {
-			// Focus right panel
-			m.focusedPane = PaneDiff
-			m.updatePanelFocus()
-
-			return m.startLogPanelBorderAnim()
-		}
-	}
-
-	return nil
-}
-
 func (m *Model) updatePanelSizes() {
 	// Leave room for status bar
-	contentHeight := m.height - 1
+	contentHeight := m.height - statusBarHeight
 
 	// Split horizontally: left panel ~40%, right panel ~60%
-	leftWidth := m.width * 40 / 100
+	leftWidth := m.width * leftPanelWidthPct / percentDivisor
 	rightWidth := m.width - leftWidth
 
 	// Left pane splits vertically: log 50%, op log 50%
-	leftTopHeight := contentHeight / 2
+	leftTopHeight := contentHeight / leftPanelSplitDivisor
 	leftBottomHeight := contentHeight - leftTopHeight
 
 	m.logPanel.SetSize(leftWidth, leftTopHeight)
@@ -1134,126 +1219,209 @@ func (m *Model) updatePanelSizes() {
 	m.diffPanel.SetSize(rightWidth, contentHeight)
 }
 
-// View renders the application
-func (m Model) View() tea.View {
-	view := tea.NewView("")
-	view.AltScreen = true
-	view.MouseMode = tea.MouseModeCellMotion
-
-	if m.width == 0 || m.height == 0 {
-		view.SetContent("Loading...")
-		return view
+// waitForChange waits for file system changes.
+func (m *Model) waitForChange() tea.Cmd {
+	if m.watcher == nil {
+		return nil
 	}
 
-	// Render left panels (log/files + op log stacked)
-	var leftTop string
+	return func() tea.Msg {
+		<-m.watcher.Events() // Block until valid event
+		return jj.WatcherMsg{}
+	}
+}
 
-	switch m.viewMode {
-	case ViewLog:
-		leftTop = m.logPanel.View()
-	case ViewFiles:
-		leftTop = m.filesPanel.View()
+// ---------------------------------------------------------------------------
+// Message handlers
+// ---------------------------------------------------------------------------
+
+func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// When edit mode is active, forward to describe input
+	if m.editMode {
+		return m, m.describeInput.Update(msg)
 	}
 
-	leftBottom := m.opLogPanel.View()
-	leftPanel := lipgloss.JoinVertical(lipgloss.Left, leftTop, leftBottom)
-
-	// Render right panel (diff)
-	rightPanel := m.diffPanel.View()
-
-	// Join panels horizontally
-	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
-
-	// Status bar
-	statusBar := m.renderStatusBar()
-
-	// Join vertically
-	base := lipgloss.JoinVertical(lipgloss.Left, panels, statusBar)
-
-	// Show floating help modal if active
+	// When help modal is open, only handle ?, esc, and q
 	if m.showHelp {
-		view.SetContent(m.renderWithOverlay(base))
-	} else if m.editMode {
-		view.SetContent(m.renderWithDescribeOverlay(base))
-	} else {
-		view.SetContent(base)
+		if msg.String() == "?" || msg.String() == "esc" {
+			m.showHelp = false
+			return m, nil
+		}
+
+		if msg.String() == "q" {
+			if m.watcher != nil {
+				m.watcher.Close()
+			}
+
+			return m, tea.Quit
+		}
+
+		return m, nil
 	}
 
-	return view
-}
-
-// renderWithOverlay composites the help modal on top of the base view
-// using lipgloss v2 Canvas/Layer for true transparency.
-func (m Model) renderWithOverlay(base string) string {
-	// Calculate modal size (centered, ~80% of screen)
-	modalWidth := m.width * 80 / 100
-	modalHeight := m.height * 70 / 100
-
-	if modalWidth < 40 {
-		modalWidth = min(40, m.width-4)
-	}
-	if modalHeight < 10 {
-		modalHeight = min(10, m.height-4)
+	// Try active bindings first
+	if newModel, cmd := dispatchKey(m, msg, m.activeBindings()); newModel != nil {
+		return newModel, cmd
 	}
 
-	// Set up and render floating help
-	m.floatingHelp.SetSize(modalWidth, modalHeight)
-	m.floatingHelp.SetBindings(m.activeHelpBindings())
-	modal := m.floatingHelp.View()
-
-	// Calculate center position
-	overlayWidth := lipgloss.Width(modal)
-	overlayHeight := lipgloss.Height(modal)
-	overlayX := (m.width - overlayWidth) / 2
-	overlayY := (m.height - overlayHeight) / 2
-
-	// Create base layer (full screen)
-	baseLayer := lipgloss.NewLayer(base).
-		Width(m.width).
-		Height(m.height).
-		X(0).Y(0).Z(0)
-
-	// Create overlay layer (centered, on top)
-	overlayLayer := lipgloss.NewLayer(modal).
-		X(overlayX).Y(overlayY).Z(1)
-
-	// Composite and render
-	canvas := lipgloss.NewCanvas(baseLayer, overlayLayer)
-
-	return canvas.Render()
+	// No binding matched, pass to focused panel
+	return m, m.updateFocusedPanel(msg)
 }
 
-func (m Model) renderStatusBar() string {
-	m.statusBar.SetWidth(m.width)
-	m.statusBar.SetBindings(m.activeHelpBindings())
+func (m *Model) handleLogLoaded(msg logLoadedMsg) tea.Cmd {
+	m.changes = msg.changes
+	m.logPanel.SetContent(msg.raw, msg.changes)
 
-	return ui.StatusBarStyle.Render(m.statusBar.View())
+	// Only load diff if we're in log view AND log panel is focused
+	if m.viewMode == ViewLog && m.focusedPane == PaneLog {
+		if selected := m.logPanel.SelectedChange(); selected != nil {
+			return m.loadDiff(selected.ChangeID)
+		}
+	}
+
+	return nil
 }
 
-// renderWithDescribeOverlay composites the describe input on top of the base view
-// using lipgloss v2 Canvas/Layer for true transparency.
-func (m Model) renderWithDescribeOverlay(base string) string {
-	// Render the describe input
-	describeView := m.describeInput.View()
-	overlayWidth := m.describeInput.Width()
-	overlayHeight := m.describeInput.Height()
+func (m *Model) handleDiffLoaded(msg diffLoadedMsg) {
+	m.currentDiff = msg.diffOutput
+	m.diffPanel.SetDiff(msg.diffOutput)
+}
 
-	// Calculate center position
-	overlayX := (m.width - overlayWidth) / 2
-	overlayY := (m.height - overlayHeight) / 2
+func (m *Model) handleFilesLoaded(msg filesLoadedMsg) tea.Cmd {
+	m.filesPanel.SetFiles(msg.changeID, msg.shortCode, msg.files)
+	m.currentDiff = msg.diffOutput
 
-	// Create base layer (full screen)
-	baseLayer := lipgloss.NewLayer(base).
-		Width(m.width).
-		Height(m.height).
-		X(0).Y(0).Z(0)
+	// Load evolog for this change (shows operations that affected it)
+	cmds := []tea.Cmd{m.loadEvoLog(msg.changeID, msg.shortCode)}
 
-	// Create overlay layer (centered, on top)
-	overlayLayer := lipgloss.NewLayer(describeView).
-		X(overlayX).Y(overlayY).Z(1)
+	// If there are files, show diff for the first one
+	if len(msg.files) > 0 {
+		cmds = append(cmds, m.loadFileDiff(msg.changeID, msg.files[0].Path))
+	}
 
-	// Composite and render
-	canvas := lipgloss.NewCanvas(baseLayer, overlayLayer)
+	return tea.Batch(cmds...)
+}
 
-	return canvas.Render()
+func (m *Model) handleFileDiffLoaded(msg fileDiffLoadedMsg) {
+	m.diffPanel.SetTitle("Patch")
+	m.diffPanel.SetDiff(msg.diffOutput)
+}
+
+func (m *Model) handleOpLogLoaded(msg opLogLoadedMsg) tea.Cmd {
+	m.opLogPanel.SetOpLogContent(msg.raw, msg.operations)
+
+	// If op log panel is focused, load op show for selected operation
+	if m.focusedPane == PaneOpLog {
+		if selected := m.opLogPanel.SelectedOperation(); selected != nil {
+			return m.loadOpShow(selected.OpID)
+		}
+	}
+
+	return nil
+}
+
+func (m *Model) handleEvoLogLoaded(msg evoLogLoadedMsg) tea.Cmd {
+	m.opLogPanel.SetEvoLogContent(msg.changeID, msg.shortCode, msg.raw, msg.operations)
+
+	// If op log panel is focused, load op show for selected operation
+	if m.focusedPane == PaneOpLog {
+		if selected := m.opLogPanel.SelectedOperation(); selected != nil {
+			return m.loadOpShow(selected.OpID)
+		}
+	}
+
+	return nil
+}
+
+func (m *Model) handleOpShowLoaded(msg opShowLoadedMsg) {
+	m.diffPanel.SetTitle("Operation")
+	m.diffPanel.SetDiff(msg.output)
+}
+
+func (m *Model) handleWatcherStarted(msg watcherStartedMsg) tea.Cmd {
+	if msg.err != nil {
+		m.log.Warn("watcher failed to start", "err", msg.err)
+	}
+
+	if m.watcher = msg.watcher; m.watcher != nil {
+		return m.waitForChange()
+	}
+
+	return nil
+}
+
+func (m *Model) handleWatcherEvent(_ jj.WatcherMsg) tea.Cmd {
+	// Coalesce: schedule a single flush after a short delay.
+	// Do NOT refresh or re-arm waitForChange here.
+	if m.watcherPending {
+		return nil
+	}
+
+	m.watcherPending = true
+
+	return tea.Tick(watcherDebounceDelay, func(time.Time) tea.Msg {
+		return watcherFlushMsg{}
+	})
+}
+
+func (m *Model) handleWatcherFlush(_ watcherFlushMsg) tea.Cmd {
+	// One refresh per burst, then re-arm the watcher.
+	m.watcherPending = false
+
+	cmds := []tea.Cmd{m.loadLog(), m.loadOpLog(), m.waitForChange()}
+
+	// If drilled into files view, reload file list and current diff
+	if m.viewMode == ViewFiles {
+		if change := m.filesPanel.ChangeID(); change != "" {
+			cmds = append(cmds, m.loadFiles(change))
+
+			if file := m.filesPanel.SelectedFile(); file != nil {
+				cmds = append(cmds, m.loadFileDiff(change, file.Path))
+			}
+		}
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (m *Model) handleErr(msg errMsg) {
+	m.log.Error("app error", "err", msg.err)
+	m.lastError = msg.err.Error()
+}
+
+func (m *Model) handleDescribeSubmit(msg ui.DescribeSubmitMsg) tea.Cmd {
+	m.editMode = false
+
+	return m.runDescribe(msg.ChangeID, msg.Description)
+}
+
+// reloadAfterMutation reloads the log and op log after a state-changing jj command.
+func (m *Model) reloadAfterMutation() tea.Cmd {
+	return tea.Batch(m.loadLog(), m.loadOpLog())
+}
+
+func (m *Model) handleBorderAnimTick(msg borderAnimTickMsg) tea.Cmd {
+	if msg.Generation != m.borderAnimGeneration {
+		return nil
+	}
+
+	const animSteps = 120
+
+	nextPhase := msg.Phase + 1.0/animSteps
+	if nextPhase > 1 {
+		nextPhase = 1
+	}
+
+	m.logPanelBorderPhase = nextPhase
+	m.setFocusBorderAnimPhase(nextPhase)
+
+	if nextPhase >= 1 {
+		m.setFocusBorderAnimating(false) // animation complete; show static focus border
+	}
+
+	if nextPhase < 1 {
+		return m.startLogPanelBorderAnimWithPhase(nextPhase, m.borderAnimGeneration)
+	}
+
+	return nil
 }

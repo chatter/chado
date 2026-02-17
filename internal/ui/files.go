@@ -13,9 +13,10 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// FilesPanel displays the list of files in a change
+// FilesPanel displays the list of files in a change.
 type FilesPanel struct {
 	viewport        viewport.Model
+	styles          *Styles
 	files           []jj.File
 	cursor          int
 	focused         bool
@@ -27,28 +28,29 @@ type FilesPanel struct {
 	borderAnimating bool    // true only while the one-shot wrap is running
 }
 
-// NewFilesPanel creates a new files panel
-func NewFilesPanel() FilesPanel {
+// NewFilesPanel creates a new files panel.
+func NewFilesPanel(styles *Styles) FilesPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 
 	return FilesPanel{
 		viewport: vp,
+		styles:   styles,
 		files:    []jj.File{},
 		cursor:   0,
 	}
 }
 
-// SetSize sets the panel dimensions
+// SetSize sets the panel dimensions.
 func (p *FilesPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
-	// Account for border (2) and title (1)
-	p.viewport.SetWidth(width - 2)
-	p.viewport.SetHeight(height - 3)
+	// Account for border and title
+	p.viewport.SetWidth(width - PanelBorderWidth)
+	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
-// SetFocused sets the focus state
+// SetFocused sets the focus state.
 func (p *FilesPanel) SetFocused(focused bool) {
 	p.focused = focused
 }
@@ -63,7 +65,7 @@ func (p *FilesPanel) SetBorderAnimating(animating bool) {
 	p.borderAnimating = animating
 }
 
-// SetFiles sets the file list
+// SetFiles sets the file list.
 func (p *FilesPanel) SetFiles(changeID string, shortCode string, files []jj.File) {
 	p.changeID = changeID
 	p.shortCode = shortCode
@@ -72,7 +74,7 @@ func (p *FilesPanel) SetFiles(changeID string, shortCode string, files []jj.File
 	p.updateViewport()
 }
 
-// SelectedFile returns the currently selected file
+// SelectedFile returns the currently selected file.
 func (p *FilesPanel) SelectedFile() *jj.File {
 	if p.cursor >= 0 && p.cursor < len(p.files) {
 		return &p.files[p.cursor]
@@ -81,12 +83,12 @@ func (p *FilesPanel) SelectedFile() *jj.File {
 	return nil
 }
 
-// ChangeID returns the current change ID
+// ChangeID returns the current change ID.
 func (p *FilesPanel) ChangeID() string {
 	return p.changeID
 }
 
-// CursorUp moves the cursor up
+// CursorUp moves the cursor up.
 func (p *FilesPanel) CursorUp() {
 	if p.cursor > 0 {
 		p.cursor--
@@ -94,7 +96,7 @@ func (p *FilesPanel) CursorUp() {
 	}
 }
 
-// CursorDown moves the cursor down
+// CursorDown moves the cursor down.
 func (p *FilesPanel) CursorDown() {
 	if p.cursor < len(p.files)-1 {
 		p.cursor++
@@ -102,17 +104,109 @@ func (p *FilesPanel) CursorDown() {
 	}
 }
 
-// GotoTop moves to the first item
+// GotoTop moves to the first item.
 func (p *FilesPanel) GotoTop() {
 	p.cursor = 0
 	p.updateViewport()
 }
 
-// GotoBottom moves to the last item
+// GotoBottom moves to the last item.
 func (p *FilesPanel) GotoBottom() {
 	if len(p.files) > 0 {
 		p.cursor = len(p.files) - 1
 		p.updateViewport()
+	}
+}
+
+// HandleClick selects the file at the given Y coordinate (relative to content area).
+func (p *FilesPanel) HandleClick(y int) bool {
+	// Account for viewport scroll offset
+	visualLine := y + p.viewport.YOffset()
+
+	if visualLine >= 0 && visualLine < len(p.files) && visualLine != p.cursor {
+		p.cursor = visualLine
+		p.updateViewport()
+
+		return true
+	}
+
+	return false
+}
+
+// Update handles input.
+func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
+	if !p.focused {
+		return nil
+	}
+
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		switch msg.String() {
+		case "j", "down":
+			p.CursorDown()
+		case "k", "up":
+			p.CursorUp()
+		case "g":
+			p.GotoTop()
+		case "G":
+			p.GotoBottom()
+		}
+	}
+
+	return nil
+}
+
+// View renders the panel.
+func (p *FilesPanel) View() string {
+	// Build change ID with shortcode highlighted
+	coloredID := p.changeID
+	if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
+		rest := p.changeID[len(p.shortCode):]
+		// Replace the reset with the outer title color so styling continues
+		var outerColorCode string
+		if p.focused {
+			outerColorCode = AccentColorCode
+		} else {
+			outerColorCode = PrimaryColorCode
+		}
+
+		coloredID = ReplaceResetWithColor(p.styles.ShortCode.Render(p.shortCode), outerColorCode) + rest
+	}
+
+	title := p.styles.PanelTitle(1, coloredID+" / files", p.focused)
+
+	// Get the appropriate border style
+	var style lipgloss.Style
+
+	switch {
+	case p.focused && p.borderAnimating:
+		style = p.styles.AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+	case p.focused:
+		style = p.styles.FocusedPanel
+	default:
+		style = p.styles.Panel
+	}
+
+	style = style.Height(p.height - PanelBorderHeight)
+
+	// Build content with title
+	content := title + "\n" + p.viewport.View()
+
+	return style.Render(content)
+}
+
+// HelpBindings returns the keybindings for this panel (display-only, for status bar).
+func (p *FilesPanel) HelpBindings() []help.Binding {
+	return []help.Binding{
+		{
+			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Category: help.CategoryNavigation,
+			Order:    PanelOrderPrimary,
+		},
+		{
+			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Category: help.CategoryNavigation,
+			Order:    PanelOrderSecondary,
+		},
 	}
 }
 
@@ -155,96 +249,5 @@ func (p *FilesPanel) updateViewport() {
 		p.viewport.SetYOffset(p.cursor)
 	} else if p.cursor >= p.viewport.YOffset()+p.viewport.Height() {
 		p.viewport.SetYOffset(p.cursor - p.viewport.Height() + 1)
-	}
-}
-
-// HandleClick selects the file at the given Y coordinate (relative to content area)
-func (p *FilesPanel) HandleClick(y int) bool {
-	// Account for viewport scroll offset
-	visualLine := y + p.viewport.YOffset()
-
-	if visualLine >= 0 && visualLine < len(p.files) && visualLine != p.cursor {
-		p.cursor = visualLine
-		p.updateViewport()
-
-		return true
-	}
-
-	return false
-}
-
-// Update handles input
-func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
-	if !p.focused {
-		return nil
-	}
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "j", "down":
-			p.CursorDown()
-		case "k", "up":
-			p.CursorUp()
-		case "g":
-			p.GotoTop()
-		case "G":
-			p.GotoBottom()
-		}
-	}
-
-	return nil
-}
-
-// View renders the panel
-func (p FilesPanel) View() string {
-	// Build change ID with shortcode highlighted
-	coloredID := p.changeID
-	if p.shortCode != "" && len(p.shortCode) <= len(p.changeID) {
-		rest := p.changeID[len(p.shortCode):]
-		// Replace the reset with the outer title color so styling continues
-		var outerColorCode string
-		if p.focused {
-			outerColorCode = AccentColorCode
-		} else {
-			outerColorCode = PrimaryColorCode
-		}
-
-		coloredID = ReplaceResetWithColor(ShortCodeStyle.Render(p.shortCode), outerColorCode) + rest
-	}
-
-	title := PanelTitle(1, coloredID+" / files", p.focused)
-
-	// Get the appropriate border style
-	var style lipgloss.Style
-	if p.focused && p.borderAnimating {
-		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
-	} else if p.focused {
-		style = FocusedPanelStyle
-	} else {
-		style = PanelStyle
-	}
-
-	style = style.Height(p.height - 2)
-
-	// Build content with title
-	content := title + "\n" + p.viewport.View()
-
-	return style.Render(content)
-}
-
-// HelpBindings returns the keybindings for this panel (display-only, for status bar)
-func (p FilesPanel) HelpBindings() []help.Binding {
-	return []help.Binding{
-		{
-			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
-			Category: help.CategoryNavigation,
-			Order:    1,
-		},
-		{
-			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
-			Category: help.CategoryNavigation,
-			Order:    2,
-		},
 	}
 }

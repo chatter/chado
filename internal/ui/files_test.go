@@ -13,7 +13,7 @@ import (
 // =============================================================================
 
 func TestFilesPanel_SetSize(t *testing.T) {
-	panel := NewFilesPanel()
+	panel := NewFilesPanel(NewStyles())
 	panel.SetSize(80, 30)
 
 	if panel.width != 80 {
@@ -25,7 +25,7 @@ func TestFilesPanel_SetSize(t *testing.T) {
 }
 
 func TestFilesPanel_Focus(t *testing.T) {
-	panel := NewFilesPanel()
+	panel := NewFilesPanel(NewStyles())
 
 	if panel.focused {
 		t.Error("panel should not be focused initially")
@@ -38,7 +38,7 @@ func TestFilesPanel_Focus(t *testing.T) {
 }
 
 func TestFilesPanel_SetFiles(t *testing.T) {
-	panel := NewFilesPanel()
+	panel := NewFilesPanel(NewStyles())
 	panel.SetSize(80, 24)
 
 	files := []jj.File{
@@ -61,7 +61,7 @@ func TestFilesPanel_SetFiles(t *testing.T) {
 }
 
 func TestFilesPanel_CursorNavigation(t *testing.T) {
-	panel := NewFilesPanel()
+	panel := NewFilesPanel(NewStyles())
 	panel.SetSize(80, 24)
 
 	files := []jj.File{
@@ -111,7 +111,7 @@ func TestFilesPanel_CursorNavigation(t *testing.T) {
 }
 
 func TestFilesPanel_SelectedFile(t *testing.T) {
-	panel := NewFilesPanel()
+	panel := NewFilesPanel(NewStyles())
 
 	// Empty panel
 	if panel.SelectedFile() != nil {
@@ -142,7 +142,7 @@ func TestFilesPanel_SelectedFile(t *testing.T) {
 }
 
 func TestFilesPanel_ChangeID(t *testing.T) {
-	panel := NewFilesPanel()
+	panel := NewFilesPanel(NewStyles())
 
 	if panel.ChangeID() != "" {
 		t.Error("ChangeID should be empty initially")
@@ -155,7 +155,7 @@ func TestFilesPanel_ChangeID(t *testing.T) {
 }
 
 func TestFilesPanel_EmptyFiles(t *testing.T) {
-	panel := NewFilesPanel()
+	panel := NewFilesPanel(NewStyles())
 	panel.SetSize(80, 24)
 	panel.SetFiles("test", "", nil)
 
@@ -177,7 +177,7 @@ func TestFilesPanel_EmptyFiles(t *testing.T) {
 // Property: Cursor should always be within valid bounds
 func TestFilesPanel_CursorAlwaysInBounds(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewFilesPanel()
+		panel := NewFilesPanel(NewStyles())
 		panel.SetSize(80, 24)
 
 		// Generate random files
@@ -226,7 +226,7 @@ func TestFilesPanel_CursorAlwaysInBounds(t *testing.T) {
 // Property: SelectedFile should match cursor position
 func TestFilesPanel_SelectedFileMatchesCursor(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewFilesPanel()
+		panel := NewFilesPanel(NewStyles())
 		panel.SetSize(80, 24)
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
@@ -260,7 +260,7 @@ func TestFilesPanel_SelectedFileMatchesCursor(t *testing.T) {
 // Property: SetFiles should always reset cursor to 0
 func TestFilesPanel_SetFilesResetsCursor(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewFilesPanel()
+		panel := NewFilesPanel(NewStyles())
 		panel.SetSize(80, 24)
 
 		// Set initial files and move cursor
@@ -288,7 +288,7 @@ func TestFilesPanel_SetFilesResetsCursor(t *testing.T) {
 // Property: GotoTop always results in cursor=0
 func TestFilesPanel_GotoTopAlwaysZero(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewFilesPanel()
+		panel := NewFilesPanel(NewStyles())
 		panel.SetSize(80, 24)
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
@@ -314,7 +314,7 @@ func TestFilesPanel_GotoTopAlwaysZero(t *testing.T) {
 // Property: GotoBottom always results in cursor at last item
 func TestFilesPanel_GotoBottomAlwaysLast(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewFilesPanel()
+		panel := NewFilesPanel(NewStyles())
 		panel.SetSize(80, 24)
 
 		numFiles := rapid.IntRange(1, 50).Draw(t, "numFiles")
@@ -338,7 +338,7 @@ func TestFilesPanel_GotoBottomAlwaysLast(t *testing.T) {
 // Property: After any click, cursor stays in valid range [0, len(files)-1]
 func TestFilesPanel_Click_CursorInBounds(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewFilesPanel()
+		panel := NewFilesPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)
@@ -368,7 +368,7 @@ func TestFilesPanel_Click_CursorInBounds(t *testing.T) {
 // Property: Click at valid index selects that file
 func TestFilesPanel_Click_SelectsCorrectFile(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewFilesPanel()
+		panel := NewFilesPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)
@@ -394,7 +394,7 @@ func TestFilesPanel_Click_SelectsCorrectFile(t *testing.T) {
 // Property: Click outside bounds doesn't change cursor
 func TestFilesPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewFilesPanel()
+		panel := NewFilesPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)
@@ -431,7 +431,7 @@ func TestFilesPanel_Click_OutOfBounds_NoChange(t *testing.T) {
 // Property: Clicking same position returns false
 func TestFilesPanel_Click_SamePosition_ReturnsFalse(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		panel := NewFilesPanel()
+		panel := NewFilesPanel(NewStyles())
 		width := rapid.IntRange(40, 200).Draw(t, "width")
 		height := rapid.IntRange(10, 100).Draw(t, "height")
 		panel.SetSize(width, height)
@@ -462,7 +462,7 @@ func TestFilesPanel_Click_SamePosition_ReturnsFalse(t *testing.T) {
 
 // Benchmark for cursor navigation
 func BenchmarkFilesPanel_Navigation(b *testing.B) {
-	panel := NewFilesPanel()
+	panel := NewFilesPanel(NewStyles())
 	panel.SetSize(80, 24)
 
 	files := make([]jj.File, 1000)

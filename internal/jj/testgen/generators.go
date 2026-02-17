@@ -8,6 +8,40 @@ import (
 	"pgregory.net/rapid"
 )
 
+const (
+	// ID lengths as defined by jj/git.
+	operationIDLen = 128
+	commitIDLen    = 40
+
+	// Short-form ID length bounds.
+	shortIDLen       = 12
+	commitShortIDMin = 7
+	changeShortIDMin = 8
+
+	// maxVersionSuffix is the upper bound for /N version suffixes.
+	maxVersionSuffix = 99
+
+	// reverseHexToDigitOffset converts 'k'-'t' to '0'-'9' (ASCII distance).
+	reverseHexToDigitOffset = 59
+
+	// reverseHexToAlphaOffset converts 'u'-'z' to 'a'-'f' (ASCII distance).
+	reverseHexToAlphaOffset = 20
+
+	// maxPathDepth caps the depth of generated file paths.
+	maxPathDepth = 16
+
+	// Timestamp generation bounds (Unix 32-bit safe range).
+	minTimestampYear = 1970
+	maxTimestampYear = 2037
+	maxMonth         = 12
+	maxDay           = 28
+	maxHour          = 23
+	maxMinuteSecond  = 59
+
+	// maxRelativeAmount caps the numeric part of "N units ago" timestamps.
+	maxRelativeAmount = 59
+)
+
 // ChangeIDOption transforms a ChangeID generator.
 type ChangeIDOption func(*rapid.Generator[string]) *rapid.Generator[string]
 
@@ -74,12 +108,12 @@ func WithShort(gen *rapid.Generator[string]) *rapid.Generator[string] {
 		var length int
 
 		switch len(baseID) {
-		case 128: // OperationID - always 12
-			length = 12
-		case 40: // CommitID - 7-12
-			length = rapid.IntRange(7, 12).Draw(prop, "length")
-		default: // ChangeID (32) - 8-12
-			length = rapid.IntRange(8, 12).Draw(prop, "length")
+		case operationIDLen:
+			length = shortIDLen
+		case commitIDLen:
+			length = rapid.IntRange(commitShortIDMin, shortIDLen).Draw(prop, "length")
+		default: // ChangeID (32)
+			length = rapid.IntRange(changeShortIDMin, shortIDLen).Draw(prop, "length")
 		}
 
 		if length > len(baseID) {
@@ -94,7 +128,7 @@ func WithShort(gen *rapid.Generator[string]) *rapid.Generator[string] {
 func WithVersion(gen *rapid.Generator[string]) *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
 		id := gen.Draw(t, "id")
-		v := rapid.IntRange(1, 99).Draw(t, "v")
+		v := rapid.IntRange(1, maxVersionSuffix).Draw(t, "v")
 
 		return fmt.Sprintf("%s/%d", id, v)
 	})
@@ -102,7 +136,7 @@ func WithVersion(gen *rapid.Generator[string]) *rapid.Generator[string] {
 
 // preserveVersion splits a change ID into its base and optional /N version suffix.
 // This allows transformers to be order-independent by preserving the suffix through transformations.
-func preserveVersion(id string) (base, suffix string) {
+func preserveVersion(id string) (string, string) {
 	if idx := strings.LastIndex(id, "/"); idx != -1 {
 		return id[:idx], id[idx:]
 	}
@@ -111,17 +145,17 @@ func preserveVersion(id string) (base, suffix string) {
 }
 
 // reverseHexToHex converts a reverse hex string [k-z] to hex [0-9a-f].
-// Mapping: k→0, l→1, m→2, ..., t→9, u→a, v→b, w→c, x→d, y→e, z→f
+// Mapping: k→0, l→1, m→2, ..., t→9, u→a, v→b, w→c, x→d, y→e, z→f.
 func reverseHexToHex(revHex string) string {
 	result := make([]byte, len(revHex))
 	for idx, char := range revHex {
 		switch {
 		case char >= 'k' && char <= 't':
 			// k-t → 0-9
-			result[idx] = byte(char) - 59
+			result[idx] = byte(char) - reverseHexToDigitOffset
 		case char >= 'u' && char <= 'z':
 			// u-z → a-f
-			result[idx] = byte(char) - 20
+			result[idx] = byte(char) - reverseHexToAlphaOffset
 		default:
 			panic(fmt.Sprintf("reverseHexToHex: invalid reverse-hex character %q at index %d", char, idx))
 		}
@@ -140,7 +174,7 @@ func PathComponent() *rapid.Generator[string] {
 // Depth 1-16 components, joined by '/'. Max path length ~4096 bytes.
 func FilePath() *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
-		depth := rapid.IntRange(1, 16).Draw(t, "depth")
+		depth := rapid.IntRange(1, maxPathDepth).Draw(t, "depth")
 
 		components := make([]string, depth)
 		for i := range components {
@@ -178,12 +212,12 @@ func Email() *rapid.Generator[string] {
 // Year range 1970-2037 (Unix 32-bit timestamp safe range).
 func Timestamp() *rapid.Generator[string] {
 	return rapid.Custom(func(prop *rapid.T) string {
-		year := rapid.IntRange(1970, 2037).Draw(prop, "year")
-		month := rapid.IntRange(1, 12).Draw(prop, "month")
-		day := rapid.IntRange(1, 28).Draw(prop, "day")
-		hour := rapid.IntRange(0, 23).Draw(prop, "hour")
-		minute := rapid.IntRange(0, 59).Draw(prop, "min")
-		sec := rapid.IntRange(0, 59).Draw(prop, "sec")
+		year := rapid.IntRange(minTimestampYear, maxTimestampYear).Draw(prop, "year")
+		month := rapid.IntRange(1, maxMonth).Draw(prop, "month")
+		day := rapid.IntRange(1, maxDay).Draw(prop, "day")
+		hour := rapid.IntRange(0, maxHour).Draw(prop, "hour")
+		minute := rapid.IntRange(0, maxMinuteSecond).Draw(prop, "min")
+		sec := rapid.IntRange(0, maxMinuteSecond).Draw(prop, "sec")
 
 		return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, sec)
 	})
@@ -192,19 +226,19 @@ func Timestamp() *rapid.Generator[string] {
 // RelativeTimestamp generates a relative timestamp like "4 minutes ago".
 func RelativeTimestamp() *rapid.Generator[string] {
 	return rapid.Custom(func(t *rapid.T) string {
-		n := rapid.IntRange(1, 59).Draw(t, "n")
+		relativeAmount := rapid.IntRange(1, maxRelativeAmount).Draw(t, "n")
 		unit := rapid.SampledFrom([]string{"second", "minute", "hour", "day", "week", "month", "year"}).Draw(t, "unit")
 
-		if n > 1 {
+		if relativeAmount > 1 {
 			unit += "s"
 		}
 
-		return fmt.Sprintf("%d %s ago", n, unit)
+		return fmt.Sprintf("%d %s ago", relativeAmount, unit)
 	})
 }
 
 // GraphSymbol generates a jj log graph symbol.
-// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
+// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict).
 func GraphSymbol() *rapid.Generator[string] {
 	return rapid.SampledFrom([]string{"@", "○", "◆", "◇", "●", "×"})
 }

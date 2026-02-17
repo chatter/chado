@@ -14,12 +14,13 @@ import (
 	"github.com/chatter/chado/internal/ui/help"
 )
 
-// ansiRegex matches ANSI escape codes
+// ansiRegex matches ANSI escape codes.
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
-// LogPanel displays the jj log
+// LogPanel displays the jj log.
 type LogPanel struct {
 	viewport         viewport.Model
+	styles           *Styles
 	changes          []jj.Change
 	cursor           int
 	focused          bool
@@ -32,28 +33,29 @@ type LogPanel struct {
 	borderAnimating  bool    // true only while the one-shot wrap is running (explicit focus)
 }
 
-// NewLogPanel creates a new log panel
-func NewLogPanel() LogPanel {
+// NewLogPanel creates a new log panel.
+func NewLogPanel(styles *Styles) LogPanel {
 	vp := viewport.New()
 	vp.SoftWrap = false // Disable word wrap, allow horizontal scrolling
 
 	return LogPanel{
 		viewport: vp,
+		styles:   styles,
 		changes:  []jj.Change{},
 		cursor:   0,
 	}
 }
 
-// SetSize sets the panel dimensions
+// SetSize sets the panel dimensions.
 func (p *LogPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
-	// Account for border (2) and title (1)
-	p.viewport.SetWidth(width - 2)
-	p.viewport.SetHeight(height - 3)
+	// Account for border and title
+	p.viewport.SetWidth(width - PanelBorderWidth)
+	p.viewport.SetHeight(height - PanelChromeHeight)
 }
 
-// SetFocused sets the focus state
+// SetFocused sets the focus state.
 func (p *LogPanel) SetFocused(focused bool) {
 	p.focused = focused
 }
@@ -69,11 +71,11 @@ func (p *LogPanel) SetBorderAnimating(animating bool) {
 }
 
 // BorderAnimPhase returns the current border animation phase.
-func (p LogPanel) BorderAnimPhase() float64 {
+func (p *LogPanel) BorderAnimPhase() float64 {
 	return p.borderAnimPhase
 }
 
-// findChangeIndex returns the index of the change with the given ID, or -1 if not found
+// findChangeIndex returns the index of the change with the given ID, or -1 if not found.
 func findChangeIndex(changes []jj.Change, changeID string) int {
 	for i, c := range changes {
 		if c.ChangeID == changeID {
@@ -84,7 +86,7 @@ func findChangeIndex(changes []jj.Change, changeID string) int {
 	return -1
 }
 
-// SetContent sets the log content from raw jj output
+// SetContent sets the log content from raw jj output.
 func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
 	// Capture current selection before overwriting
 	var selectedID string
@@ -109,7 +111,132 @@ func (p *LogPanel) SetContent(rawLog string, changes []jj.Change) {
 	p.updateViewport()
 }
 
-// computeChangeStartLines pre-computes the line number where each change starts
+// SelectedChange returns the currently selected change.
+func (p *LogPanel) SelectedChange() *jj.Change {
+	if p.cursor >= 0 && p.cursor < len(p.changes) {
+		return &p.changes[p.cursor]
+	}
+
+	return nil
+}
+
+// CursorUp moves the cursor up.
+func (p *LogPanel) CursorUp() {
+	if p.cursor > 0 {
+		p.cursor--
+		p.updateViewport()
+	}
+}
+
+// CursorDown moves the cursor down.
+func (p *LogPanel) CursorDown() {
+	if p.cursor < len(p.changes)-1 {
+		p.cursor++
+		p.updateViewport()
+	}
+}
+
+// GotoTop moves to the first item.
+func (p *LogPanel) GotoTop() {
+	p.cursor = 0
+	p.updateViewport()
+}
+
+// GotoBottom moves to the last item.
+func (p *LogPanel) GotoBottom() {
+	if len(p.changes) > 0 {
+		p.cursor = len(p.changes) - 1
+		p.updateViewport()
+	}
+}
+
+// changeLineRe matches change lines - requires a graph symbol (not just whitespace).
+// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict).
+var changeLineRe = regexp.MustCompile(`^[│├└\s]*[@○◆◇●×]\s*([a-z]{8,})\s`)
+
+// isChangeStart checks if a line starts a new change entry.
+func isChangeStart(line string) bool {
+	stripped := ansiRegex.ReplaceAllString(line, "")
+	return changeLineRe.MatchString(stripped)
+}
+
+// HandleClick selects the change at the given Y coordinate (relative to content area).
+// Returns true if the selection changed.
+func (p *LogPanel) HandleClick(y int) bool {
+	// Account for viewport scroll offset
+	visualLine := y + p.viewport.YOffset()
+
+	changeIdx := p.lineToChangeIndex(visualLine)
+	if changeIdx >= 0 && changeIdx < len(p.changes) && changeIdx != p.cursor {
+		p.cursor = changeIdx
+		p.updateViewport()
+
+		return true
+	}
+
+	return false
+}
+
+// Update handles input.
+func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
+	if !p.focused {
+		return nil
+	}
+
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		switch msg.String() {
+		case "j", "down":
+			p.CursorDown()
+		case "k", "up":
+			p.CursorUp()
+		case "g":
+			// Check for gg
+			p.GotoTop()
+		case "G":
+			p.GotoBottom()
+		}
+	}
+
+	return nil
+}
+
+// View renders the panel.
+func (p *LogPanel) View() string {
+	title := p.styles.PanelTitle(1, "Change Log", p.focused)
+
+	var style lipgloss.Style
+
+	switch {
+	case p.focused && p.borderAnimating:
+		style = p.styles.AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
+	case p.focused:
+		style = p.styles.FocusedPanel
+	default:
+		style = p.styles.Panel
+	}
+
+	content := title + "\n" + p.viewport.View()
+
+	return style.Render(content)
+}
+
+// HelpBindings returns the keybindings for this panel (display-only, for status bar).
+func (p *LogPanel) HelpBindings() []help.Binding {
+	return []help.Binding{
+		{
+			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
+			Category: help.CategoryNavigation,
+			Order:    PanelOrderPrimary,
+		},
+		{
+			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
+			Category: help.CategoryNavigation,
+			Order:    PanelOrderSecondary,
+		},
+	}
+}
+
+// computeChangeStartLines pre-computes the line number where each change starts.
 func (p *LogPanel) computeChangeStartLines() {
 	p.changeStartLines = nil
 	p.totalLines = 0
@@ -129,53 +256,41 @@ func (p *LogPanel) computeChangeStartLines() {
 	}
 }
 
-// SelectedChange returns the currently selected change
-func (p *LogPanel) SelectedChange() *jj.Change {
-	if p.cursor >= 0 && p.cursor < len(p.changes) {
-		return &p.changes[p.cursor]
+func (p *LogPanel) ensureCursorVisible() {
+	if p.cursor < 0 || p.cursor >= len(p.changeStartLines) {
+		return
 	}
 
-	return nil
-}
+	cursorLine := p.changeStartLines[p.cursor]
+	viewTop := p.viewport.YOffset()
+	viewBottom := viewTop + p.viewport.Height()
 
-// CursorUp moves the cursor up
-func (p *LogPanel) CursorUp() {
-	if p.cursor > 0 {
-		p.cursor--
-		p.updateViewport()
-	}
-}
-
-// CursorDown moves the cursor down
-func (p *LogPanel) CursorDown() {
-	if p.cursor < len(p.changes)-1 {
-		p.cursor++
-		p.updateViewport()
+	if cursorLine < viewTop {
+		p.viewport.SetYOffset(cursorLine)
+	} else if cursorLine >= viewBottom {
+		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + ScrollPadding)
 	}
 }
 
-// GotoTop moves to the first item
-func (p *LogPanel) GotoTop() {
-	p.cursor = 0
-	p.updateViewport()
-}
-
-// GotoBottom moves to the last item
-func (p *LogPanel) GotoBottom() {
-	if len(p.changes) > 0 {
-		p.cursor = len(p.changes) - 1
-		p.updateViewport()
+// lineToChangeIndex maps a visual line number to a change index.
+// Returns -1 if the line is outside content bounds or before any change.
+func (p *LogPanel) lineToChangeIndex(visualLine int) int {
+	if len(p.changeStartLines) == 0 || visualLine < 0 || visualLine >= p.totalLines {
+		return -1
 	}
-}
 
-// changeLineRe matches change lines - requires a graph symbol (not just whitespace)
-// Symbols: @ (working copy), ○ (normal), ◆ (immutable), ◇ (empty), ● (hidden), × (conflict)
-var changeLineRe = regexp.MustCompile(`^[│├└\s]*[@○◆◇●×]\s*([a-z]{8,})\s`)
+	// Find the largest change index where changeStartLines[i] <= visualLine
+	changeIdx := -1
 
-// isChangeStart checks if a line starts a new change entry
-func isChangeStart(line string) bool {
-	stripped := ansiRegex.ReplaceAllString(line, "")
-	return changeLineRe.MatchString(stripped)
+	for i, startLine := range p.changeStartLines {
+		if startLine <= visualLine {
+			changeIdx = i
+		} else {
+			break
+		}
+	}
+
+	return changeIdx
 }
 
 func (p *LogPanel) updateViewport() {
@@ -207,116 +322,4 @@ func (p *LogPanel) updateViewport() {
 
 	p.viewport.SetContent(result.String())
 	p.ensureCursorVisible()
-}
-
-func (p *LogPanel) ensureCursorVisible() {
-	if p.cursor < 0 || p.cursor >= len(p.changeStartLines) {
-		return
-	}
-
-	cursorLine := p.changeStartLines[p.cursor]
-	viewTop := p.viewport.YOffset()
-	viewBottom := viewTop + p.viewport.Height()
-
-	if cursorLine < viewTop {
-		p.viewport.SetYOffset(cursorLine)
-	} else if cursorLine >= viewBottom {
-		p.viewport.SetYOffset(cursorLine - p.viewport.Height() + 2)
-	}
-}
-
-// lineToChangeIndex maps a visual line number to a change index
-// Returns -1 if the line is outside content bounds or before any change
-func (p *LogPanel) lineToChangeIndex(visualLine int) int {
-	if len(p.changeStartLines) == 0 || visualLine < 0 || visualLine >= p.totalLines {
-		return -1
-	}
-
-	// Find the largest change index where changeStartLines[i] <= visualLine
-	changeIdx := -1
-
-	for i, startLine := range p.changeStartLines {
-		if startLine <= visualLine {
-			changeIdx = i
-		} else {
-			break
-		}
-	}
-
-	return changeIdx
-}
-
-// HandleClick selects the change at the given Y coordinate (relative to content area)
-// Returns true if the selection changed
-func (p *LogPanel) HandleClick(y int) bool {
-	// Account for viewport scroll offset
-	visualLine := y + p.viewport.YOffset()
-
-	changeIdx := p.lineToChangeIndex(visualLine)
-	if changeIdx >= 0 && changeIdx < len(p.changes) && changeIdx != p.cursor {
-		p.cursor = changeIdx
-		p.updateViewport()
-
-		return true
-	}
-
-	return false
-}
-
-// Update handles input
-func (p *LogPanel) Update(msg tea.Msg) tea.Cmd {
-	if !p.focused {
-		return nil
-	}
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "j", "down":
-			p.CursorDown()
-		case "k", "up":
-			p.CursorUp()
-		case "g":
-			// Check for gg
-			p.GotoTop()
-		case "G":
-			p.GotoBottom()
-		}
-	}
-
-	return nil
-}
-
-// View renders the panel
-func (p LogPanel) View() string {
-	title := PanelTitle(1, "Change Log", p.focused)
-
-	var style lipgloss.Style
-	if p.focused && p.borderAnimating {
-		style = AnimatedFocusBorderStyle(p.borderAnimPhase, p.width, p.height)
-	} else if p.focused {
-		style = FocusedPanelStyle
-	} else {
-		style = PanelStyle
-	}
-
-	content := title + "\n" + p.viewport.View()
-
-	return style.Render(content)
-}
-
-// HelpBindings returns the keybindings for this panel (display-only, for status bar)
-func (p LogPanel) HelpBindings() []help.Binding {
-	return []help.Binding{
-		{
-			Key:      key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "up/down")),
-			Category: help.CategoryNavigation,
-			Order:    1,
-		},
-		{
-			Key:      key.NewBinding(key.WithKeys("g", "G"), key.WithHelp("g/G", "top/bottom")),
-			Category: help.CategoryNavigation,
-			Order:    2,
-		},
-	}
 }
